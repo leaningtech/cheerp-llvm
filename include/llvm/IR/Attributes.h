@@ -112,6 +112,8 @@ public:
     SanitizeMemory,        ///< MemorySanitizer is on.
     UWTable,               ///< Function must be in a unwind table
     ZExt,                  ///< Zero extended before/after call
+    Client,                ///< Client side method for duetto
+    Server,                ///< Server side method for duetto
 
     EndAttrKinds           ///< Sentinal value useful for loops
   };
