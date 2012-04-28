@@ -230,6 +230,10 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
+  if (hasAttribute(Attribute::Client))
+    return "client";
+  if (hasAttribute(Attribute::Server))
+    return "server";
 
   // FIXME: These should be output like this:
   //
@@ -391,6 +395,8 @@ uint64_t AttributeImpl::getAttrMask(Attribute::AttrKind Val) {
   case Attribute::Builtin:         return 1ULL << 41;
   case Attribute::OptimizeNone:    return 1ULL << 42;
   case Attribute::InAlloca:        return 1ULL << 43;
+  case Attribute::Client:          return 1ULL << 44;
+  case Attribute::Server:          return 1ULL << 45;
   }
   llvm_unreachable("Unsupported attribute type");
 }
