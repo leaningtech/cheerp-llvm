@@ -226,6 +226,10 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
+  if (hasAttribute(Attribute::Client))
+    return "client";
+  if (hasAttribute(Attribute::Server))
+    return "server";
 
   // FIXME: These should be output like this:
   //
