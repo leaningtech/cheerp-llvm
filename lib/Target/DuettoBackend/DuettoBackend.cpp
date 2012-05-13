@@ -120,7 +120,10 @@ namespace {
 void DuettoWriter::printFunction(Function& F)
 {
 	if(F.hasFnAttribute(Attribute::Client))
-		std::cerr << "CLIENT DETECTED" << std::endl;
+	{
+		std::cerr << "CLIENT DETECTED, DELETING" << std::endl;
+		F.eraseFromParent();
+	}
 	if(F.hasFnAttribute(Attribute::Server))
 		std::cerr << "SERVER DETECTED" << std::endl;
 }
