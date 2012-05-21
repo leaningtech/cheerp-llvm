@@ -361,6 +361,14 @@ void DuettoWriter::makeClient(Module* M)
 		if(current.hasFnAttr(Attribute::Server))
 			rewriteServerMethod(current);
 	}
+	Module::named_metadata_iterator mdIt=M->named_metadata_begin();
+	Module::named_metadata_iterator mdEnd=M->named_metadata_end();
+	for(; mdIt!=mdEnd;)
+	{
+		NamedMDNode& current=*mdIt;
+		++mdIt;
+		M->eraseNamedMetadata(&current);
+	}
 }
 
 void DuettoWriter::rewriteClientMethod(Function& F)
