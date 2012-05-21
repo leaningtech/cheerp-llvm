@@ -338,7 +338,7 @@ class DuettoWriter
 public:
 	void rewriteServerMethod(Function& F);
 	void rewriteClientMethod(Function& F);
-	Constant* forgeSkel(Function& F, Module& M, StructType* mapType);
+	Constant* getSkel(Function& F, Module& M, StructType* mapType);
 	void makeClient(Module* M);
 	void makeServer(Module* M);
 };
@@ -377,22 +377,19 @@ void DuettoWriter::rewriteClientMethod(Function& F)
 	F.deleteBody();
 }
 
-Constant* DuettoWriter::forgeSkel(Function& F, Module& M, StructType* mapType)
+Constant* DuettoWriter::getSkel(Function& F, Module& M, StructType* mapType)
 {
 	LLVMContext& C = M.getContext();
-	string funcName=F.getName();
-	cout << "SKEL FOR " << funcName << endl;
-	Type* bytePtrType = Type::getInt8PtrTy(C);
-	std::vector<Type*> types;
-	types.push_back(bytePtrType);
-	FunctionType* FT=FunctionType::get(Type::getVoidTy(C), types, false);
+	llvm::Twine skelName=F.getName()+"_duettoSkel";
+	cout << "SKEL FOR " << (std::string)F.getName() << endl;
+	NamedMDNode* meta=M.getNamedMetadata(skelName);
+
+	Value* val=meta->getOperand(0)->getOperand(0);
+	Function* skelFunc=dyn_cast<llvm::Function>(val);
+	assert(skelFunc);
+
 	//Make the function external, it should be visible from the outside
-       	Function* skel=Function::Create(FT, Function::ExternalLinkage, funcName+"_skel", &M);
-	BasicBlock* entryBlock = BasicBlock::Create(C, "entry", skel);
-	IRBuilder<> B(entryBlock);
-	B.CreateCall(&F);
-	B.CreateRetVoid();
-	Constant* nameConst = ConstantDataArray::getString(C, funcName);
+	Constant* nameConst = ConstantDataArray::getString(C, F.getName());
 	
 	llvm::Constant *Zero = llvm::Constant::getNullValue(Type::getInt32Ty(C));
 	llvm::Constant *Zeros[] = { Zero, Zero };
@@ -403,10 +400,10 @@ Constant* DuettoWriter::forgeSkel(Function& F, Module& M, StructType* mapType)
 	Constant* ptrNameConst = ConstantExpr::getGetElementPtr(nameGV, Zeros);
 	vector<Constant*> structFields;
 	structFields.push_back(ptrNameConst);
-	structFields.push_back(skel);
+	structFields.push_back(skelFunc);
 	ptrNameConst->getType()->dump();
 	cout << endl;
-	skel->getType()->dump();
+	skelFunc->getType()->dump();
 	cout << endl;
 	mapType->dump();
 	cout << endl;
@@ -445,7 +442,7 @@ void DuettoWriter::makeServer(Module* M)
 
 	for(unsigned int i=0;i<serverFunction.size();i++)
 	{
-		Constant* funcMap=forgeSkel(*serverFunction[i], *M, mapType);
+		Constant* funcMap=getSkel(*serverFunction[i], *M, mapType);
 		funcs.push_back(funcMap);
 	}
 
