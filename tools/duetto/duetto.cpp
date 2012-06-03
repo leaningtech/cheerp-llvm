@@ -335,9 +335,12 @@ static tool_output_file *GetOutputStream(const char *TargetName,
 
 class DuettoWriter
 {
+private:
+	void baseSubstitutionForBuiltin(User* i, AllocaInst* old, AllocaInst* source);
 public:
 	void rewriteServerMethod(Function& F);
 	void rewriteClientMethod(Function& F);
+	void rewriteNativeObjectsConstructor(Module& M, Function& F);
 	Constant* getSkel(Function& F, Module& M, StructType* mapType);
 	void makeClient(Module* M);
 	void makeServer(Module* M);
@@ -347,6 +350,101 @@ void DuettoWriter::rewriteServerMethod(Function& F)
 {
 	std::cerr << "DELETING FUNCTION " << (std::string)F.getName() << std::endl;
 	F.deleteBody();
+}
+
+void DuettoWriter::baseSubstitutionForBuiltin(User* i, AllocaInst* old, AllocaInst* source)
+{
+	Instruction* userInst=dyn_cast<Instruction>(i);
+	assert(userInst);
+	LoadInst* loadI=new LoadInst(source, "duettoPtrLoad", userInst);
+	userInst->replaceUsesOfWith(old, loadI);
+}
+
+void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
+{
+	//Vector of the instructions to be removed in the second pass
+	SmallVector<Instruction*, 4> toRemove;
+
+	Function::iterator B=F.begin();
+	Function::iterator BE=F.end();
+	for(;B!=BE;++B)
+	{
+		BasicBlock::iterator I=B->begin();
+		BasicBlock::iterator IE=B->end();
+		for(;I!=IE;++I)
+		{
+			if(I->getOpcode()==Instruction::Alloca)
+			{
+				AllocaInst* i=cast<AllocaInst>(&(*I));
+				Type* t=i->getAllocatedType();
+				if(!t->isStructTy() || (std::string)t->getStructName()!="class.dom::DOMString")
+					continue;
+
+				//Instead of allocating the type, allocate a pointer to the type
+				AllocaInst* newI=new AllocaInst(PointerType::getUnqual(t),"duettoPtrAlloca",i);
+				toRemove.push_back(i);
+
+				Instruction::use_iterator it=i->use_begin();
+				Instruction::use_iterator itE=i->use_end();
+				SmallVector<User*, 4> users(it,itE);
+				//Loop over the uses and look for constructors call
+				for(int j=0;j<users.size();j++)
+				{
+					CallInst* callInst=dyn_cast<CallInst>(users[j]);
+					if(callInst==NULL)
+					{
+						baseSubstitutionForBuiltin(users[j], i, newI);
+						continue;
+					}
+					Function* called=callInst->getCalledFunction();
+					//A constructor call does have a name, it's non virtual!
+					if(called==NULL)
+					{
+						baseSubstitutionForBuiltin(users[j], i, newI);
+						continue;
+					}
+					std::cout << "HAS CALLED" << std::endl;
+					const char* funcName=called->getName().data();
+					//TODO: make generic constructor check
+					if(strcmp(funcName,"_ZN3dom9DOMStringC1EPKc")!=0)
+					{
+						baseSubstitutionForBuiltin(users[j], i, newI);
+						continue;
+					}
+					std::cout << "HAS CONSTRUCTOR" << std::endl;
+					//Verify that this contructor is for the current alloca
+					if(callInst->getOperand(0)!=i)
+					{
+						baseSubstitutionForBuiltin(users[j], i, newI);
+						continue;
+					}
+					std::cout << "HAS RIGHT OP" << std::endl;
+
+					toRemove.push_back(callInst);
+
+					FunctionType* initialType=called->getFunctionType();
+					SmallVector<Type*, 4> initialArgsTypes(initialType->param_begin()+1,
+							initialType->param_end());
+					FunctionType* newFunctionType=FunctionType::get(*initialType->param_begin(),
+							initialArgsTypes, false);
+					//Morph into a different call
+					Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction("DOMString_duettoCreateBuiltin",
+							newFunctionType));
+					//Ignore the last argument, since it's not part of the real ones
+					SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
+					CallInst* newCall=CallInst::Create(duettoBuiltinCreate,
+							initialArgs, "duettoCreateCall", callInst);
+					StoreInst* storeI=new StoreInst(newCall, newI, callInst);
+				}
+			}
+		}
+	}
+
+	//Remove the instructions in backward order to avoid dependency issues
+	for(int i=toRemove.size();i>0;i--)
+	{
+		toRemove[i-1]->eraseFromParent();
+	}
 }
 
 void DuettoWriter::makeClient(Module* M)
@@ -360,6 +458,8 @@ void DuettoWriter::makeClient(Module* M)
 		//Make stubs out of server side code
 		if(current.hasFnAttr(Attribute::Server))
 			rewriteServerMethod(current);
+		else
+			rewriteNativeObjectsConstructor(*M, current);
 	}
 	Module::named_metadata_iterator mdIt=M->named_metadata_begin();
 	Module::named_metadata_iterator mdEnd=M->named_metadata_end();
