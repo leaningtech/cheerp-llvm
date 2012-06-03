@@ -21,4 +21,4 @@
 type = Tool
 name = duetto
 parent = Tools
-required_libraries = AsmParser BitReader all-targets
+required_libraries = AsmParser BitReader BitWriter all-targets

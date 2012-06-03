@@ -637,13 +637,13 @@ int main(int argc, char **argv) {
   writer.makeClient(clientMod);
   writer.makeServer(serverMod);
 
-  std::string ClientOutputFilename = GetFileNameRoot(InputFilename) + "-client.ll";
+  std::string ClientOutputFilename = GetFileNameRoot(InputFilename) + "-client-base.bc";
 
   std::string errorInfo;
   raw_fd_ostream ClientOut(ClientOutputFilename.c_str(),errorInfo);
   std::cerr << errorInfo << std::endl;
 
-  clientMod->print(ClientOut, NULL);
+  WriteBitcodeToFile(clientMod, ClientOut);
 
   ClientOut.close();
 
