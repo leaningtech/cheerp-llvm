@@ -336,6 +336,8 @@ static tool_output_file *GetOutputStream(const char *TargetName,
 class DuettoWriter
 {
 private:
+	bool isBuiltinConstructor(const char* s, const std::string typeName);
+	bool isBuiltinType(const std::string& typeName, std::string& builtinName);
 	void baseSubstitutionForBuiltin(User* i, AllocaInst* old, AllocaInst* source);
 public:
 	void rewriteServerMethod(Function& F);
@@ -348,8 +350,37 @@ public:
 
 void DuettoWriter::rewriteServerMethod(Function& F)
 {
-	std::cerr << "DELETING FUNCTION " << (std::string)F.getName() << std::endl;
+	std::cerr << "CLIENT: Deleting body of server function " << (std::string)F.getName() << std::endl;
 	F.deleteBody();
+}
+
+bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string typeName)
+{
+	if(strncmp(s,"_ZN",3)!=0)
+		return false;
+	const char* tmp=s+3;
+	char* endPtr;
+	int nsLen=strtol(tmp, &endPtr, 10);
+	tmp=endPtr;
+	if(nsLen==0 || (strncmp(tmp,"html2",nsLen)!=0 &&
+		strncmp(tmp,"dom",nsLen)!=0))
+	{
+		return false;
+	}
+
+	tmp+=nsLen;
+	int classLen=strtol(tmp, &endPtr, 10);
+	tmp=endPtr;
+
+	if(classLen==0 || typeName.compare(0, std::string::npos, tmp, classLen)!=0)
+		return false;
+
+	tmp+=classLen;
+
+	if(strncmp(tmp, "C1", 2)!=0)
+		return false;
+
+	return true;
 }
 
 void DuettoWriter::baseSubstitutionForBuiltin(User* i, AllocaInst* old, AllocaInst* source)
@@ -358,6 +389,18 @@ void DuettoWriter::baseSubstitutionForBuiltin(User* i, AllocaInst* old, AllocaIn
 	assert(userInst);
 	LoadInst* loadI=new LoadInst(source, "duettoPtrLoad", userInst);
 	userInst->replaceUsesOfWith(old, loadI);
+}
+
+/*
+ * Check if a type is builtin and return the type name
+ */
+bool DuettoWriter::isBuiltinType(const std::string& typeName, std::string& builtinName)
+{
+	//The type name is not mangled in C++ style, but in LLVM style
+	if(typeName.compare(0,11,"class.dom::")!=0)
+		return false;
+	builtinName=typeName.substr(11);
+	return true;
 }
 
 void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
@@ -377,7 +420,9 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 			{
 				AllocaInst* i=cast<AllocaInst>(&(*I));
 				Type* t=i->getAllocatedType();
-				if(!t->isStructTy() || (std::string)t->getStructName()!="class.dom::DOMString")
+
+				std::string builtinTypeName;
+				if(!t->isStructTy() || !isBuiltinType((std::string)t->getStructName(), builtinTypeName))
 					continue;
 
 				//Instead of allocating the type, allocate a pointer to the type
@@ -388,7 +433,7 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 				Instruction::use_iterator itE=i->use_end();
 				SmallVector<User*, 4> users(it,itE);
 				//Loop over the uses and look for constructors call
-				for(int j=0;j<users.size();j++)
+				for(unsigned j=0;j<users.size();j++)
 				{
 					CallInst* callInst=dyn_cast<CallInst>(users[j]);
 					if(callInst==NULL)
@@ -403,23 +448,20 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 						baseSubstitutionForBuiltin(users[j], i, newI);
 						continue;
 					}
-					std::cout << "HAS CALLED" << std::endl;
 					const char* funcName=called->getName().data();
-					//TODO: make generic constructor check
-					if(strcmp(funcName,"_ZN3dom9DOMStringC1EPKc")!=0)
+					if(!isBuiltinConstructor(funcName, builtinTypeName))
 					{
 						baseSubstitutionForBuiltin(users[j], i, newI);
 						continue;
 					}
-					std::cout << "HAS CONSTRUCTOR" << std::endl;
 					//Verify that this contructor is for the current alloca
 					if(callInst->getOperand(0)!=i)
 					{
 						baseSubstitutionForBuiltin(users[j], i, newI);
 						continue;
 					}
-					std::cout << "HAS RIGHT OP" << std::endl;
 
+					std::cerr << "Rewriting constructor for type " << builtinTypeName << std::endl;
 					toRemove.push_back(callInst);
 
 					FunctionType* initialType=called->getFunctionType();
@@ -428,7 +470,8 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 					FunctionType* newFunctionType=FunctionType::get(*initialType->param_begin(),
 							initialArgsTypes, false);
 					//Morph into a different call
-					Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction("DOMString_duettoCreateBuiltin",
+					const std::string duettoBuiltinCreateName(builtinTypeName+"_duettoCreateBuiltin");
+					Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
 							newFunctionType));
 					//Ignore the last argument, since it's not part of the real ones
 					SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
@@ -456,10 +499,14 @@ void DuettoWriter::makeClient(Module* M)
 		Function& current=*F;
 		++F;
 		//Make stubs out of server side code
+		//Make sure custom attributes are removed, they
+		//may consfuse emscripten
 		if(current.hasFnAttr(Attribute::Server))
 			rewriteServerMethod(current);
 		else
 			rewriteNativeObjectsConstructor(*M, current);
+		current.removeFnAttr(Attribute::Client);
+		current.removeFnAttr(Attribute::Server);
 	}
 	Module::named_metadata_iterator mdIt=M->named_metadata_begin();
 	Module::named_metadata_iterator mdEnd=M->named_metadata_end();
@@ -473,7 +520,7 @@ void DuettoWriter::makeClient(Module* M)
 
 void DuettoWriter::rewriteClientMethod(Function& F)
 {
-	std::cerr << "DELETING FUNCTION " << (std::string)F.getName() << std::endl;
+	std::cerr << "SERVER: Deleting body of client function " << (std::string)F.getName() << std::endl;
 	F.deleteBody();
 }
 
@@ -481,7 +528,7 @@ Constant* DuettoWriter::getSkel(Function& F, Module& M, StructType* mapType)
 {
 	LLVMContext& C = M.getContext();
 	llvm::Twine skelName=F.getName()+"_duettoSkel";
-	cout << "SKEL FOR " << (std::string)F.getName() << endl;
+	cout << "SERVER: Generating skeleton for " << (std::string)F.getName() << endl;
 	NamedMDNode* meta=M.getNamedMetadata(skelName);
 
 	Value* val=meta->getOperand(0)->getOperand(0);
@@ -501,12 +548,6 @@ Constant* DuettoWriter::getSkel(Function& F, Module& M, StructType* mapType)
 	vector<Constant*> structFields;
 	structFields.push_back(ptrNameConst);
 	structFields.push_back(skelFunc);
-	ptrNameConst->getType()->dump();
-	cout << endl;
-	skelFunc->getType()->dump();
-	cout << endl;
-	mapType->dump();
-	cout << endl;
 	return ConstantStruct::get(mapType, structFields);
 }
 
@@ -606,12 +647,12 @@ int main(int argc, char **argv) {
 
   ClientOut.close();
 
-  //Create the x86-64 target
+  //Create the x86 target
   const Target* theTarget = NULL;
   for (TargetRegistry::iterator it = TargetRegistry::begin(),
            ie = TargetRegistry::end(); it != ie; ++it)
   {
-	  if((std::string)(it->getName())=="x86-64")
+	  if((std::string)(it->getName())=="x86")
 	  {
 		  theTarget = &(*it);
 		  break;
@@ -623,13 +664,13 @@ int main(int argc, char **argv) {
   Triple theTriple(serverMod->getTargetTriple());
 
   // Adjust the triple
-  Triple::ArchType type = Triple::getArchTypeForLLVMName("x86-64");
+  Triple::ArchType type = Triple::getArchTypeForLLVMName("x86");
   theTriple.setArch(type);
   
   TargetOptions options;
   TargetMachine* target=theTarget->createTargetMachine(theTriple.getTriple(), "", "", options,
                                           Reloc::Static, CodeModel::Default, CodeGenOpt::None);
-  std::cout << "TargetMachine " << target << std::endl;
+  assert(target);
   // Build up all of the passes that we want to do to the module.
   PassManager PM;
 
