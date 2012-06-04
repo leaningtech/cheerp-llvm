@@ -492,6 +492,8 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 
 void DuettoWriter::makeClient(Module* M)
 {
+	SmallVector<Function*, 4> toRemove;
+
 	Module::iterator F=M->begin();
 	Module::iterator FE=M->end();
 	for (; F != FE;)
@@ -500,9 +502,14 @@ void DuettoWriter::makeClient(Module* M)
 		++F;
 		//Make stubs out of server side code
 		//Make sure custom attributes are removed, they
-		//may consfuse emscripten
+		//may confuse emscripten
 		if(current.hasFnAttr(Attribute::Server))
 			rewriteServerMethod(current);
+		else if(current.hasFnAttr(Attribute::ServerSkel))
+		{
+			//Purge them away
+			toRemove.push_back(&current);
+		}
 		else
 			rewriteNativeObjectsConstructor(*M, current);
 		current.removeFnAttr(Attribute::Client);
@@ -516,6 +523,8 @@ void DuettoWriter::makeClient(Module* M)
 		++mdIt;
 		M->eraseNamedMetadata(&current);
 	}
+	for(unsigned i=0;i<toRemove.size();i++)
+		toRemove[i]->eraseFromParent();
 }
 
 void DuettoWriter::rewriteClientMethod(Function& F)
