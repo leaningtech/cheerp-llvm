@@ -486,15 +486,31 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 				//Loop over the uses and look for constructors call
 				for(unsigned j=0;j<users.size();j++)
 				{
-					CallInst* callInst=dyn_cast<CallInst>(users[j]);
-					if(callInst==NULL)
+					Instruction* userInst = dyn_cast<Instruction>(users[j]);
+					if(userInst==NULL)
 					{
+						std::cerr << "Unsupported non instruction user of builtin alloca" << std::endl;
 						baseSubstitutionForBuiltin(users[j], i, newI);
 						continue;
 					}
-					bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst, builtinTypeName);
-					if(ret)
-						toRemove.push_back(callInst);
+					switch(userInst->getOpcode())
+					{
+						case Instruction::Call:
+						{
+							CallInst* callInst=static_cast<CallInst*>(userInst);
+							bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst, builtinTypeName);
+							if(ret)
+								toRemove.push_back(callInst);
+							break;
+						}
+						default:
+						{
+							userInst->dump();
+							std::cerr << "Unsupported opcode for builtin alloca" << std::endl;
+							baseSubstitutionForBuiltin(users[j], i, newI);
+							break;
+						}
+					}
 				}
 			}
 		}
