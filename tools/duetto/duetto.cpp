@@ -343,6 +343,10 @@ public:
 	void rewriteServerMethod(Function& F);
 	void rewriteClientMethod(Function& F);
 	void rewriteNativeObjectsConstructor(Module& M, Function& F);
+	/*
+	 * Return true if callInst has been rewritten and it must be deleted
+	 */
+	bool rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI, CallInst* callInst, const std::string& builtinTypeName);
 	Constant* getSkel(Function& F, Module& M, StructType* mapType);
 	void makeClient(Module* M);
 	void makeServer(Module* M);
@@ -403,6 +407,53 @@ bool DuettoWriter::isBuiltinType(const std::string& typeName, std::string& built
 	return true;
 }
 
+bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI, CallInst* callInst, const std::string& builtinTypeName)
+{
+	Function* called=callInst->getCalledFunction();
+	//A constructor call does have a name, it's non virtual!
+	if(called==NULL)
+	{
+		baseSubstitutionForBuiltin(callInst, i, newI);
+		return false;
+	}
+	//To be a candidate for substitution it must have an empty body
+	if(!called->empty())
+	{
+		baseSubstitutionForBuiltin(callInst, i, newI);
+		return false;
+	}
+	const char* funcName=called->getName().data();
+	if(!isBuiltinConstructor(funcName, builtinTypeName))
+	{
+		baseSubstitutionForBuiltin(callInst, i, newI);
+		return false;
+	}
+	//Verify that this contructor is for the current alloca
+	if(callInst->getOperand(0)!=i)
+	{
+		baseSubstitutionForBuiltin(callInst, i, newI);
+		return false;
+	}
+
+	std::cerr << "Rewriting constructor for type " << builtinTypeName << std::endl;
+
+	FunctionType* initialType=called->getFunctionType();
+	SmallVector<Type*, 4> initialArgsTypes(initialType->param_begin()+1,
+			initialType->param_end());
+	FunctionType* newFunctionType=FunctionType::get(*initialType->param_begin(),
+			initialArgsTypes, false);
+	//Morph into a different call
+	const std::string duettoBuiltinCreateName(builtinTypeName+"_duettoCreateBuiltin");
+	Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
+			newFunctionType));
+	//Ignore the last argument, since it's not part of the real ones
+	SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
+	CallInst* newCall=CallInst::Create(duettoBuiltinCreate,
+			initialArgs, "duettoCreateCall", callInst);
+	StoreInst* storeI=new StoreInst(newCall, newI, callInst);
+	return true;
+}
+
 void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 {
 	//Vector of the instructions to be removed in the second pass
@@ -441,43 +492,9 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 						baseSubstitutionForBuiltin(users[j], i, newI);
 						continue;
 					}
-					Function* called=callInst->getCalledFunction();
-					//A constructor call does have a name, it's non virtual!
-					if(called==NULL)
-					{
-						baseSubstitutionForBuiltin(users[j], i, newI);
-						continue;
-					}
-					const char* funcName=called->getName().data();
-					if(!isBuiltinConstructor(funcName, builtinTypeName))
-					{
-						baseSubstitutionForBuiltin(users[j], i, newI);
-						continue;
-					}
-					//Verify that this contructor is for the current alloca
-					if(callInst->getOperand(0)!=i)
-					{
-						baseSubstitutionForBuiltin(users[j], i, newI);
-						continue;
-					}
-
-					std::cerr << "Rewriting constructor for type " << builtinTypeName << std::endl;
-					toRemove.push_back(callInst);
-
-					FunctionType* initialType=called->getFunctionType();
-					SmallVector<Type*, 4> initialArgsTypes(initialType->param_begin()+1,
-							initialType->param_end());
-					FunctionType* newFunctionType=FunctionType::get(*initialType->param_begin(),
-							initialArgsTypes, false);
-					//Morph into a different call
-					const std::string duettoBuiltinCreateName(builtinTypeName+"_duettoCreateBuiltin");
-					Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
-							newFunctionType));
-					//Ignore the last argument, since it's not part of the real ones
-					SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
-					CallInst* newCall=CallInst::Create(duettoBuiltinCreate,
-							initialArgs, "duettoCreateCall", callInst);
-					StoreInst* storeI=new StoreInst(newCall, newI, callInst);
+					bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst, builtinTypeName);
+					if(ret)
+						toRemove.push_back(callInst);
 				}
 			}
 		}
