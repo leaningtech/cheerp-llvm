@@ -656,28 +656,12 @@ int main(int argc, char **argv) {
 
   ClientOut.close();
 
-  //Create the x86 target
-  const Target* theTarget = NULL;
-  for (TargetRegistry::iterator it = TargetRegistry::begin(),
-           ie = TargetRegistry::end(); it != ie; ++it)
-  {
-	  if((std::string)(it->getName())=="x86")
-	  {
-		  theTarget = &(*it);
-		  break;
-	  }
-  }
-  
-  assert(theTarget);
-  std::cout << "Loading target " << (std::string)theTarget->getName() << std::endl;
-  Triple theTriple(serverMod->getTargetTriple());
-
-  // Adjust the triple
-  Triple::ArchType type = Triple::getArchTypeForLLVMName("x86");
-  theTriple.setArch(type);
+  const std::string nativeTriple=sys::getDefaultTargetTriple();
+  std::cout << "Compiling for " << nativeTriple << std::endl;
+  const Target* theTarget = TargetRegistry::lookupTarget(nativeTriple, errorInfo);
   
   TargetOptions options;
-  TargetMachine* target=theTarget->createTargetMachine(theTriple.getTriple(), "", "", options,
+  TargetMachine* target=theTarget->createTargetMachine(nativeTriple, "", "", options,
                                           Reloc::Static, CodeModel::Default, CodeGenOpt::None);
   assert(target);
   // Build up all of the passes that we want to do to the module.
