@@ -346,7 +346,10 @@ public:
 	/*
 	 * Return true if callInst has been rewritten and it must be deleted
 	 */
-	bool rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI, CallInst* callInst, const std::string& builtinTypeName);
+	bool rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI,
+					    Instruction* callInst, Function* called,
+					    const std::string& builtinTypeName,
+					    SmallVector<Value*, 4>& initialArgs);
 	Constant* getSkel(Function& F, Module& M, StructType* mapType);
 	void makeClient(Module* M);
 	void makeServer(Module* M);
@@ -407,34 +410,22 @@ bool DuettoWriter::isBuiltinType(const std::string& typeName, std::string& built
 	return true;
 }
 
-bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI, CallInst* callInst, const std::string& builtinTypeName)
+bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, AllocaInst* newI, Instruction* callInst,
+						  Function* called,const std::string& builtinTypeName,
+						  SmallVector<Value*, 4>& initialArgs)
 {
-	Function* called=callInst->getCalledFunction();
 	//A constructor call does have a name, it's non virtual!
 	if(called==NULL)
-	{
-		baseSubstitutionForBuiltin(callInst, i, newI);
 		return false;
-	}
 	//To be a candidate for substitution it must have an empty body
 	if(!called->empty())
-	{
-		baseSubstitutionForBuiltin(callInst, i, newI);
 		return false;
-	}
 	const char* funcName=called->getName().data();
 	if(!isBuiltinConstructor(funcName, builtinTypeName))
-	{
-		baseSubstitutionForBuiltin(callInst, i, newI);
 		return false;
-	}
 	//Verify that this contructor is for the current alloca
 	if(callInst->getOperand(0)!=i)
-	{
-		baseSubstitutionForBuiltin(callInst, i, newI);
 		return false;
-	}
-
 	std::cerr << "Rewriting constructor for type " << builtinTypeName << std::endl;
 
 	FunctionType* initialType=called->getFunctionType();
@@ -446,8 +437,6 @@ bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, AllocaInst* i, Allo
 	const std::string duettoBuiltinCreateName(builtinTypeName+"_duettoCreateBuiltin");
 	Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
 			newFunctionType));
-	//Ignore the last argument, since it's not part of the real ones
-	SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
 	CallInst* newCall=CallInst::Create(duettoBuiltinCreate,
 			initialArgs, "duettoCreateCall", callInst);
 	StoreInst* storeI=new StoreInst(newCall, newI, callInst);
@@ -498,9 +487,32 @@ void DuettoWriter::rewriteNativeObjectsConstructor(Module& M, Function& F)
 						case Instruction::Call:
 						{
 							CallInst* callInst=static_cast<CallInst*>(userInst);
-							bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst, builtinTypeName);
+							//Ignore the last argument, since it's not part of the real ones
+							SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
+							bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst,
+												callInst->getCalledFunction(),builtinTypeName,
+												initialArgs);
 							if(ret)
 								toRemove.push_back(callInst);
+							else
+								baseSubstitutionForBuiltin(callInst, i, newI);
+							break;
+						}
+						case Instruction::Invoke:
+						{
+							InvokeInst* invokeInst=static_cast<InvokeInst*>(userInst);
+							SmallVector<Value*, 4> initialArgs(invokeInst->op_begin()+1,invokeInst->op_end()-3);
+							bool ret=rewriteIfNativeConstructorCall(M, i, newI, invokeInst,
+												invokeInst->getCalledFunction(),builtinTypeName,
+												initialArgs);
+							if(ret)
+							{
+								toRemove.push_back(invokeInst);
+								//We need to add a branch to the success label of the invoke call
+								BranchInst* branchInst=BranchInst::Create(invokeInst->getNormalDest(),invokeInst);
+							}
+							else
+								baseSubstitutionForBuiltin(invokeInst, i, newI);
 							break;
 						}
 						default:
