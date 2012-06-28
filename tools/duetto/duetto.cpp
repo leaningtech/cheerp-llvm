@@ -673,6 +673,8 @@ int main(int argc, char **argv) {
     return 1;
   }
   Module* clientMod = M.get();
+  //First of all kill the llvm.used global var
+  clientMod->getGlobalVariable("llvm.used")->eraseFromParent();
   Module* serverMod = CloneModule(clientMod);
 
   DuettoWriter writer;
