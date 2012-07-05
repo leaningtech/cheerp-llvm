@@ -438,7 +438,7 @@ bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, Instruction* i, All
 	//Morph into a different call
 	//For some builtins we have special support. For the rest we use a default implementation
 	std::string duettoBuiltinCreateName;
-	if(builtinTypeName=="DOMString")
+	if(builtinTypeName=="String")
 		duettoBuiltinCreateName=builtinTypeName+"_duettoCreateBuiltin";
 	else
 		duettoBuiltinCreateName="default_duettoCreateBuiltin_"+builtinTypeName;
