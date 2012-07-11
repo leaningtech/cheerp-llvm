@@ -340,7 +340,7 @@ private:
 	bool isBuiltinType(const std::string& typeName, std::string& builtinName);
 	void baseSubstitutionForBuiltin(User* i, Instruction* old, AllocaInst* source);
 public:
-	void rewriteServerMethod(Function& F);
+	void rewriteServerMethod(Module& M, Function& F);
 	void rewriteClientMethod(Function& F);
 	void rewriteNativeObjectsConstructors(Module& M, Function& F);
 	/*
@@ -353,15 +353,36 @@ public:
 	void rewriteNativeAllocationUsers(Module& M,SmallVector<Instruction*,4>& toRemove,
 							Instruction* allocation, Type* t,
 							const std::string& builtinTypeName);
+	Function* getMeta(Function& F, Module& M, int index);
 	Constant* getSkel(Function& F, Module& M, StructType* mapType);
+	Function* getStub(Function& F, Module& M);
 	void makeClient(Module* M);
 	void makeServer(Module* M);
 };
 
-void DuettoWriter::rewriteServerMethod(Function& F)
+void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 {
 	std::cerr << "CLIENT: Deleting body of server function " << (std::string)F.getName() << std::endl;
 	F.deleteBody();
+	//Create a new basic in the function, since everything has been deleted
+	BasicBlock* bb=BasicBlock::Create(M.getContext(),"entry",&F);
+
+	SmallVector<Value*, 4> args;
+	args.reserve(F.arg_size()+1);
+	Constant* nameConst = ConstantDataArray::getString(M.getContext(), F.getName());
+	llvm::Constant *Zero = llvm::Constant::getNullValue(Type::getInt32Ty(M.getContext()));
+	llvm::Constant *Zeros[] = { Zero, Zero };
+
+	GlobalVariable *nameGV = new llvm::GlobalVariable(M, nameConst->getType(), true,
+			GlobalVariable::PrivateLinkage, nameConst, ".str");
+
+	Constant* ptrNameConst = ConstantExpr::getGetElementPtr(nameGV, Zeros);
+	args.push_back(ptrNameConst);
+	for(Function::arg_iterator it=F.arg_begin();it!=F.arg_end();++it)
+		args.push_back(&(*it));
+	Function* stub=getStub(F,M);
+	Value* skelFuncCall=CallInst::Create(stub,args,"",bb);
+	ReturnInst::Create(M.getContext(),bb);
 }
 
 bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string typeName)
@@ -585,7 +606,7 @@ void DuettoWriter::makeClient(Module* M)
 		//Make sure custom attributes are removed, they
 		//may confuse emscripten
 		if(current.hasFnAttr(Attribute::Server))
-			rewriteServerMethod(current);
+			rewriteServerMethod(*M, current);
 		else if(current.hasFnAttr(Attribute::ServerSkel))
 		{
 			//Purge them away
@@ -617,14 +638,7 @@ void DuettoWriter::rewriteClientMethod(Function& F)
 Constant* DuettoWriter::getSkel(Function& F, Module& M, StructType* mapType)
 {
 	LLVMContext& C = M.getContext();
-	llvm::Twine skelName=F.getName()+"_duettoSkel";
-	cout << "SERVER: Generating skeleton for " << (std::string)F.getName() << endl;
-	NamedMDNode* meta=M.getNamedMetadata(skelName);
-
-	Value* val=meta->getOperand(0)->getOperand(0);
-	Function* skelFunc=dyn_cast<llvm::Function>(val);
-	assert(skelFunc);
-
+	Function* skelFunc=getMeta(F,M,0);
 	//Make the function external, it should be visible from the outside
 	Constant* nameConst = ConstantDataArray::getString(C, F.getName());
 	
@@ -639,6 +653,23 @@ Constant* DuettoWriter::getSkel(Function& F, Module& M, StructType* mapType)
 	structFields.push_back(ptrNameConst);
 	structFields.push_back(skelFunc);
 	return ConstantStruct::get(mapType, structFields);
+}
+
+Function* DuettoWriter::getMeta(Function& F, Module& M, int index)
+{
+	llvm::Twine skelName=F.getName()+"_duettoSkel";
+	cout << "SERVER: Generating skeleton for " << (std::string)F.getName() << endl;
+	NamedMDNode* meta=M.getNamedMetadata(skelName);
+
+	Value* val=meta->getOperand(0)->getOperand(index);
+	Function* skelFunc=dyn_cast<llvm::Function>(val);
+	assert(skelFunc);
+	return skelFunc;
+}
+
+Function* DuettoWriter::getStub(Function& F, Module& M)
+{
+	return getMeta(F,M,1);
 }
 
 void DuettoWriter::makeServer(Module* M)
