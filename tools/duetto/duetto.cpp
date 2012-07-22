@@ -336,7 +336,7 @@ static tool_output_file *GetOutputStream(const char *TargetName,
 class DuettoWriter
 {
 private:
-	bool isBuiltinConstructor(const char* s, const std::string typeName);
+	bool isBuiltinConstructor(const char* s, const std::string& typeName);
 	bool isBuiltinType(const std::string& typeName, std::string& builtinName);
 	void baseSubstitutionForBuiltin(User* i, Instruction* old, AllocaInst* source);
 public:
@@ -382,10 +382,10 @@ void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 		args.push_back(&(*it));
 	Function* stub=getStub(F,M);
 	Value* skelFuncCall=CallInst::Create(stub,args,"",bb);
-	ReturnInst::Create(M.getContext(),bb);
+	ReturnInst::Create(M.getContext(),skelFuncCall,bb);
 }
 
-bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string typeName)
+bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string& typeName)
 {
 	if(strncmp(s,"_ZN",3)!=0)
 		return false;
@@ -460,7 +460,7 @@ bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, Instruction* i, All
 	//For some builtins we have special support. For the rest we use a default implementation
 	std::string duettoBuiltinCreateName;
 	if(builtinTypeName=="String" || builtinTypeName=="Array")
-		duettoBuiltinCreateName=builtinTypeName+"_duettoCreateBuiltin";
+		duettoBuiltinCreateName=std::string("_duettoCreateBuiltin")+funcName;
 	else
 		duettoBuiltinCreateName="default_duettoCreateBuiltin_"+builtinTypeName;
 	Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
@@ -694,6 +694,7 @@ void DuettoWriter::makeServer(Module* M)
 	//Add a global structure for name and function pairs
 	Type* bytePtrType = Type::getInt8PtrTy(C);
 	vector<Type*> funcTypes;
+	funcTypes.push_back(bytePtrType);
 	funcTypes.push_back(bytePtrType);
 	FunctionType* FT=FunctionType::get(Type::getVoidTy(C), funcTypes, false);
 	vector<Type*> structTypes;
