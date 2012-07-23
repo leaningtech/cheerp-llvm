@@ -1195,6 +1195,14 @@ InlineCost InlineCostAnalysis::getInlineCost(CallSite CS, Function *Callee,
       CS.isNoInline())
     return llvm::InlineCost::getNever();
 
+  //DUETTO: Do not inline server/client methods called from the other side
+  const Function* caller=CS.getCaller();
+  if((caller->hasFnAttribute(Attribute::Client) && Callee->hasFnAttribute(Attribute::Server)) ||
+     (caller->hasFnAttribute(Attribute::Server) && Callee->hasFnAttribute(Attribute::Client)))
+  {
+    return llvm::InlineCost::getNever();
+  }
+
   DEBUG(llvm::dbgs() << "      Analyzing call of " << Callee->getName()
         << "...\n");
 
