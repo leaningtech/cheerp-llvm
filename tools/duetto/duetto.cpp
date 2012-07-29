@@ -386,7 +386,7 @@ void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 	//happen when the return value is a complex type and becomes an argument
 	llvm::Value* firstArg = stub->arg_begin();
 	llvm::Value* secondArg = (++stub->arg_begin());
-	if(!(args[0]->getType()==firstArg->getType() &&
+	if(stub->arg_size()>1 && !(args[0]->getType()==firstArg->getType() &&
 		args[1]->getType()==secondArg->getType()))
 	{
 		std::cerr << "Inverting first two parameters" << std::endl;
@@ -396,7 +396,7 @@ void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 		args[1]=tmp;
 	}
 
-	assert((args[0]->getType()==firstArg->getType() &&
+	assert(stub->arg_size()==1 || (args[0]->getType()==firstArg->getType() &&
 		args[1]->getType()==secondArg->getType()));
 
 	Value* skelFuncCall=CallInst::Create(stub,args,"",bb);
