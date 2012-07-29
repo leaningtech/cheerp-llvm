@@ -381,8 +381,29 @@ void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 	for(Function::arg_iterator it=F.arg_begin();it!=F.arg_end();++it)
 		args.push_back(&(*it));
 	Function* stub=getStub(F,M);
+
+	//Detect if the first two parameters are in the wrong order, this may
+	//happen when the return value is a complex type and becomes an argument
+	llvm::Value* firstArg = stub->arg_begin();
+	llvm::Value* secondArg = (++stub->arg_begin());
+	if(!(args[0]->getType()==firstArg->getType() &&
+		args[1]->getType()==secondArg->getType()))
+	{
+		std::cerr << "Inverting first two parameters" << std::endl;
+		llvm::Value* tmp;
+		tmp=args[0];
+		args[0]=args[1];
+		args[1]=tmp;
+	}
+
+	assert((args[0]->getType()==firstArg->getType() &&
+		args[1]->getType()==secondArg->getType()));
+
 	Value* skelFuncCall=CallInst::Create(stub,args,"",bb);
-	ReturnInst::Create(M.getContext(),skelFuncCall,bb);
+	if(skelFuncCall->getType()->isVoidTy())
+		ReturnInst::Create(M.getContext(),bb);
+	else
+		ReturnInst::Create(M.getContext(),skelFuncCall,bb);
 }
 
 bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string& typeName)
