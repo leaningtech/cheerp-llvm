@@ -14,6 +14,7 @@ add_subdirectory(llvm-dis)
 add_subdirectory(llvm-mc)
 
 add_subdirectory(duetto)
+add_subdirectory(duetto-compiler)
 
 add_subdirectory(llc)
 add_subdirectory(llvm-ar)
