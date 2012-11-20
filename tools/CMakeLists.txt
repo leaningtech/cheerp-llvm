@@ -19,6 +19,8 @@ add_llvm_tool_subdirectory(llvm-as)
 add_llvm_tool_subdirectory(llvm-dis)
 add_llvm_tool_subdirectory(llvm-mc)
 
+add_llvm_tool_subdirectory(duetto-compiler)
+
 add_llvm_tool_subdirectory(llc)
 add_llvm_tool_subdirectory(llvm-ar)
 add_llvm_tool_subdirectory(llvm-nm)
