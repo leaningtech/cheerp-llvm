@@ -283,6 +283,7 @@ public:
 	void compileConstantExpr(ConstantExpr* ce);
 	void compileRecursiveGEP(ConstantExpr* ce, Constant* base, uint32_t level);
 	uint32_t compileType(Type* t);
+	bool isValidTypeCast(Type* src, Type* dst) const;
 };
 
 uint32_t JSWriter::getIntFromValue(Value* v)
@@ -304,6 +305,29 @@ void JSWriter::compileRecursiveGEP(ConstantExpr* ce, Constant* base, uint32_t le
 	stream << "'' }";
 }
 
+bool JSWriter::isValidTypeCast(Type* srcPtr, Type* dstPtr) const
+{
+	//Only pointer casts are possible anyway
+	assert(srcPtr->isPointerTy() && dstPtr->isPointerTy());
+	Type* src=cast<PointerType>(srcPtr)->getElementType();
+	Type* dst=cast<PointerType>(dstPtr)->getElementType();
+	//Conversion between client objects is free
+	if(src->isStructTy() && dst->isStructTy() &&
+		strncmp(src->getStructName().data(), "class.client::", 14)==0 &&
+		strncmp(dst->getStructName().data(), "class.client::", 14)==0)
+	{
+		return true;
+	}
+	//Conversion between any function pointers are ok
+	if(src->isFunctionTy() && dst->isFunctionTy())
+		return true;
+	src->dump();
+	cerr << endl;
+	dst->dump();
+	cerr << endl;
+	return false;
+}
+
 void JSWriter::compileConstantExpr(ConstantExpr* ce)
 {
 	switch(ce->getOpcode())
@@ -322,6 +346,17 @@ void JSWriter::compileConstantExpr(ConstantExpr* ce)
 			Value* first=ce->getOperand(1);
 			assert(getIntFromValue(first)==0);
 			compileRecursiveGEP(ce, initializer, 0);
+			break;
+		}
+		case Instruction::BitCast:
+		{
+			assert(ce->getNumOperands()==1);
+			Value* val=ce->getOperand(0);
+			Type* src=ce->getType();
+			Type* dst=val->getType();
+			assert(isValidTypeCast(src, dst));
+			assert(val->hasName());
+			stream << val->getName().data();
 			break;
 		}
 		default:
@@ -482,15 +517,7 @@ void JSWriter::compileBB(BasicBlock& BB, const std::map<const BasicBlock*, uint3
 				const BitCastInst& bi=static_cast<const BitCastInst&>(*I);
 				Type* srcPtr=bi.getSrcTy();
 				Type* dstPtr=bi.getDestTy();
-				//Conversion between client objects is free
-				assert(srcPtr->isPointerTy() && dstPtr->isPointerTy());
-				Type* src=cast<PointerType>(srcPtr)->getElementType();
-				Type* dst=cast<PointerType>(dstPtr)->getElementType();
-				assert(src->isStructTy() && dst->isStructTy());
-				assert(strncmp(src->getStructName().data(),
-					"class.client::", 14)==0);
-				assert(strncmp(dst->getStructName().data(),
-					"class.client::", 14)==0);
+				assert(isValidTypeCast(srcPtr, dstPtr));
 				//HACK?: Some bitcast seems to have no name
 				//Since they are nop, just put in the inline operand map
 				//the name of the source if so
