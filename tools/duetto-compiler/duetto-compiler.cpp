@@ -806,6 +806,7 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 			assert(I.getNumOperands()==2);
 			assert(isI32Type(I.getOperand(0)->getType()));
 			assert(isI32Type(I.getOperand(1)->getType()));
+			assert(isI32Type(I.getType()));
 			stream << "((";
 			compileOperand(I.getOperand(0));
 			stream << " - ";
@@ -834,9 +835,24 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 			assert(I.getNumOperands()==2);
 			assert(isI32Type(I.getOperand(0)->getType()));
 			assert(isI32Type(I.getOperand(1)->getType()));
+			assert(isI32Type(I.getType()));
 			stream << "((";
 			compileOperand(I.getOperand(0));
 			stream << " / ";
+			compileOperand(I.getOperand(1));
+			stream << ") >> 0)";
+			return true;
+		}
+		case Instruction::Mul:
+		{
+			//Integer signed multiplication
+			assert(I.getNumOperands()==2);
+			assert(isI32Type(I.getOperand(0)->getType()));
+			assert(isI32Type(I.getOperand(1)->getType()));
+			assert(isI32Type(I.getType()));
+			stream << "((";
+			compileOperand(I.getOperand(0));
+			stream << " * ";
 			compileOperand(I.getOperand(1));
 			stream << ") >> 0)";
 			return true;
@@ -925,6 +941,7 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::Resume:
 			case Instruction::Br:
 				return false;
+			case Instruction::Add:
 			case Instruction::FPToSI:
 			case Instruction::Sub:
 			case Instruction::SDiv:
