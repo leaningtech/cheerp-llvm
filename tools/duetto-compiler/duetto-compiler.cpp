@@ -300,9 +300,9 @@ public:
 	void compileMethod(Function& F);
 	void compileBB(BasicBlock& BB, const std::map<const BasicBlock*, uint32_t>& blocksMap);
 	void compileOperand(const Value* v);
-	void compileConstant(const Constant* c) const;
-	void compileConstantExpr(const ConstantExpr* ce) const;
-	void compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level) const;
+	void compileConstant(const Constant* c);
+	void compileConstantExpr(const ConstantExpr* ce);
+	void compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level);
 };
 
 void JSWriter::handleBuiltinNamespace(const char* ident, User::const_op_iterator it,
@@ -316,7 +316,6 @@ void JSWriter::handleBuiltinNamespace(const char* ident, User::const_op_iterator
 	//Read the function name
 	char* funcName;
 	int funcNameLen=strtol(ident,&funcName,10);
-	(void)funcNameLen;//Silence a warning
 
 	//The first arg should be the object
 	assert(it!=itE);
@@ -324,14 +323,17 @@ void JSWriter::handleBuiltinNamespace(const char* ident, User::const_op_iterator
 	{
 		//Getter
 		compileOperand(*it);
-		stream << "." << funcName+4;
+		stream << ".";
+		stream.write(funcName+4,funcNameLen-4);
 	}
 	else if(strncmp(funcName,"set_",4)==0 && (itE-it)==2)
 	{
 		//Setter
 		compileOperand(*it);
 		++it;
-		stream << "." << funcName+4 << " = ";
+		stream << ".";
+		stream.write(funcName+4,funcNameLen-4);
+		stream << " = ";
 		compileOperand(*it);
 	}
 	else
@@ -339,7 +341,9 @@ void JSWriter::handleBuiltinNamespace(const char* ident, User::const_op_iterator
 		//Regular call
 		compileOperand(*it);
 		++it;
-		stream << "." << funcName << "(";
+		stream << ".";
+		stream.write(funcName,funcNameLen);
+		stream << "(";
 		for(User::const_op_iterator cur=it;it!=itE;++it)
 		{
 			if(cur!=it)
@@ -381,9 +385,10 @@ bool JSWriter::handleBuiltinCall(const char* ident, User::const_op_iterator it,
 	}
 	else if(strncmp(ident,"default_duettoCreateBuiltin_",28)==0)
 	{
-	    //Default handling of builtin constructors
-	    stream << "new " << (ident+28) << "()";
-	    return true;
+		assert(it==itE);
+		//Default handling of builtin constructors
+		stream << "new " << (ident+28) << "()";
+		return true;
 	}
 	return false;
 }
@@ -463,7 +468,7 @@ void JSWriter::compileRecursiveAccessToGEP(const GetElementPtrInst& gep,
 	compileRecursiveAccessToGEP(gep, st->getElementType(elementIndex), ++it);
 }
 
-void JSWriter::compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level) const
+void JSWriter::compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level)
 {
 	//TODO: Support multiple dereferece in GEP
 	assert(ce->getNumOperands()==level+3);
@@ -501,7 +506,7 @@ bool JSWriter::isValidTypeCast(Type* srcPtr, Type* dstPtr) const
 	return false;
 }
 
-void JSWriter::compileConstantExpr(const ConstantExpr* ce) const
+void JSWriter::compileConstantExpr(const ConstantExpr* ce)
 {
 	switch(ce->getOpcode())
 	{
@@ -528,8 +533,7 @@ void JSWriter::compileConstantExpr(const ConstantExpr* ce) const
 			Type* src=ce->getType();
 			Type* dst=val->getType();
 			assert(isValidTypeCast(src, dst));
-			assert(val->hasName());
-			stream << val->getName().data();
+			compileOperand(val);
 			break;
 		}
 		default:
@@ -537,7 +541,7 @@ void JSWriter::compileConstantExpr(const ConstantExpr* ce) const
 	}
 }
 
-void JSWriter::compileConstant(const Constant* c) const
+void JSWriter::compileConstant(const Constant* c)
 {
 	if(ConstantExpr::classof(c))
 		compileConstantExpr(cast<ConstantExpr>(c));
@@ -560,6 +564,13 @@ void JSWriter::compileConstant(const Constant* c) const
 		const ConstantInt* i=cast<const ConstantInt>(c);
 		assert(i->getBitWidth()<=32);
 		stream << i->getSExtValue();
+	}
+	else if(Function::classof(c))
+	{
+		assert(c->hasName());
+		//We must prefix a '_' to function names
+		stream << '_';
+		printLLVMName(c->getName());
 	}
 	else
 	{
