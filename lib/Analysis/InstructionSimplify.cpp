@@ -2717,7 +2717,7 @@ Value *llvm::SimplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
 
 /// SimplifyGEPInst - Given operands for an GetElementPtrInst, see if we can
 /// fold the result.  If not, this returns null.
-static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, unsigned) {
+static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, const DataLayout* TD) {
   // The type of the GEP pointer operand.
   PointerType *PtrTy = dyn_cast<PointerType>(Ops[0]->getType());
   // The GEP pointer operand is not a pointer, it's a vector of pointers.
@@ -2735,7 +2735,8 @@ static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, unsigned) {
     return UndefValue::get(GEPTy);
   }
 
-  if (Ops.size() == 2) {
+  // Without DataLayout just be conservative
+  if (Ops.size() == 2 && TD && TD->isByteAddressable()) {
     // getelementptr P, 0 -> P.
     if (ConstantInt *C = dyn_cast<ConstantInt>(Ops[1]))
       if (C->isZero())
@@ -2759,7 +2760,7 @@ static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, unsigned) {
 Value *llvm::SimplifyGEPInst(ArrayRef<Value *> Ops, const DataLayout *TD,
                              const TargetLibraryInfo *TLI,
                              const DominatorTree *DT) {
-  return ::SimplifyGEPInst(Ops, Query (TD, TLI, DT), RecursionLimit);
+  return ::SimplifyGEPInst(Ops, Query (TD, TLI, DT), TD);
 }
 
 /// SimplifyInsertValueInst - Given operands for an InsertValueInst, see if we
