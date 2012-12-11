@@ -3235,7 +3235,8 @@ static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, unsigned) {
       return Ops[0];
 
     Type *Ty = PtrTy->getElementType();
-    if (Q.DL && Ty->isSized()) {
+    // Without DataLayout just be conservative
+    if (Q.DL && Q.DL->isByteAddressable() && Ty->isSized()) {
       Value *P;
       uint64_t C;
       uint64_t TyAllocSize = Q.DL->getTypeAllocSize(Ty);
