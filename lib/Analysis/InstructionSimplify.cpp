@@ -2775,8 +2775,9 @@ static Value *SimplifyGEPInst(ArrayRef<Value *> Ops, const Query &Q, unsigned) {
     // getelementptr P, 0 -> P.
     if (match(Ops[1], m_Zero()))
       return Ops[0];
+    // Without DataLayout just be conservative
     // getelementptr P, N -> P if P points to a type of zero size.
-    if (Q.DL) {
+    if (Q.DL && Q.DL->isByteAddressable()) {
       Type *Ty = PtrTy->getElementType();
       if (Ty->isSized() && Q.DL->getTypeAllocSize(Ty) == 0)
         return Ops[0];
