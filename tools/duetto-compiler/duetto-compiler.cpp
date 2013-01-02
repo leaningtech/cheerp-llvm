@@ -1319,10 +1319,14 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::FPToSI:
 			case Instruction::SIToFP:
 			case Instruction::SDiv:
+			case Instruction::Shl:
+			case Instruction::AShr:
 			case Instruction::BitCast:
 			case Instruction::GetElementPtr:
 			case Instruction::FAdd:
 			case Instruction::FDiv:
+			case Instruction::FSub:
+			case Instruction::FPTrunc:
 			case Instruction::FMul:
 			case Instruction::FCmp:
 			case Instruction::ICmp:
@@ -1331,6 +1335,9 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::Load:
 			case Instruction::Select:
 			case Instruction::ExtractValue:
+			//Unsigned opcodes are a problem, where do they come
+			case Instruction::URem:
+			case Instruction::UIToFP:
 				return true;
 			default:
 				cerr << "Is " << I.getOpcodeName() << " inlineable?" << endl;
