@@ -71,6 +71,11 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
     return MI;
   }
 
+  // This optimization is not possible on non byte-addressable machines
+  // NOTE: Be conservative if target data is not available
+  if (!DL || !DL->isByteAddressable())
+    return 0;
+
   // If MemCpyInst length is 1/2/4/8 bytes then replace memcpy with
   // load/store.
   ConstantInt *MemOpLength = dyn_cast<ConstantInt>(MI->getArgOperand(2));
