@@ -268,9 +268,11 @@ class JSWriter
 private:
 	Module* module;
 	raw_fd_ostream& stream;
-	uint32_t getIntFromValue(Value* v) const;
+	uint32_t getIntFromValue(const Value* v) const;
 	//std::set<const Value*> completeObjects;
+	bool isFunctionPointerPointerType(Type* t) const;
 	bool isValidTypeCast(const Value* cast, const Value* castOp, Type* src, Type* dst) const;
+	bool isVTableCast(Type* src, Type* dst) const;
 	bool isClientType(Type* t) const;
 	bool isI32Type(Type* t) const;
 	bool isInlineable(const Instruction& I) const;
@@ -279,15 +281,13 @@ private:
 	bool compileInlineableInstruction(const Instruction& I);
 	bool compileNotInlineableInstruction(const Instruction& I);
 	void compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const BasicBlock* from);
-	const Type* compileRecursiveAccessToGEP(const Type* curType,
-		GetElementPtrInst::const_op_iterator it,
-		const GetElementPtrInst::const_op_iterator itE);
+	const Type* compileRecursiveAccessToGEP(const Type* curType, const Use* it, const Use* const itE);
 	void compilePredicate(CmpInst::Predicate p);
 	void compileType(Type* t);
 	void compileDereferencePointer(const Value* v, int byteOffset);
 	void compileDereferencePointer(const Value* v, const Value* offset);
 	void compileFastGEPDereference(const GetElementPtrInst& gep);
-	void compileGEP(const GetElementPtrInst& gep);
+	void compileGEP(const Value* val, const Use* it, const Use* const itE);
 	void printLLVMName(const StringRef& s) const;
 	void handleBuiltinNamespace(const char* ident, User::const_op_iterator it,
 			User::const_op_iterator itE);
@@ -305,7 +305,6 @@ public:
 	void compileOperand(const Value* v);
 	void compileConstant(const Constant* c);
 	void compileConstantExpr(const ConstantExpr* ce);
-	void compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level);
 };
 
 void JSWriter::handleBuiltinNamespace(const char* ident, User::const_op_iterator it,
@@ -473,16 +472,14 @@ void JSWriter::compileDereferencePointer(const Value* v, int byteOffset)
 	}
 }
 
-uint32_t JSWriter::getIntFromValue(Value* v) const
+uint32_t JSWriter::getIntFromValue(const Value* v) const
 {
 	assert(ConstantInt::classof(v));
-	ConstantInt* i=cast<ConstantInt>(v);
+	const ConstantInt* i=cast<const ConstantInt>(v);
 	return i->getZExtValue();
 }
 
-const Type* JSWriter::compileRecursiveAccessToGEP(const Type* curType,
-		GetElementPtrInst::const_op_iterator it,
-		const GetElementPtrInst::const_op_iterator itE)
+const Type* JSWriter::compileRecursiveAccessToGEP(const Type* curType, const Use* it, const Use* const itE)
 {
 	//Before this the base name has been already printed
 	if(it==itE)
@@ -517,19 +514,6 @@ const Type* JSWriter::compileRecursiveAccessToGEP(const Type* curType,
 	return compileRecursiveAccessToGEP(subType, ++it, itE);
 }
 
-void JSWriter::compileRecursiveGEP(const ConstantExpr* ce, const Constant* base, uint32_t level)
-{
-	//TODO: Support multiple dereferece in GEP
-	assert(ce->getNumOperands()==level+3);
-	stream << "{ d: ";
-	compileConstant(base);
-	//TODO: this should include the size of the fields
-	stream << ", o: " << getIntFromValue(ce->getOperand(level+2));
-	stream << ", p: ";
-	assert(!ConstantStruct::classof(base));
-	stream << "'' }";
-}
-
 bool JSWriter::isClientType(Type* t) const
 {
 	return (t->isStructTy() && 
@@ -551,6 +535,49 @@ bool JSWriter::safeCallForNewedMemory(const CallInst* ci) const
 		//Allow unsafe casts for a limited number of functions that accepts callback args
 		//TODO: find a nicer approach for this
 		ci->getCalledFunction()->getName()=="__cxa_atexit"));
+}
+
+bool JSWriter::isFunctionPointerPointerType(Type* t) const
+{
+	if(!t->isPointerTy())
+		return false;
+	Type* innerDst=cast<PointerType>(t)->getElementType();
+	if(!innerDst->isPointerTy())
+		return false;
+	Type* innerDst2=cast<PointerType>(innerDst)->getElementType();
+	if(!innerDst2->isFunctionTy())
+		return false;
+	return true;
+}
+
+bool JSWriter::isVTableCast(Type* srcPtr, Type* dstPtr) const
+{
+	//Only pointer casts are possible anyway
+	assert(srcPtr->isPointerTy() && dstPtr->isPointerTy());
+	Type* src=cast<PointerType>(srcPtr)->getElementType();
+	Type* dst=cast<PointerType>(dstPtr)->getElementType();
+	//Support getting the vtable from the object
+	if(!src->isStructTy() || !dst->isPointerTy())
+		return false;
+
+	if(!isFunctionPointerPointerType(dst))
+		return false;
+
+	//There is no easy way of convincing clang to emit proper
+	//access to the actual vtable pointer. It uses a direct bitcast
+	//Support this by iteratively getting the first member of any struct
+	//until we find a vtable compatible type
+	StructType* innerSrc=static_cast<StructType*>(src);
+	while(true)
+	{
+		Type* tmp=innerSrc->getElementType(0);
+		if(isFunctionPointerPointerType(tmp))
+			return true;
+		if(!tmp->isStructTy())
+			return false;
+		innerSrc=static_cast<StructType*>(tmp);
+	}
+	return false;
 }
 
 bool JSWriter::isValidTypeCast(const Value* castI, const Value* castOp, Type* srcPtr, Type* dstPtr) const
@@ -668,7 +695,7 @@ void JSWriter::compileConstantExpr(const ConstantExpr* ce)
 			//NOTE: the first dereference must be 0, they point to a single object
 			Value* first=ce->getOperand(1);
 			assert(getIntFromValue(first)==0);
-			compileRecursiveGEP(ce, initializer, 0);
+			compileGEP(base, ce->op_begin()+1, ce->op_end()-1);
 			break;
 		}
 		case Instruction::BitCast:
@@ -1033,18 +1060,14 @@ void JSWriter::compileFastGEPDereference(const GetElementPtrInst& gep)
 	compileRecursiveAccessToGEP(ptrT->getElementType(), ++it, itE);
 }
 
-void JSWriter::compileGEP(const GetElementPtrInst& gep)
+void JSWriter::compileGEP(const Value* val, const Use* it, const Use* const itE)
 {
-	GetElementPtrInst::const_op_iterator it=gep.idx_begin();
-	//We compile as usual till the last level
-	GetElementPtrInst::const_op_iterator itE=gep.idx_end()-1;
-	Type* t=gep.getOperand(0)->getType();
+	Type* t=val->getType();
 	assert(t->isPointerTy());
 	PointerType* ptrT=static_cast<PointerType*>(t);
 	stream << "{ d: ";
 	if(it==itE)
 	{
-		const Value* val=gep.getOperand(0);
 		//Same level access, we are just computing another pointer from this pointer
 		compileOperand(val);
 		stream << ".d, o: ";
@@ -1068,10 +1091,10 @@ void JSWriter::compileGEP(const GetElementPtrInst& gep)
 		{
 			uint32_t firstElement = getIntFromValue(*it);
 			//First dereference the pointer
-			compileDereferencePointer(gep.getOperand(0), firstElement);
+			compileDereferencePointer(val, firstElement);
 		}
 		else
-			compileDereferencePointer(gep.getOperand(0), *it);
+			compileDereferencePointer(val, *it);
 		const Type* lastType=compileRecursiveAccessToGEP(ptrT->getElementType(), ++it, itE);
 		//Now add the offset for the desired element
 		if(ConstantInt::classof(*itE))
@@ -1109,8 +1132,15 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 			const BitCastInst& bi=static_cast<const BitCastInst&>(I);
 			Type* srcPtr=bi.getSrcTy();
 			Type* dstPtr=bi.getDestTy();
-			assert(isValidTypeCast(&bi, bi.getOperand(0), srcPtr, dstPtr));
-			compileOperand(bi.getOperand(0));
+			bi.dump();
+			cerr << endl;
+			bool vtableCast = isVTableCast(srcPtr, dstPtr);
+			assert(isValidTypeCast(&bi, bi.getOperand(0), srcPtr, dstPtr) || vtableCast);
+			if(vtableCast)
+			{
+			}
+			else
+				compileOperand(bi.getOperand(0));
 			return true;
 		}
 		case Instruction::Alloca:
@@ -1168,7 +1198,13 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 				compileOperand(gep.getOperand(0));
 			}
 			else
-				compileGEP(gep);
+			{
+				const Value* val=gep.getOperand(0);
+				GetElementPtrInst::const_op_iterator it=gep.idx_begin();
+				//We compile as usual till the last level
+				GetElementPtrInst::const_op_iterator itE=gep.idx_end()-1;
+				compileGEP(val, it, itE);
+			}
 			return true;
 		}
 		case Instruction::Add:
