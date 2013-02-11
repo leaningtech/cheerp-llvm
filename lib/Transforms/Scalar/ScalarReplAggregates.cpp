@@ -473,6 +473,10 @@ bool ConvertToScalarInfo::MergeInVectorType(VectorType *VInTy,
 /// SawVec flag.
 bool ConvertToScalarInfo::CanConvertToScalar(Value *V, uint64_t Offset,
                                              Value* NonConstantIdx) {
+  // TODO: Actually relax this restriction, it is useful to transforms objects to stack allocated values
+  if (!DL.isByteAddressable())
+    return false;
+
   for (User *U : V->users()) {
     Instruction *UI = cast<Instruction>(U);
 
