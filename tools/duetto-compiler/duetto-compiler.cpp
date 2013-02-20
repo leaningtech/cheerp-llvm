@@ -554,6 +554,7 @@ bool JSWriter::safeCallForNewedMemory(const CallInst* ci) const
 		ci->getCalledFunction()->getName()=="llvm.memset.p0i8.i64" ||
 		ci->getCalledFunction()->getName()=="llvm.memmove.p0i8.p0i8.i32" ||
 		ci->getCalledFunction()->getName()=="free" ||
+		ci->getCalledFunction()->getName()=="_ZdaPv" ||
 		ci->getCalledFunction()->getName()=="_ZdlPv" ||
 		ci->getCalledFunction()->getName()=="llvm.lifetime.start" ||
 		ci->getCalledFunction()->getName()=="llvm.lifetime.end" ||
@@ -657,6 +658,7 @@ bool JSWriter::isValidTypeCast(const Value* castI, const Value* castOp, Type* sr
 		bool allowedRawUsages = true;
 		const CallInst* newCall=dyn_cast<const CallInst>(castOp);
 		if(newCall && (newCall->getCalledFunction()->getName()=="_Znwj"
+				|| newCall->getCalledFunction()->getName()=="_Znaj"
 				|| newCall->getCalledFunction()->getName()=="malloc"))
 		{
 			comesFromNew = true;
@@ -667,6 +669,7 @@ bool JSWriter::isValidTypeCast(const Value* castI, const Value* castOp, Type* sr
 			//TODO: Disable throw in new, it's nonsense in JS context
 			const InvokeInst* newCall=dyn_cast<const InvokeInst>(castOp);
 			if(newCall && (newCall->getCalledFunction()->getName()=="_Znwj"
+					|| newCall->getCalledFunction()->getName()=="_Znaj"
 					|| newCall->getCalledFunction()->getName()=="malloc"))
 			{
 				comesFromNew = true;
