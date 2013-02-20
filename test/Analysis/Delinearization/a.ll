@@ -7,20 +7,23 @@
 ;         A[2*i+3][3*j-4][5*k+7] = 1;
 ; }
 
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
+target triple = "x86_64-apple-macosx10.6.0"
+
 ; AddRec: {{{(28 + (4 * (-4 + (3 * %m)) * %o) + %A),+,(8 * %m * %o)}<%for.i>,+,(12 * %o)}<%for.j>,+,20}<%for.k>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize][%m][%o] with elements of sizeof(i32) bytes.
+; CHECK: ArrayDecl[UnknownSize][%m][%o] with elements of 4 bytes.
 ; CHECK: ArrayRef[{3,+,2}<%for.i>][{-4,+,3}<%for.j>][{7,+,5}<%for.k>]
 
 ; AddRec: {{(8 + ((4 + (12 * %m)) * %o) + %A),+,(8 * %m * %o)}<%for.i>,+,(12 * %o)}<%for.j>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize][%o] with elements of sizeof(i32) bytes.
+; CHECK: ArrayDecl[UnknownSize][%o] with elements of 4 bytes.
 ; CHECK: ArrayRef[{(1 + (3 * %m)),+,(2 * %m)}<%for.i>][{2,+,(3 * %o)}<%for.j>]
 
 ; AddRec: {(8 + ((-8 + (24 * %m)) * %o) + %A),+,(8 * %m * %o)}<%for.i>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize] with elements of 2 bytes.
-; CHECK: ArrayRef[{((1 + ((-1 + (3 * %m)) * %o)) * sizeof(i32)),+,(%m * %o * sizeof(i32))}<%for.i>]
+; CHECK: ArrayDecl[UnknownSize] with elements of 8 bytes.
+; CHECK: ArrayRef[{(1 + ((-1 + (3 * %m)) * %o)),+,(%m * %o)}<%for.i>]
 
 ; Function Attrs: nounwind uwtable
 define void @foo(i64 %n, i64 %m, i64 %o, i32* nocapture %A) #0 {

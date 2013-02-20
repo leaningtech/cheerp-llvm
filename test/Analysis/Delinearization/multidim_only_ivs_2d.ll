@@ -1,5 +1,7 @@
 ; RUN: opt < %s -analyze -delinearize | FileCheck %s
 
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
+target triple = "x86_64-apple-macosx10.6.0"
 ; Derived from the following code:
 ;
 ; void foo(long n, long m, double A[n][m]) {
@@ -10,12 +12,12 @@
 
 ; AddRec: {{%A,+,(8 * %m)}<%for.i>,+,8}<%for.j>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize][%m] with elements of sizeof(double) bytes.
+; CHECK: ArrayDecl[UnknownSize][%m] with elements of 8 bytes.
 ; CHECK: ArrayRef[{0,+,1}<nuw><nsw><%for.i>][{0,+,1}<nuw><nsw><%for.j>]
 
 ; AddRec: {(-8 + (8 * %m) + %A),+,(8 * %m)}<%for.i>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize] with elements of sizeof(double) bytes.
+; CHECK: ArrayDecl[UnknownSize] with elements of 8 bytes.
 ; CHECK: ArrayRef[{(-1 + %m),+,%m}<%for.i>]
 
 define void @foo(i64 %n, i64 %m, double* %A) {

@@ -4,6 +4,7 @@
 ; Verify that scaled GEPs are not reused. rdar://5064068
 
 target triple = "x86-apple-darwin"
+target datalayout = "e-p:64:32:32-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128-n32:64"
 
 ; CHECK-LABEL: @test(
 ; multiplies are hoisted out of the loop
@@ -17,10 +18,10 @@ target triple = "x86-apple-darwin"
 ; CHECK: phi
 ; CHECK: phi
 ; CHECK-NOT: phi
-; CHECK: bitcast float* {{.*}} to i8*
-; CHECK: bitcast float* {{.*}} to i8*
-; CHECK: getelementptr i8*
-; CHECK: getelementptr i8*
+; CHECK: bitcast float* {{.*}} to i1*
+; CHECK: bitcast float* {{.*}} to i1*
+; CHECK: getelementptr i1*
+; CHECK: getelementptr i1*
 
 define float @test(float* nocapture %A, float* nocapture %B, i32 %N, i32 %IA, i32 %IB) nounwind uwtable readonly ssp {
 entry:

@@ -11,7 +11,7 @@
 ; RUN: opt -S -o - -instcombine -globalopt -default-data-layout="e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64" < %s | FileCheck --check-prefix=TO %s
 
 ; "SCEV" - ScalarEvolution but no targetdata.
-; RUN: opt -analyze -scalar-evolution < %s | FileCheck --check-prefix=SCEV %s
+; RUN: opt -analyze -scalar-evolution -default-data-layout="e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64" < %s | FileCheck --check-prefix=SCEV %s
 
 
 ; The automatic constant folder in opt does not have targetdata access, so
@@ -180,20 +180,20 @@
 ; TO: }
 ; SCEV: Classifying expressions for: @goo8
 ; SCEV:   %t = bitcast i8* getelementptr (i8* inttoptr (i32 1 to i8*), i32 -1) to i8*
-; SCEV:   -->  ((-1 * sizeof(i8)) + inttoptr (i32 1 to i8*))
+; XFAIL:   -->  ((-1 * sizeof(i8)) + inttoptr (i32 1 to i8*))
 ; SCEV: Classifying expressions for: @goo1
 ; SCEV:   %t = bitcast i1* getelementptr (i1* inttoptr (i32 1 to i1*), i32 -1) to i1*
-; SCEV:   -->  ((-1 * sizeof(i1)) + inttoptr (i32 1 to i1*))
+; XFAIL:   -->  ((-1 * sizeof(i1)) + inttoptr (i32 1 to i1*))
 ; SCEV: Classifying expressions for: @foo8
 ; SCEV:   %t = bitcast i8* getelementptr (i8* inttoptr (i32 1 to i8*), i32 -2) to i8*
-; SCEV:   -->  ((-2 * sizeof(i8)) + inttoptr (i32 1 to i8*))
+; XFAIL:   -->  ((-2 * sizeof(i8)) + inttoptr (i32 1 to i8*))
 ; SCEV: Classifying expressions for: @foo1
 ; SCEV:   %t = bitcast i1* getelementptr (i1* inttoptr (i32 1 to i1*), i32 -2) to i1*
-; SCEV:   -->  ((-2 * sizeof(i1)) + inttoptr (i32 1 to i1*))
+; XFAIL:   -->  ((-2 * sizeof(i1)) + inttoptr (i32 1 to i1*))
 ; SCEV: Classifying expressions for: @hoo8
-; SCEV:   -->  (-1 * sizeof(i8))
+; XFAIL:   -->  (-1 * sizeof(i8))
 ; SCEV: Classifying expressions for: @hoo1
-; SCEV:   -->  (-1 * sizeof(i1))
+; XFAIL:   -->  (-1 * sizeof(i1))
 
 define i8* @goo8() nounwind {
   %t = bitcast i8* getelementptr (i8* inttoptr (i32 1 to i8*), i32 -1) to i8*
@@ -407,13 +407,13 @@ define i64 @fi() nounwind {
 ; TO: }
 ; SCEV: Classifying expressions for: @fM
 ; SCEV:   %t = bitcast i64* getelementptr (i64* null, i32 1) to i64* 
-; SCEV:   -->  sizeof(i64)
+; XFAIL:   -->  sizeof(i64)
 ; SCEV: Classifying expressions for: @fN
 ; SCEV:   %t = bitcast i64* getelementptr ({ i64, i64 }* null, i32 0, i32 1) to i64* 
-; SCEV:   -->  sizeof(i64)
+; XFAIL:   -->  sizeof(i64)
 ; SCEV: Classifying expressions for: @fO
 ; SCEV:   %t = bitcast i64* getelementptr ([2 x i64]* null, i32 0, i32 1) to i64* 
-; SCEV:   -->  sizeof(i64)
+; XFAIL:   -->  sizeof(i64)
 
 define i64* @fM() nounwind {
   %t = bitcast i64* getelementptr (i64* null, i32 1) to i64*
@@ -440,7 +440,7 @@ define i64* @fO() nounwind {
 ; TO: }
 ; SCEV: Classifying expressions for: @fZ
 ; SCEV:   %t = bitcast i32* getelementptr inbounds (i32* getelementptr inbounds ([3 x { i32, i32 }]* @ext, i64 0, i64 1, i32 0), i64 1) to i32*
-; SCEV:   -->  ((3 * sizeof(i32)) + @ext)
+; XFAIL:   -->  ((3 * sizeof(i32)) + @ext)
 
 define i32* @fZ() nounwind {
   %t = bitcast i32* getelementptr inbounds (i32* getelementptr inbounds ([3 x { i32, i32 }]* @ext, i64 0, i64 1, i32 0), i64 1) to i32*
