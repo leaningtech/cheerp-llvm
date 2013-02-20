@@ -1338,8 +1338,9 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 					//Those are safe in any size
 					break;
 				default:
-					assert(isI32Type(ci.getOperand(0)->getType()));
-					assert(isI32Type(ci.getOperand(1)->getType()));
+					break;
+					/*assert(isI32Type(ci.getOperand(0)->getType()));
+					assert(isI32Type(ci.getOperand(1)->getType()));*/
 			}
 			stream << "(";
 			compileOperand(ci.getOperand(0));
@@ -1447,6 +1448,7 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			//Unsigned opcodes are a problem, where do they come
 			case Instruction::URem:
 			case Instruction::UIToFP:
+			case Instruction::FPToUI:
 				return true;
 			default:
 				cerr << "Is " << I.getOpcodeName() << " inlineable?" << endl;
