@@ -1,5 +1,6 @@
 ; RUN: opt -O3 -S -analyze -scalar-evolution < %s | FileCheck %s
 ;
+target datalayout = "e-p:64:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128"
 ; This file contains phase ordering tests for scalar evolution.
 ; Test that the standard passes don't obfuscate the IR so scalar evolution can't
 ; recognize expressions.
@@ -7,7 +8,7 @@
 ; CHECK: test1
 ; The loop body contains two increments by %div.
 ; Make sure that 2*%div is recognizable, and not expressed as a bit mask of %d.
-; CHECK: -->  {%p,+,(2 * (%d /u 4) * sizeof(i32))}
+; CHECK: -->  {%p,+,(8 * (%d /u 4))}
 define void @test1(i64 %d, i32* %p) nounwind uwtable ssp {
 entry:
   %div = udiv i64 %d, 4
@@ -36,7 +37,7 @@ for.end:                                          ; preds = %for.cond
 
 ; CHECK: test1a
 ; Same thing as test1, but it is even more tempting to fold 2 * (%d /u 2)
-; CHECK: -->  {%p,+,(2 * (%d /u 2) * sizeof(i32))}
+; CHECK: -->  {%p,+,(8 * (%d /u 2))}
 define void @test1a(i64 %d, i32* %p) nounwind uwtable ssp {
 entry:
   %div = udiv i64 %d, 2

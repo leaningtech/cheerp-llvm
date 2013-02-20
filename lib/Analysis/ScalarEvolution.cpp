@@ -3540,6 +3540,13 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
   if (!Base->getType()->getPointerElementType()->isSized())
     return getUnknown(GEP);
 
+  // Be conservative is data layout is not available
+  if (!DL || !DL->isByteAddressable())
+  {
+	  // Duetto: On client side GEPs are not optimizable
+	  return getUnknown(GEP);
+  }
+
   // Don't blindly transfer the inbounds flag from the GEP instruction to the
   // Add expression, because the Instruction may be guarded by control flow
   // and the no-overflow bits may not be valid for the expression in any

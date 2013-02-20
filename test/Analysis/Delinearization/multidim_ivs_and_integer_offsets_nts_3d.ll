@@ -1,5 +1,7 @@
 ; RUN: opt < %s -analyze -delinearize | FileCheck %s
 
+target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
+target triple = "x86_64-apple-macosx10.6.0"
 ; void foo(long n, long m, long o, long p, double A[n][m][o+p]) {
 ;
 ;   for (long i = 0; i < n; i++)
@@ -10,7 +12,7 @@
 
 ; AddRec: {{{(56 + (8 * (-4 + (3 * %m)) * (%o + %p)) + %A),+,(8 * (%o + %p) * %m)}<%for.cond4.preheader.lr.ph.us>,+,(8 * (%o + %p))}<%for.body6.lr.ph.us.us>,+,8}<%for.body6.us.us>
 ; CHECK: Base offset: %A
-; CHECK: ArrayDecl[UnknownSize][%m][(%o + %p)] with elements of sizeof(double) bytes.
+; CHECK: ArrayDecl[UnknownSize][%m][(%o + %p)] with elements of 8 bytes.
 ; CHECK: ArrayRef[{3,+,1}<nw><%for.cond4.preheader.lr.ph.us>][{-4,+,1}<nw><%for.body6.lr.ph.us.us>][{7,+,1}<nw><%for.body6.us.us>]
 
 define void @foo(i64 %n, i64 %m, i64 %o, i64 %p, double* nocapture %A) nounwind uwtable {
