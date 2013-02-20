@@ -3189,6 +3189,14 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
   // Don't attempt to analyze GEPs over unsized objects.
   if (!cast<PointerType>(Base->getType())->getElementType()->isSized())
     return getUnknown(GEP);
+
+  // Be conservative is target data is not available
+  if (!TD || !TD->isByteAddressable())
+  {
+	  // Duetto: On client side GEPs are not optimizable
+	  return getUnknown(GEP);
+  }
+
   const SCEV *TotalOffset = getConstant(IntPtrTy, 0);
   gep_type_iterator GTI = gep_type_begin(GEP);
   for (GetElementPtrInst::op_iterator I = llvm::next(GEP->op_begin()),

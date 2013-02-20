@@ -4,6 +4,7 @@
 ; A sign extend feeds an IVUser and cannot be hoisted into the AddRec.
 ; CollectIVChains should bailout on this case.
 
+target datalayout = "e-p32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128-n32:64"
 %struct = type { i8*, i8*, i16, i64, i16, i16, i16, i64, i64, i16, i8*, i64, i64, i64 }
 
 ; CHECK-LABEL: @test(
