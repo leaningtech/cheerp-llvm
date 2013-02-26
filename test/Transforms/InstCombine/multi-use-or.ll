@@ -2,6 +2,7 @@
 ; The 'or' has multiple uses, make sure that this doesn't prevent instcombine
 ; from propagating the extends to the truncs.
 
+target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:128:128"
 define double @ScaleObjectAdd(double %sx, double %sy, double %sz) nounwind {
 entry:
         %sx34 = bitcast double %sx to i64               ; <i64> [#uses=1]

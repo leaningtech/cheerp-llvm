@@ -241,6 +241,12 @@ isEliminableCastPair(
   Type *SrcTy = CI->getOperand(0)->getType();   // A from above
   Type *MidTy = CI->getType();                  // B from above
 
+  if(!TD || (!TD->isByteAddressable() && SrcTy->isPointerTy() &&
+	cast<PointerType>(SrcTy)->getElementType()->isIntegerTy(8)))
+  {
+     return Instruction::CastOps(0);
+  }
+
   // Get the opcodes of the two Cast instructions
   Instruction::CastOps firstOp = Instruction::CastOps(CI->getOpcode());
   Instruction::CastOps secondOp = Instruction::CastOps(opcode);
