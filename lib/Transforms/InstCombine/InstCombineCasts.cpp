@@ -1364,6 +1364,9 @@ Instruction *InstCombiner::visitIntToPtr(IntToPtrInst &CI) {
 Instruction *InstCombiner::commonPointerCastTransforms(CastInst &CI) {
   Value *Src = CI.getOperand(0);
 
+  if (!TD || !TD->isByteAddressable())
+    return commonCastTransforms(CI);
+
   if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Src)) {
     // If casting the result of a getelementptr instruction with no offset, turn
     // this into a cast of the original pointer!
