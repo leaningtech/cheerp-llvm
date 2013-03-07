@@ -2574,6 +2574,8 @@ static bool HasPadding(Type *Ty, const DataLayout &TD) {
 bool SROA::isSafeAllocaToScalarRepl(AllocaInst *AI) {
   // Loop over the use list of the alloca.  We can only transform it if all of
   // the users are safe to transform.
+  if(!TD->isByteAddressable() && AI->getAllocatedType()->isStructTy())
+    return false;
   AllocaInfo Info(AI);
 
   isSafeForScalarRepl(AI, 0, Info);
