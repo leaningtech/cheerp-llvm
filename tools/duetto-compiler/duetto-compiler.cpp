@@ -748,6 +748,10 @@ void JSWriter::compileConstant(const Constant* c)
 	{
 		stream << "null";
 	}
+	else if(UndefValue::classof(c))
+	{
+		stream << "undefined";
+	}
 	else if(c->hasName())
 	{
 		printLLVMName(c->getName());
