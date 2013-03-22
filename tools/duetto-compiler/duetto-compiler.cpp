@@ -1310,6 +1310,7 @@ void JSWriter::compileOffsetForPointerGEP(const Value* val, const Use* it, const
 {
 	if(it==itE)
 	{
+		stream << '(';
 		//Same level access, we are just computing another pointer from this pointer
 		compileOffsetForPointer(val);
 		stream << '+';
@@ -1321,6 +1322,7 @@ void JSWriter::compileOffsetForPointerGEP(const Value* val, const Use* it, const
 		}
 		else
 			compileOperand(*itE);
+		stream << ')';
 	}
 	else
 	{
@@ -1703,11 +1705,9 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 				stream << "===";
 				compileObjectForPointer(ci.getOperand(1));
 				stream << " && ";
-				compileOperand(ci.getOperand(0));
-				stream << ".o";
+				compileOffsetForPointer(ci.getOperand(0));
 				compilePredicate(ci.getPredicate());
-				compileOperand(ci.getOperand(1));
-				stream << ".o";
+				compileOffsetForPointer(ci.getOperand(1));
 			}
 			else
 			{
