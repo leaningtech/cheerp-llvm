@@ -1436,7 +1436,7 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 			Type* srcT = ci.getSrcTy();
 			//Type* dstT = ci.getDestTy();
 			assert(isI32Type(srcT));
-			assert(dstT->isDoubleTy());
+			//assert(dstT->isDoubleTy());
 			//We need to cast to unsigned before
 			stream << "(";
 			compileOperand(ci.getOperand(0));
@@ -1482,9 +1482,9 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 		{
 			//Double addition
 			assert(I.getNumOperands()==2);
-			assert(I.getOperand(0)->getType()->isDoubleTy());
-			assert(I.getOperand(1)->getType()->isDoubleTy());
-			assert(I.getType()->isDoubleTy());
+			//assert(I.getOperand(0)->getType()->isDoubleTy());
+			//assert(I.getOperand(1)->getType()->isDoubleTy());
+			//assert(I.getType()->isDoubleTy());
 			stream << "(";
 			compileOperand(I.getOperand(0));
 			stream << " + ";
@@ -1598,9 +1598,9 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 		{
 			//Double multiplication
 			assert(I.getNumOperands()==2);
-			assert(I.getOperand(0)->getType()->isDoubleTy());
-			assert(I.getOperand(1)->getType()->isDoubleTy());
-			assert(I.getType()->isDoubleTy());
+			//assert(I.getOperand(0)->getType()->isDoubleTy());
+			//assert(I.getOperand(1)->getType()->isDoubleTy());
+			//assert(I.getType()->isDoubleTy());
 			stream << "(";
 			compileOperand(I.getOperand(0));
 			stream << " / ";
@@ -1626,9 +1626,9 @@ bool JSWriter::compileInlineableInstruction(const Instruction& I)
 		{
 			//Double multiplication
 			assert(I.getNumOperands()==2);
-			assert(I.getOperand(0)->getType()->isDoubleTy());
-			assert(I.getOperand(1)->getType()->isDoubleTy());
-			assert(I.getType()->isDoubleTy());
+			//assert(I.getOperand(0)->getType()->isDoubleTy());
+			//assert(I.getOperand(1)->getType()->isDoubleTy());
+			//assert(I.getType()->isDoubleTy());
 			stream << "(";
 			compileOperand(I.getOperand(0));
 			stream << " * ";
