@@ -1960,7 +1960,6 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::ICmp:
 			case Instruction::ZExt:
 			case Instruction::SExt:
-			case Instruction::Load:
 			case Instruction::Select:
 			case Instruction::ExtractValue:
 			//Unsigned opcodes are a problem, where do they come
@@ -1969,6 +1968,10 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::UIToFP:
 			case Instruction::FPToUI:
 				return true;
+			case Instruction::Load:
+				//Loads are inlineable only when the type in not a pointer
+				//otherwise it will be used multiple times when dereferencing it
+				return (I.getType()->isPointerTy()==false);
 			default:
 				cerr << "Is " << I.getOpcodeName() << " inlineable?" << endl;
 				assert(false);
