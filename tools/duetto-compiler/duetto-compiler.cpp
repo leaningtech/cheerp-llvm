@@ -196,6 +196,7 @@ private:
 	bool isComingFromAllocation(const Value* val) const;
 	bool isInlineable(const Instruction& I) const;
 	bool isBitCast(const Value* v) const;
+	bool isGEP(const Value* v) const;
 	void compileTerminatorInstruction(const TerminatorInst& I,
 			const std::map<const BasicBlock*, uint32_t>& blocksMap);
 	bool compileInlineableInstruction(const Instruction& I);
@@ -296,6 +297,16 @@ bool JSWriter::isBitCast(const Value* v) const
 		return true;
 	const ConstantExpr* ce=dyn_cast<const ConstantExpr>(v);
 	if(ce && ce->getOpcode()==Instruction::BitCast)
+		return true;
+	return false;
+}
+
+bool JSWriter::isGEP(const Value* v) const
+{
+	if(GetElementPtrInst::classof(v))
+		return true;
+	const ConstantExpr* ce=dyn_cast<const ConstantExpr>(v);
+	if(ce && ce->getOpcode()==Instruction::GetElementPtr)
 		return true;
 	return false;
 }
@@ -1238,12 +1249,12 @@ void JSWriter::compileFastGEPDereference(const Value* operand, const Use* idx_be
 
 void JSWriter::compileObjectForPointer(const Value* val)
 {
-	if(GetElementPtrInst::classof(val))
+	if(isGEP(val))
 	{
-		const GetElementPtrInst* gep=static_cast<const GetElementPtrInst*>(val);
-		GetElementPtrInst::const_op_iterator it=gep->idx_begin();
+		const User* gep=static_cast<const User*>(val);
+		GetElementPtrInst::const_op_iterator it=gep->op_begin()+1;
 		//We compile as usual till the last level
-		GetElementPtrInst::const_op_iterator itE=gep->idx_end()-1;
+		GetElementPtrInst::const_op_iterator itE=gep->op_end()-1;
 		compileObjectForPointerGEP(gep->getOperand(0), it, itE);
 		return;
 	}
@@ -1253,12 +1264,12 @@ void JSWriter::compileObjectForPointer(const Value* val)
 
 void JSWriter::compileOffsetForPointer(const Value* val)
 {
-	if(GetElementPtrInst::classof(val))
+	if(isGEP(val))
 	{
-		const GetElementPtrInst* gep=static_cast<const GetElementPtrInst*>(val);
-		GetElementPtrInst::const_op_iterator it=gep->idx_begin();
+		const User* gep=static_cast<const User*>(val);
+		GetElementPtrInst::const_op_iterator it=gep->op_begin()+1;
 		//We compile as usual till the last level
-		GetElementPtrInst::const_op_iterator itE=gep->idx_end()-1;
+		GetElementPtrInst::const_op_iterator itE=gep->op_end()-1;
 		compileOffsetForPointerGEP(gep->getOperand(0), it, itE);
 		return;
 	}
@@ -1268,12 +1279,12 @@ void JSWriter::compileOffsetForPointer(const Value* val)
 
 void JSWriter::compilePrefixForPointer(const Value* val)
 {
-	if(GetElementPtrInst::classof(val))
+	if(isGEP(val))
 	{
-		const GetElementPtrInst* gep=static_cast<const GetElementPtrInst*>(val);
-		GetElementPtrInst::const_op_iterator it=gep->idx_begin();
+		const User* gep=static_cast<const User*>(val);
+		GetElementPtrInst::const_op_iterator it=gep->op_begin()+1;
 		//We compile as usual till the last level
-		GetElementPtrInst::const_op_iterator itE=gep->idx_end()-1;
+		GetElementPtrInst::const_op_iterator itE=gep->op_end()-1;
 		compilePrefixForPointerGEP(gep->getOperand(0), it, itE);
 		return;
 	}
