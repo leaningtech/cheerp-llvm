@@ -19,6 +19,7 @@ subdirectories =
  Analysis
  AsmParser
  Bitcode
+ CheerpUtils
  CodeGen
  DebugInfo
  Demangle
