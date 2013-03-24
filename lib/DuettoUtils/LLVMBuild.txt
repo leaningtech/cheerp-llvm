@@ -1,4 +1,4 @@
-;===- ./lib/LLVMBuild.txt --------------------------------------*- Conf -*--===;
+;===- ./lib/Linker/LLVMBuild.txt -------------------------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -15,37 +15,8 @@
 ;
 ;===------------------------------------------------------------------------===;
 
-[common]
-subdirectories =
- Analysis
- AsmParser
- Bitcode
- CheerpUtils
- CodeGen
- DebugInfo
- Demangle
- ExecutionEngine
- LineEditor
- Linker
- IR
- IRReader
- LTO
- MC
- Object
- BinaryFormat
- ObjectYAML
- Option
- Passes
- ProfileData
- Support
- TableGen
- Target
- Testing
- ToolDrivers
- Transforms
- WindowsManifest
-
 [component_0]
-type = Group
-name = Libraries
-parent = $ROOT
+type = Library
+name = DuettoUtils
+parent = Libraries
+required_libraries = BitReader Core Support TransformUtils
