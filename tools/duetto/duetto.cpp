@@ -3,31 +3,26 @@
 //	Copyright 2011-2012 Leaning Technlogies
 //===----------------------------------------------------------------------===//
 
-#include "llvm/LLVMContext.h"
-#include "llvm/Module.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/PassManager.h"
-#include "llvm/Pass.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/Support/IRReader.h"
-#include "llvm/CodeGen/LinkAllAsmWriterComponents.h"
-#include "llvm/CodeGen/LinkAllCodegenComponents.h"
-#include "llvm/MC/SubtargetFeature.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/PrettyStackTrace.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/Target/TargetOptions.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Support/IRBuilder.h"
+#include "llvm/Bitcode/ReaderWriter.h"
+#include "llvm/Duetto/Utils.h"
 #include <memory>
 #include <iostream>
 using namespace llvm;
@@ -264,24 +259,9 @@ GetFileNameRoot(const std::string &InputFilename) {
 
 class DuettoWriter
 {
-private:
-	bool isBuiltinConstructor(const char* s, const std::string& typeName);
-	bool isBuiltinType(const std::string& typeName, std::string& builtinName);
-	void baseSubstitutionForBuiltin(User* i, Instruction* old, AllocaInst* source);
 public:
 	void rewriteServerMethod(Module& M, Function& F);
 	void rewriteClientMethod(Function& F);
-	void rewriteNativeObjectsConstructors(Module& M, Function& F);
-	/*
-	 * Return true if callInst has been rewritten and it must be deleted
-	 */
-	bool rewriteIfNativeConstructorCall(Module& M, Instruction* i, AllocaInst* newI,
-					    Instruction* callInst, Function* called,
-					    const std::string& builtinTypeName,
-					    SmallVector<Value*, 4>& initialArgs);
-	void rewriteNativeAllocationUsers(Module& M,SmallVector<Instruction*,4>& toRemove,
-							Instruction* allocation, Type* t,
-							const std::string& builtinTypeName);
 	Function* getMeta(Function& F, Module& M, int index);
 	Constant* getSkel(Function& F, Module& M, StructType* mapType);
 	Function* getStub(Function& F, Module& M);
@@ -335,213 +315,6 @@ void DuettoWriter::rewriteServerMethod(Module& M, Function& F)
 		ReturnInst::Create(M.getContext(),skelFuncCall,bb);
 }
 
-bool DuettoWriter::isBuiltinConstructor(const char* s, const std::string& typeName)
-{
-	if(strncmp(s,"_ZN",3)!=0)
-		return false;
-	const char* tmp=s+3;
-	char* endPtr;
-	int nsLen=strtol(tmp, &endPtr, 10);
-	tmp=endPtr;
-	if(nsLen==0 || (strncmp(tmp,"client",nsLen)!=0))
-	{
-		return false;
-	}
-
-	tmp+=nsLen;
-	int classLen=strtol(tmp, &endPtr, 10);
-	tmp=endPtr;
-
-	if(classLen==0 || typeName.compare(0, std::string::npos, tmp, classLen)!=0)
-		return false;
-
-	tmp+=classLen;
-
-	if(strncmp(tmp, "C1", 2)!=0)
-		return false;
-
-	return true;
-}
-
-void DuettoWriter::baseSubstitutionForBuiltin(User* i, Instruction* old, AllocaInst* source)
-{
-	Instruction* userInst=dyn_cast<Instruction>(i);
-	assert(userInst);
-	LoadInst* loadI=new LoadInst(source, "duettoPtrLoad", userInst);
-	userInst->replaceUsesOfWith(old, loadI);
-}
-
-/*
- * Check if a type is builtin and return the type name
- */
-bool DuettoWriter::isBuiltinType(const std::string& typeName, std::string& builtinName)
-{
-	//The type name is not mangled in C++ style, but in LLVM style
-	if(typeName.compare(0,14,"class.client::")!=0)
-		return false;
-	builtinName=typeName.substr(14);
-	return true;
-}
-
-bool DuettoWriter::rewriteIfNativeConstructorCall(Module& M, Instruction* i, AllocaInst* newI, Instruction* callInst,
-						  Function* called,const std::string& builtinTypeName,
-						  SmallVector<Value*, 4>& initialArgs)
-{
-	//A constructor call does have a name, it's non virtual!
-	if(called==NULL)
-		return false;
-	//To be a candidate for substitution it must have an empty body
-	if(!called->empty())
-		return false;
-	const char* funcName=called->getName().data();
-	if(!isBuiltinConstructor(funcName, builtinTypeName))
-		return false;
-	//Verify that this contructor is for the current alloca
-	if(callInst->getOperand(0)!=i)
-		return false;
-	std::cerr << "Rewriting constructor for type " << builtinTypeName << std::endl;
-
-	FunctionType* initialType=called->getFunctionType();
-	SmallVector<Type*, 4> initialArgsTypes(initialType->param_begin()+1,
-			initialType->param_end());
-	FunctionType* newFunctionType=FunctionType::get(*initialType->param_begin(),
-			initialArgsTypes, false);
-	//Morph into a different call
-	//For some builtins we have special support. For the rest we use a default implementation
-	std::string duettoBuiltinCreateName;
-	if(builtinTypeName=="String" || builtinTypeName=="Array" || builtinTypeName=="Callback")
-		duettoBuiltinCreateName=std::string("_duettoCreateBuiltin")+funcName;
-	else
-		duettoBuiltinCreateName="default_duettoCreateBuiltin_"+builtinTypeName;
-	Function* duettoBuiltinCreate=cast<Function>(M.getOrInsertFunction(duettoBuiltinCreateName,
-			newFunctionType));
-	CallInst* newCall=CallInst::Create(duettoBuiltinCreate,
-			initialArgs, "duettoCreateCall", callInst);
-	StoreInst* storeI=new StoreInst(newCall, newI, callInst);
-	return true;
-}
-
-void DuettoWriter::rewriteNativeAllocationUsers(Module& M, SmallVector<Instruction*,4>& toRemove,
-						Instruction* i, Type* t,
-						const std::string& builtinTypeName)
-{
-	//Instead of allocating the type, allocate a pointer to the type
-	AllocaInst* newI=new AllocaInst(PointerType::getUnqual(t),"duettoPtrAlloca",i);
-	toRemove.push_back(i);
-
-	Instruction::use_iterator it=i->use_begin();
-	Instruction::use_iterator itE=i->use_end();
-	SmallVector<User*, 4> users(it,itE);
-	//Loop over the uses and look for constructors call
-	for(unsigned j=0;j<users.size();j++)
-	{
-		Instruction* userInst = dyn_cast<Instruction>(users[j]);
-		if(userInst==NULL)
-		{
-			std::cerr << "Unsupported non instruction user of builtin alloca" << std::endl;
-			baseSubstitutionForBuiltin(users[j], i, newI);
-			continue;
-		}
-		switch(userInst->getOpcode())
-		{
-			case Instruction::Call:
-			{
-				CallInst* callInst=static_cast<CallInst*>(userInst);
-				//Ignore the last argument, since it's not part of the real ones
-				SmallVector<Value*, 4> initialArgs(callInst->op_begin()+1,callInst->op_end()-1);
-				bool ret=rewriteIfNativeConstructorCall(M, i, newI, callInst,
-									callInst->getCalledFunction(),builtinTypeName,
-									initialArgs);
-				if(ret)
-					toRemove.push_back(callInst);
-				else
-					baseSubstitutionForBuiltin(callInst, i, newI);
-				break;
-			}
-			case Instruction::Invoke:
-			{
-				InvokeInst* invokeInst=static_cast<InvokeInst*>(userInst);
-				SmallVector<Value*, 4> initialArgs(invokeInst->op_begin()+1,invokeInst->op_end()-3);
-				bool ret=rewriteIfNativeConstructorCall(M, i, newI, invokeInst,
-									invokeInst->getCalledFunction(),builtinTypeName,
-									initialArgs);
-				if(ret)
-				{
-					toRemove.push_back(invokeInst);
-					//We need to add a branch to the success label of the invoke call
-					BranchInst* branchInst=BranchInst::Create(invokeInst->getNormalDest(),invokeInst);
-				}
-				else
-					baseSubstitutionForBuiltin(invokeInst, i, newI);
-				break;
-			}
-			default:
-			{
-				userInst->dump();
-				std::cerr << "Unsupported opcode for builtin alloca" << std::endl;
-				baseSubstitutionForBuiltin(users[j], i, newI);
-				break;
-			}
-		}
-	}
-}
-
-void DuettoWriter::rewriteNativeObjectsConstructors(Module& M, Function& F)
-{
-	//Vector of the instructions to be removed in the second pass
-	SmallVector<Instruction*, 4> toRemove;
-
-	Function::iterator B=F.begin();
-	Function::iterator BE=F.end();
-	for(;B!=BE;++B)
-	{
-		BasicBlock::iterator I=B->begin();
-		BasicBlock::iterator IE=B->end();
-		for(;I!=IE;++I)
-		{
-			if(I->getOpcode()==Instruction::Alloca)
-			{
-				AllocaInst* i=cast<AllocaInst>(&(*I));
-				Type* t=i->getAllocatedType();
-
-				std::string builtinTypeName;
-				if(!t->isStructTy() || !isBuiltinType((std::string)t->getStructName(), builtinTypeName))
-					continue;
-				rewriteNativeAllocationUsers(M,toRemove,i,t,builtinTypeName);
-			}
-			else if(I->getOpcode()==Instruction::Call)
-			{
-				CallInst* i=cast<CallInst>(&(*I));
-				//Check if the function is the C++ new
-				Function* called=i->getCalledFunction();
-				if(called==NULL)
-					continue;
-				if(called->getName()!="_Znwm")
-					continue;
-				//Ok, it's a new, find if the only use is a bitcast
-				//in such case we assume that the allocation was for the target type
-				Instruction::use_iterator it=i->use_begin();
-				if(i->getNumUses()>1)
-					continue;
-				BitCastInst* bc=dyn_cast<BitCastInst>(*it);
-				if(bc==NULL)
-					continue;
-				Type* t=bc->getDestTy()->getContainedType(0);
-				std::string builtinTypeName;
-				if(!t->isStructTy() || !isBuiltinType((std::string)t->getStructName(), builtinTypeName))
-					continue;
-				rewriteNativeAllocationUsers(M,toRemove,bc,t,builtinTypeName);
-			}
-		}
-	}
-
-	//Remove the instructions in backward order to avoid dependency issues
-	for(int i=toRemove.size();i>0;i--)
-	{
-		toRemove[i-1]->eraseFromParent();
-	}
-}
-
 void DuettoWriter::makeClient(Module* M)
 {
 	SmallVector<Function*, 4> toRemove;
@@ -555,15 +328,10 @@ void DuettoWriter::makeClient(Module* M)
 		//Make stubs out of server side code
 		//Make sure custom attributes are removed, they
 		//may confuse emscripten
-		if(current.hasFnAttr(Attribute::Server))
+		if(current.hasFnAttribute(Attribute::Server))
 			rewriteServerMethod(*M, current);
-		else if(current.hasFnAttr(Attribute::ServerSkel))
-		{
-			//Purge them away
-			toRemove.push_back(&current);
-		}
 		else
-			rewriteNativeObjectsConstructors(*M, current);
+			DuettoUtils::rewriteNativeObjectsConstructors(*M, current);
 		current.removeFnAttr(Attribute::Client);
 		current.removeFnAttr(Attribute::Server);
 	}
@@ -633,9 +401,9 @@ void DuettoWriter::makeServer(Module* M)
 		++F;
 		//Delete client side code and
 		//save aside the function that needs a skel
-		if(current.hasFnAttr(Attribute::Client))
+		if(current.hasFnAttribute(Attribute::Client))
 			rewriteClientMethod(current);
-		else if(current.hasFnAttr(Attribute::Server))
+		else if(current.hasFnAttribute(Attribute::Server))
 			serverFunction.push_back(&current);
 	}
 
@@ -735,10 +503,10 @@ int main(int argc, char **argv) {
   PassManager PM;
 
   // Add the target data from the target machine, if it exists, or the module.
-  if (const TargetData *TD = target->getTargetData())
-    PM.add(new TargetData(*TD));
+  if (const DataLayout *TD = target->getDataLayout())
+    PM.add(new DataLayout(*TD));
   else
-    PM.add(new TargetData(serverMod));
+    PM.add(new DataLayout(serverMod));
 
   std::string ServerOutputFilename = GetFileNameRoot(InputFilename) + "-server.o";
 
