@@ -28,6 +28,7 @@
 #include "Transforms/Utils/Cloning.h"
 #include "DerivedTypes.h"
 #include "Support/IRBuilder.h"
+#include "Duetto/Utils.h"
 #include <memory>
 #include <map>
 #include <iostream>
@@ -2234,6 +2235,7 @@ void JSWriter::makeJS()
 	Module::iterator FE=module->end();
 	for (; F != FE; ++F)
 	{
+		DuettoUtils::rewriteNativeObjectsConstructors(*module, *F);
 		compileMethod(*F);
 	}
 	//Invoke the webMain function
