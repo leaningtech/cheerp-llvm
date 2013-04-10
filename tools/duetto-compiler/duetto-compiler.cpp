@@ -1053,6 +1053,7 @@ void JSWriter::compileConstant(const Constant* c)
 	{
 		cerr << "Unsupported constant type ";
 		c->dump();
+		stream << "null";
 	}
 }
 
