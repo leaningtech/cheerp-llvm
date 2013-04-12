@@ -2387,6 +2387,7 @@ void JSWriter::compileMethod(Function& F)
 		compileBB(*F.begin(), blocksMap);
 	else
 	{
+		stream << "var label = 0;\n";
 		//TODO: Support exceptions
 		Function::iterator B=F.begin();
 		Function::iterator BE=F.end();
