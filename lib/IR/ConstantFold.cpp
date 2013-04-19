@@ -529,7 +529,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
       // Try hard to fold cast of cast because they are often eliminable.
       if (unsigned newOpc = foldConstantCastPair(opc, CE, DestTy))
         return ConstantExpr::getCast(newOpc, CE->getOperand(0), DestTy);
-    } else if (CE->getOpcode() == Instruction::GetElementPtr) {
+    } /*else if (CE->getOpcode() == Instruction::GetElementPtr) {
       // If all of the indexes in the GEP are null values, there is no pointer
       // adjustment going on.  We might as well cast the source pointer.
       bool isAllNull = true;
@@ -541,7 +541,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
       if (isAllNull)
         // This is casting one pointer type to another, always BitCast
         return ConstantExpr::getPointerCast(CE->getOperand(0), DestTy);
-    }
+    }*/
   }
 
   // If the cast operand is a constant vector, perform the cast by
