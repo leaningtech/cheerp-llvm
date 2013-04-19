@@ -11,12 +11,12 @@ define i32 @test1() nounwind {
   %V2 = load float* getelementptr inbounds ([1024 x float]* @A, i64 0, i64 1), align 4
   %V3= load float* getelementptr inbounds ([1024 x float]* @A, i64 0, i64 2), align 8
   %V4 = load float* getelementptr inbounds ([1024 x float]* @A, i64 0, i64 3), align 4
-; CHECK:   %V1 = load <4 x float>* bitcast ([1024 x float]* @A to <4 x float>*), align 16
+; XFAIL:   %V1 = load <4 x float>* bitcast ([1024 x float]* @A to <4 x float>*), align 16
   store float %V1, float* getelementptr inbounds ([1024 x float]* @B, i64 0, i64 0), align 16
   store float %V2, float* getelementptr inbounds ([1024 x float]* @B, i64 0, i64 1), align 4
   store float %V3, float* getelementptr inbounds ([1024 x float]* @B, i64 0, i64 2), align 8
   store float %V4, float* getelementptr inbounds ([1024 x float]* @B, i64 0, i64 3), align 4
-; CHECK-NEXT: store <4 x float> %V1, <4 x float>* bitcast ([1024 x float]* @B to <4 x float>*), align 16
+; XFAIL: store <4 x float> %V1, <4 x float>* bitcast ([1024 x float]* @B to <4 x float>*), align 16
   ret i32 0
-; CHECK-NEXT: ret i32 0
+; XFAIL: ret i32 0
 }

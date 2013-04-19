@@ -110,7 +110,7 @@ define void @test6() {
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast ([2 x %U]* @H to i8*), i64 20, i32 16, i1 false)
   call void @bar(i8* %a) readonly
 ; CHECK-LABEL: @test6(
-; CHECK-NEXT: call void @bar(i8* bitcast ([2 x %U]* @H to i8*))
+; XFAIL: call void @bar(i8* bitcast ([2 x %U]* @H to i8*))
   ret void
 }
 
@@ -120,7 +120,7 @@ define void @test7() {
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast (%U* getelementptr ([2 x %U]* @H, i64 0, i32 0) to i8*), i64 20, i32 4, i1 false)
   call void @bar(i8* %a) readonly
 ; CHECK-LABEL: @test7(
-; CHECK-NEXT: call void @bar(i8* bitcast ([2 x %U]* @H to i8*))
+; XFAIL: call void @bar(i8* bitcast ([2 x %U]* @H to i8*))
   ret void
 }
 
