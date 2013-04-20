@@ -2409,6 +2409,7 @@ bool JSWriter::isInlineable(const Instruction& I) const
 			case Instruction::UDiv:
 			case Instruction::UIToFP:
 			case Instruction::FPToUI:
+			case Instruction::PtrToInt:
 				return true;
 			default:
 				cerr << "Is " << I.getOpcodeName() << " inlineable?" << endl;
