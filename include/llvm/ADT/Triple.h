@@ -80,7 +80,8 @@ public:
     hsail64,    // AMD HSAIL with 64-bit pointers
     spir,       // SPIR: standard portable IR for OpenCL 32-bit version
     spir64,     // SPIR: standard portable IR for OpenCL 64-bit version
-    kalimba     // Kalimba: generic kalimba
+    kalimba,    // Kalimba: generic kalimba
+    duetto      // Duetto: JS and object addressable architectures
   };
   enum SubArchType {
     NoSubArch,
