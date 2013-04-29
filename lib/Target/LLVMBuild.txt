@@ -24,6 +24,7 @@ subdirectories =
  AArch64
  AVR
  BPF
+ CheerpBackend
  Lanai
  Hexagon
  MSP430
