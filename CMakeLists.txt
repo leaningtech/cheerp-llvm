@@ -319,6 +319,7 @@ set(LLVM_ALL_TARGETS
   AMDGPU
   ARM
   BPF
+  CheerpBackend
   Hexagon
   Lanai
   Mips
