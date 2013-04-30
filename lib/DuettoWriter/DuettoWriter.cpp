@@ -305,6 +305,12 @@ Type* DuettoWriter::findRealType(const Value* v, std::set<const PHINode*>& visit
 	return v->getType();
 }
 
+void DuettoWriter::compileDowncast(const Value* src)
+{
+	assert(isClientType(src->getType()));
+	compileOperand(src);
+}
+
 void DuettoWriter::compileCopy(const Value* dest, const Value* src, const Value* size)
 {
 	//Find out the real type of the copied object
@@ -534,6 +540,11 @@ bool DuettoWriter::handleBuiltinCall(const char* ident, const Value* callV,
 	}
 	else if(strncmp(ident,"llvm.lifetime",13)==0)
 	{
+		return true;
+	}
+	else if(strncmp(ident,"llvm.duetto.downcast",20)==0)
+	{
+		compileDowncast(*(it));
 		return true;
 	}
 	else if(strcmp(ident,"malloc")==0 ||
