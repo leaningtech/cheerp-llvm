@@ -104,6 +104,9 @@ void DuettoWriter::handleBuiltinNamespace(const char* ident, User::const_op_iter
 
 bool DuettoWriter::isBitCast(const Value* v) const
 {
+#ifndef NDEBUG
+	const User* b=static_cast<const User*>(v);
+#endif
 	if(BitCastInst::classof(v))
 	{
 		assert(isValidTypeCast(v, b->getOperand(0), b->getOperand(0)->getType(), v->getType()));
