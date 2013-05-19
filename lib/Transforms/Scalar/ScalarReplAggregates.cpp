@@ -1508,6 +1508,9 @@ bool SROA::performScalarRepl(Function &F) {
     if (AI->isArrayAllocation() || !AI->getAllocatedType()->isSized())
       continue;
 
+    if (!DL || !DL->isByteAddressable())
+      continue;
+
     // Check to see if we can perform the core SROA transformation.  We cannot
     // transform the allocation instruction if it is an array allocation
     // (allocations OF arrays are ok though), and an allocation of a scalar
