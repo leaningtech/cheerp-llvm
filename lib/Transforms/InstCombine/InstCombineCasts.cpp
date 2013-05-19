@@ -1712,9 +1712,12 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     // size, rewrite the allocation instruction to allocate the "right" type.
     // There is no need to modify malloc calls because it is their bitcast that
     // needs to be cleaned up.
-    if (AllocaInst *AI = dyn_cast<AllocaInst>(Src))
-      if (Instruction *V = PromoteCastOfAllocation(CI, *AI))
-        return V;
+    if (TD && TD->isByteAddressable())
+    {
+      if (AllocaInst *AI = dyn_cast<AllocaInst>(Src))
+        if (Instruction *V = PromoteCastOfAllocation(CI, *AI))
+          return V;
+    }
 
     // If the source and destination are pointers, and this cast is equivalent
     // to a getelementptr X, 0, 0, 0...  turn it into the appropriate gep.
