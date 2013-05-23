@@ -98,6 +98,7 @@ struct PointerAlignElem {
 class DataLayout : public ImmutablePass {
 private:
   bool          LittleEndian;          ///< Defaults to false
+  bool          ByteAddressable;       ///< Defautls to true
   unsigned      StackNaturalAlign;     ///< Stack natural alignment
 
   SmallVector<unsigned char, 8> LegalIntWidths; ///< Legal Integers.
@@ -174,6 +175,7 @@ public:
   DataLayout(const DataLayout &DL) :
     ImmutablePass(ID),
     LittleEndian(DL.isLittleEndian()),
+    ByteAddressable(DL.isByteAddressable()),
     StackNaturalAlign(DL.StackNaturalAlign),
     LegalIntWidths(DL.LegalIntWidths),
     Alignments(DL.Alignments),
@@ -194,6 +196,7 @@ public:
   /// Layout endianness...
   bool isLittleEndian() const { return LittleEndian; }
   bool isBigEndian() const { return !LittleEndian; }
+  bool isByteAddressable() const { return ByteAddressable; }
 
   /// getStringRepresentation - Return the string representation of the
   /// DataLayout.  This representation is in the same format accepted by the

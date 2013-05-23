@@ -156,6 +156,7 @@ void DataLayout::init(StringRef Desc) {
 
   LayoutMap = 0;
   LittleEndian = false;
+  ByteAddressable = true;
   StackNaturalAlign = 0;
 
   // Default alignments
@@ -216,6 +217,12 @@ void DataLayout::parseSpecifier(StringRef Desc) {
     Tok = Tok.substr(1);
 
     switch (Specifier) {
+    case 'B':
+      ByteAddressable = true;
+      break;
+    case 'b':
+      ByteAddressable = false;
+      break;
     case 'E':
       LittleEndian = false;
       break;
@@ -470,6 +477,7 @@ std::string DataLayout::getStringRepresentation() const {
   raw_string_ostream OS(Result);
 
   OS << (LittleEndian ? "e" : "E");
+  OS << (ByteAddressable ? "B" : "b");
   SmallVector<unsigned, 8> addrSpaces;
   // Lets get all of the known address spaces and sort them
   // into increasing order so that we can emit the string
