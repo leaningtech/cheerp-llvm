@@ -100,6 +100,8 @@ class DataLayout {
 private:
   /// Defaults to false.
   bool BigEndian;
+  /// Defaults to true
+  bool ByteAddressable;
 
   unsigned StackNaturalAlign;
 
@@ -181,6 +183,7 @@ public:
   DataLayout &operator=(const DataLayout &DL) {
     clear();
     BigEndian = DL.isBigEndian();
+    ByteAddressable = DL.isByteAddressable();
     StackNaturalAlign = DL.StackNaturalAlign;
     ManglingMode = DL.ManglingMode;
     LegalIntWidths = DL.LegalIntWidths;
@@ -200,6 +203,7 @@ public:
   /// Layout endianness...
   bool isLittleEndian() const { return !BigEndian; }
   bool isBigEndian() const { return BigEndian; }
+  bool isByteAddressable() const { return ByteAddressable; }
 
   /// \brief Returns the string representation of the DataLayout.
   ///

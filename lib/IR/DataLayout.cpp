@@ -180,6 +180,7 @@ void DataLayout::reset(StringRef Desc) {
 
   LayoutMap = nullptr;
   BigEndian = false;
+  ByteAddressable = true;
   StackNaturalAlign = 0;
   ManglingMode = MM_None;
 
@@ -240,6 +241,12 @@ void DataLayout::parseSpecifier(StringRef Desc) {
     case 's':
       // Ignored for backward compatibility.
       // FIXME: remove this on LLVM 4.0.
+      break;
+    case 'B':
+      ByteAddressable = true;
+      break;
+    case 'b':
+      ByteAddressable = false;
       break;
     case 'E':
       BigEndian = true;
@@ -544,6 +551,9 @@ const StructLayout *DataLayout::getStructLayout(StructType *Ty) const {
 std::string DataLayout::getStringRepresentation() const {
   std::string Result;
   raw_string_ostream OS(Result);
+
+  if (!ByteAddressable)
+    OS << "b-";
 
   OS << (BigEndian ? "E" : "e");
 
