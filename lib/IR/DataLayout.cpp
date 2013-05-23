@@ -180,6 +180,7 @@ void DataLayout::reset(StringRef Desc) {
   LayoutMap = nullptr;
   BigEndian = false;
   AllocaAddrSpace = 0;
+  ByteAddressable = true;
   StackNaturalAlign = 0;
   ManglingMode = MM_None;
   NonIntegralAddressSpaces.clear();
@@ -255,6 +256,12 @@ void DataLayout::parseSpecifier(StringRef Desc) {
     case 's':
       // Ignored for backward compatibility.
       // FIXME: remove this on LLVM 4.0.
+      break;
+    case 'B':
+      ByteAddressable = true;
+      break;
+    case 'b':
+      ByteAddressable = false;
       break;
     case 'E':
       BigEndian = true;
