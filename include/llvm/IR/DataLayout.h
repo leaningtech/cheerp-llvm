@@ -95,6 +95,7 @@ struct PointerAlignElem {
 class DataLayout {
 private:
   bool          LittleEndian;          ///< Defaults to false
+  bool          ByteAddressable;       ///< Defaults to true
   unsigned      StackNaturalAlign;     ///< Stack natural alignment
 
   enum ManglingModeT {
@@ -186,6 +187,7 @@ public:
   DataLayout &operator=(const DataLayout &DL) {
     clear();
     LittleEndian = DL.isLittleEndian();
+    ByteAddressable = DL.isByteAddressable();
     StackNaturalAlign = DL.StackNaturalAlign;
     ManglingMode = DL.ManglingMode;
     LegalIntWidths = DL.LegalIntWidths;
@@ -205,6 +207,7 @@ public:
   /// Layout endianness...
   bool isLittleEndian() const { return LittleEndian; }
   bool isBigEndian() const { return !LittleEndian; }
+  bool isByteAddressable() const { return ByteAddressable; }
 
   /// getStringRepresentation - Return the string representation of the
   /// DataLayout.  This representation is in the same format accepted by the
