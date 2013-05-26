@@ -1093,7 +1093,7 @@ void DuettoWriter::compileConstantExpr(const ConstantExpr* ce)
 			break;
 		}
 		default:
-		llvm::errs() << "Unsupported constant expr " << ce->getOpcodeName() << '\n';
+			llvm::errs() << "Unsupported constant expr " << ce->getOpcodeName() << '\n';
 	}
 }
 
