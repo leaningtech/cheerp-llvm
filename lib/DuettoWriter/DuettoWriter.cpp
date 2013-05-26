@@ -1347,10 +1347,11 @@ void DuettoWriter::compileType(Type* t)
 			stream << "create";
 			printLLVMName(st->getName());
 			stream << "()";
+			return;
 		}
+		//Else fallthrough to base case
 	}
-	else
-		compileTypeImpl(t);
+	compileTypeImpl(t);
 }
 
 uint32_t DuettoWriter::getUniqueIndexForValue(const Value* v)
