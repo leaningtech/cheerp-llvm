@@ -2749,11 +2749,11 @@ uint32_t DuettoWriter::compileClassTypeRecursive(const std::string& baseName, St
 	if(!basesNamedMeta)
 		return baseCount;
 
-	assert(basesNamedMeta->getNumOperands()==1);
 	MDNode* basesMeta=basesNamedMeta->getOperand(0);
 	assert(basesMeta->getNumOperands()==2);
 	uint32_t firstBase=getIntFromValue(basesMeta->getOperand(0));
-	uint32_t baseMax=getIntFromValue(basesMeta->getOperand(1));
+	//baseCount has been already incremented above
+	uint32_t baseMax=getIntFromValue(basesMeta->getOperand(1))+(baseCount-1);
 	uint32_t offset=0;
 
 	StructType::element_iterator E=currentType->element_begin();
@@ -2789,7 +2789,6 @@ void DuettoWriter::compileClassType(StructType* T)
 	NamedMDNode* basesNamedMeta=module.getNamedMetadata(Twine(T->getName(),"_bases"));
 	if(basesNamedMeta)
 	{
-		assert(basesNamedMeta->getNumOperands()==1);
 		MDNode* basesMeta=basesNamedMeta->getOperand(0);
 		assert(basesMeta->getNumOperands()==2);
 		uint32_t baseMax=getIntFromValue(basesMeta->getOperand(1));
