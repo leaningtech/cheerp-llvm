@@ -14,6 +14,6 @@
 
 //===-------------------------- Duetto Intrinsics --------------------------===//
 //
-def int_duetto_downcast  : Intrinsic<[llvm_anyptr_ty],
-                             [llvm_anyptr_ty, llvm_i32_ty],
+def int_duetto_downcast  : Intrinsic<[llvm_ptr_ty],
+                             [llvm_ptr_ty, llvm_i32_ty],
                              [IntrNoMem, NoCapture<0>]>;
