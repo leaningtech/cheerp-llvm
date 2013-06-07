@@ -2992,7 +2992,7 @@ void DuettoWriter::compileArrayClassType(StructType* T)
 	stream << ";\nreturn ret;\n}\n";
 }
 
-void DuettoWriter::compileConstructors(GlobalVariable* GV) const
+void DuettoWriter::handleConstructors(GlobalVariable* GV, CONSTRUCTOR_ACTION action)
 {
 	assert(GV->hasInitializer());
 	Constant* C=GV->getInitializer();
@@ -3002,16 +3002,19 @@ void DuettoWriter::compileConstructors(GlobalVariable* GV) const
 	uint32_t lastPriority=0;
 	for(uint32_t i=0;i<numElements;i++)
 	{
-		Constant* E=CA->getAggregateElement(i);
-		Constant* PS=E->getAggregateElement((unsigned)0);
-		uint32_t priority = getIntFromValue(PS);
-		//TODO: handle priority
-		assert(priority>=lastPriority);
-		lastPriority=priority;
-		Constant* F=E->getAggregateElement((unsigned)1);
-		assert(Function::classof(F) && assert(F->hasName()));
-		printLLVMName(F->getName());
-		stream << "();\n";
+		if(action==COMPILE)
+		{
+			Constant* E=CA->getAggregateElement(i);
+			Constant* PS=E->getAggregateElement((unsigned)0);
+			uint32_t priority = getIntFromValue(PS);
+			//TODO: handle priority
+			assert(priority>=lastPriority);
+			lastPriority=priority;
+			Constant* F=E->getAggregateElement((unsigned)1);
+			assert(Function::classof(F) && assert(F->hasName()));
+			printLLVMName(F->getName());
+			stream << "();\n";
+		}
 	}
 }
 
@@ -3044,9 +3047,9 @@ void DuettoWriter::makeJS()
 		compileArrayClassType(*T);
 	}
 	//Execute constructors
-	GlobalVariable* GV=module.getGlobalVariable("llvm.global_ctors");
-	if(GV)
-		compileConstructors(GV);
+	GlobalVariable* constructors=module.getGlobalVariable("llvm.global_ctors");
+	if(constructors)
+		handleConstructors(constructors, COMPILE);
 	//Invoke the webMain function
 	stream << "__Z7webMainv();\n";
 }
