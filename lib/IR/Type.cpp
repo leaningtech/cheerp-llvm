@@ -610,7 +610,22 @@ bool StructType::isLayoutIdentical(StructType *Other) const {
       getNumElements() != Other->getNumElements())
     return false;
   
-  return std::equal(element_begin(), element_end(), Other->element_begin());
+  element_iterator it=element_begin();
+  element_iterator itOther=Other->element_begin();
+  element_iterator itE=element_end();
+  for(;it!=itE;++it,++itOther)
+  {
+    if((*it)->isStructTy())
+    {
+      if(!(*itOther)->isStructTy())
+        return false;
+      if(!cast<StructType>(*it)->isLayoutIdentical(cast<StructType>(*itOther)))
+        return false;
+    }
+    else if((*it)!=(*itOther))
+      return false;
+  }
+  return true;
 }
 
 /// getTypeByName - Return the type with the specified name, or null if there
