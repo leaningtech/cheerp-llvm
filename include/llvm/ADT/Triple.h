@@ -178,7 +178,8 @@ public:
     WatchOS,    // Apple watchOS
     Mesa3D,
     Contiki,
-    LastOSType = Contiki
+    WebBrowser,
+    LastOSType = WebBrowser
   };
   enum EnvironmentType {
     UnknownEnvironment,
