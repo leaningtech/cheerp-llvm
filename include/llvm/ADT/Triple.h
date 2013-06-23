@@ -141,7 +141,8 @@ public:
     AIX,
     CUDA,       // NVIDIA CUDA
     NVCL,       // NVIDIA OpenCL
-    AMDHSA      // AMD HSA Runtime
+    AMDHSA,     // AMD HSA Runtime
+    WebBrowser
   };
   enum EnvironmentType {
     UnknownEnvironment,
