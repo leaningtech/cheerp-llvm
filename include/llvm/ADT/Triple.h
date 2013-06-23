@@ -187,7 +187,8 @@ public:
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
     WASI,       // Experimental WebAssembly OS
-    LastOSType = WASI
+    WebBrowser,
+    LastOSType = WebBrowser
   };
   enum EnvironmentType {
     UnknownEnvironment,
