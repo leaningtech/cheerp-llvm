@@ -190,7 +190,8 @@ public:
     Hurd,       // GNU/Hurd
     WASI,       // Experimental WebAssembly OS
     Emscripten,
-    LastOSType = Emscripten
+    WebBrowser,
+    LastOSType = WebBrowser
   };
   enum EnvironmentType {
     UnknownEnvironment,

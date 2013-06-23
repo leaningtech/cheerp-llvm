@@ -213,6 +213,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case Hurd: return "hurd";
   case WASI: return "wasi";
   case Emscripten: return "emscripten";
+  case WebBrowser: return "webbrowser";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -521,6 +522,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("hurd", Triple::Hurd)
     .StartsWith("wasi", Triple::WASI)
     .StartsWith("emscripten", Triple::Emscripten)
+    .StartsWith("webbrowser", Triple::WebBrowser)
     .Default(Triple::UnknownOS);
 }
 
