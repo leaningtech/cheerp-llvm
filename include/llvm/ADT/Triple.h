@@ -111,7 +111,8 @@ public:
     Bitrig,
     AIX,
     CUDA,       // NVIDIA CUDA
-    NVCL        // NVIDIA OpenCL
+    NVCL,        // NVIDIA OpenCL
+    WebBrowser
   };
   enum EnvironmentType {
     UnknownEnvironment,
