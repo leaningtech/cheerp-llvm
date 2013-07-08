@@ -1231,7 +1231,11 @@ void DuettoWriter::compileConstant(const Constant* c)
 			const GlobalValue* GV=cast<const GlobalValue>(c);
 			printLLVMName(c->getName());
 			if(globalsDone.count(GV)==0)
+#ifdef DEBUG_GLOBAL_DEPS
+				globalsQueue.insert(make_pair(GV,currentFun));
+#else
 				globalsQueue.insert(GV);
+#endif
 		}
 	}
 	else if(ConstantAggregateZero::classof(c))
@@ -1485,7 +1489,11 @@ void DuettoWriter::compileTerminatorInstruction(const TerminatorInst& I)
 				{
 					stream << '_' << funcName;
 					if(!globalsDone.count(ci.getCalledFunction()))
+#ifdef DEBUG_GLOBAL_DEPS
+						globalsQueue.insert(make_pair(ci.getCalledFunction(),currentFun));
+#else
 						globalsQueue.insert(ci.getCalledFunction());
+#endif
 				}
 			}
 			else
@@ -1622,7 +1630,11 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 					return true;
 				stream << '_' << funcName;
 				if(!globalsDone.count(ci.getCalledFunction()))
+#ifdef DEBUG_GLOBAL_DEPS
+					globalsQueue.insert(make_pair(ci.getCalledFunction(),currentFun));
+#else
 					globalsQueue.insert(ci.getCalledFunction());
+#endif
 			}
 			else
 			{
@@ -2700,8 +2712,6 @@ void DuettoWriter::compileMethod(const Function& F)
 		return;
 	globalsDone.insert(&F);
 	currentFun = &F;
-	if(printMethodNames)
-		llvm::errs() << F.getName() << "\n";
 	stream << "function _" << F.getName() << "(";
 	const Function::const_arg_iterator A=F.arg_begin();
 	const Function::const_arg_iterator AE=F.arg_end();
@@ -2891,14 +2901,22 @@ void DuettoWriter::gatherDependencies(const Constant* c, const llvm::GlobalVaria
 		/*
 		 * Also add the global to the globals queue
 		 */
+#ifdef DEBUG_GLOBAL_DEPS
+		globalsQueue.insert(make_pair(GV,base));
+#else
 		globalsQueue.insert(GV);
+#endif
 	}
 	else if(Function::classof(c))
 	{
 		const Function* F=cast<const Function>(c);
 		if(globalsDone.count(F))
 			return;
+#ifdef DEBUG_GLOBAL_DEPS
+		globalsQueue.insert(make_pair(F,base));
+#else
 		globalsQueue.insert(F);
+#endif
 	}
 }
 
@@ -3043,7 +3061,11 @@ void DuettoWriter::handleConstructors(GlobalVariable* GV, CONSTRUCTOR_ACTION act
 			Function* F=cast<Function>(FA);
 			if(globalsDone.count(F))
 				continue;
+#ifdef DEBUG_GLOBAL_DEPS
+			globalsQueue.insert(make_pair(F,GV));
+#else
 			globalsQueue.insert(F);
+#endif
 		}
 		else if(action==COMPILE)
 		{
@@ -3070,7 +3092,11 @@ void DuettoWriter::makeJS()
 		DuettoUtils::rewriteNativeObjectsConstructors(module, *F);
 
 	Function* webMain=module.getFunction("_Z7webMainv");
+#ifdef DEBUG_GLOBAL_DEPS
+	globalsQueue.insert(make_pair(webMain,(const GlobalValue*)NULL));
+#else
 	globalsQueue.insert(webMain);
+#endif
 	//Add the constructors
 	GlobalVariable* constructors=module.getGlobalVariable("llvm.global_ctors");
 	if(constructors)
@@ -3078,8 +3104,23 @@ void DuettoWriter::makeJS()
 
 	while(!globalsQueue.empty())
 	{
+#ifdef DEBUG_GLOBAL_DEPS
+		std::map<const GlobalValue*, const GlobalValue*>::iterator it=globalsQueue.begin();
+		const GlobalValue* v=it->first;
+#else
 		std::set<const GlobalValue*>::iterator it=globalsQueue.begin();
 		const GlobalValue* v=*it;
+#endif
+		printMethodNames=true;
+		if(printMethodNames)
+		{
+			llvm::errs() << v->getName();
+#ifdef DEBUG_GLOBAL_DEPS
+			if(it->second)
+				llvm::errs() << " included by " << it->second->getName();
+#endif
+			llvm::errs() << "\n";
+		}
 		globalsQueue.erase(it);
 		if(GlobalVariable::classof(v))
 		{
