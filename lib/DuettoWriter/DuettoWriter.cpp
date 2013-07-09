@@ -1506,7 +1506,8 @@ void DuettoWriter::compileTerminatorInstruction(const TerminatorInst& I)
 			{
 				//Direct call
 				const char* funcName=ci.getCalledFunction()->getName().data();
-				if(handleBuiltinCall(funcName,&ci,ci.op_begin(),ci.op_begin()+ci.getNumArgOperands()))
+				if(ci.getCalledFunction()->empty() &&
+					handleBuiltinCall(funcName,&ci,ci.op_begin(),ci.op_begin()+ci.getNumArgOperands()))
 				{
 					stream << ";\n";
 					//Only consider the normal successor for PHIs here
@@ -1655,8 +1656,11 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 			{
 				//Direct call
 				const char* funcName=ci.getCalledFunction()->getName().data();
-				if(handleBuiltinCall(funcName,&ci,ci.op_begin(),ci.op_begin()+ci.getNumArgOperands()))
+				if(ci.getCalledFunction()->empty() &&
+					handleBuiltinCall(funcName,&ci,ci.op_begin(),ci.op_begin()+ci.getNumArgOperands()))
+				{
 					return true;
+				}
 				stream << '_' << funcName;
 				if(!globalsDone.count(ci.getCalledFunction()))
 #ifdef DEBUG_GLOBAL_DEPS
