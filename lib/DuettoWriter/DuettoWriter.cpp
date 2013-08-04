@@ -1426,7 +1426,7 @@ void DuettoWriter::compileTypeImpl(Type* t)
 				if(offset!=0)
 					stream << ", ";
 				stream << "a" << offset << ": ";
-				compileTypeImpl(*E);
+				compileType(*E);
 				offset++;
 			}
 			stream << " }";
@@ -1451,7 +1451,7 @@ void DuettoWriter::compileTypeImpl(Type* t)
 				stream << '[';
 				for(uint64_t i=0;i<at->getNumElements();i++)
 				{
-					compileTypeImpl(at->getElementType());
+					compileType(at->getElementType());
 					if((i+1)<at->getNumElements())
 						stream << ",";
 				}
@@ -3103,6 +3103,9 @@ void DuettoWriter::compileClassType(StructType* T)
 	stream << "(){\n";
 
 	stream << "var t=";
+	//TODO: Currently base classes are initialized also during compileTypeImpl
+	//find a way to skip it. It's also necessary to initialize members that require
+	//downcast support
 	compileTypeImpl(T);
 	stream << "\n";
 
