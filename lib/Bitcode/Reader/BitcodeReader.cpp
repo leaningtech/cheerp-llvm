@@ -759,6 +759,10 @@ static Attribute::AttrKind GetAttrFromCode(uint64_t Code) {
     return Attribute::UWTable;
   case bitc::ATTR_KIND_Z_EXT:
     return Attribute::ZExt;
+  case bitc::ATTR_KIND_CLIENT:
+    return Attribute::Client;
+  case bitc::ATTR_KIND_SERVER:
+    return Attribute::Server;
   }
 }
 
