@@ -11,7 +11,7 @@
 using namespace llvm;
 using namespace std;
 
-bool DuettoUtils::isBuiltinConstructor(const char* s, const std::string& typeName)
+bool DuettoUtils::findMangledClassName(const char* const s, const char* &className, int& classLen)
 {
 	if(strncmp(s,"_ZN",3)!=0)
 		return false;
@@ -20,20 +20,29 @@ bool DuettoUtils::isBuiltinConstructor(const char* s, const std::string& typeNam
 	int nsLen=strtol(tmp, &endPtr, 10);
 	tmp=endPtr;
 	if(nsLen==0 || (strncmp(tmp,"client",nsLen)!=0))
-	{
 		return false;
-	}
 
 	tmp+=nsLen;
-	int classLen=strtol(tmp, &endPtr, 10);
-	tmp=endPtr;
+	classLen=strtol(tmp, &endPtr, 10);
+	className=endPtr;
 
-	if(classLen==0 || typeName.compare(0, std::string::npos, tmp, classLen)!=0)
+	if(classLen==0)
+		return false;
+	return true;
+}
+
+bool DuettoUtils::isBuiltinConstructor(const char* s, const std::string& typeName)
+{
+	const char* mangledName;
+	int mangledNameLen;
+	//Extract the class name from the mangled one
+	if(findMangledClassName(s, mangledName, mangledNameLen)==false)
 		return false;
 
-	tmp+=classLen;
+	if(typeName.compare(0, std::string::npos, mangledName, mangledNameLen)!=0)
+		return false;
 
-	if(strncmp(tmp, "C1", 2)!=0)
+	if(strncmp(mangledName+mangledNameLen, "C1", 2)!=0)
 		return false;
 
 	return true;
@@ -50,12 +59,17 @@ void DuettoUtils::baseSubstitutionForBuiltin(User* i, Instruction* old, AllocaIn
 /*
  * Check if a type is builtin and return the type name
  */
-bool DuettoUtils::isBuiltinType(const std::string& typeName, std::string& builtinName)
+bool DuettoUtils::isBuiltinType(const char* typeName, std::string& builtinName)
 {
-	//The type name is not mangled in C++ style, but in LLVM style
-	if(typeName.compare(0,14,"class.client::")!=0)
+	if(strncmp(typeName, "class.", 6)!=0)
 		return false;
-	builtinName=typeName.substr(14);
+	typeName+=6;
+	const char* mangledName;
+	int mangledNameLen;
+	if(findMangledClassName(typeName, mangledName, mangledNameLen)==false)
+		return false;
+
+	builtinName.assign(mangledName, mangledNameLen);
 	return true;
 }
 
@@ -184,8 +198,11 @@ void DuettoUtils::rewriteNativeObjectsConstructors(Module& M, Function& F)
 				Type* t=i->getAllocatedType();
 
 				std::string builtinTypeName;
-				if(!t->isStructTy() || !cast<StructType>(t)->hasName() || !isBuiltinType((std::string)t->getStructName(), builtinTypeName))
+				if(!t->isStructTy() || !cast<StructType>(t)->hasName() ||
+						!isBuiltinType(t->getStructName().data(), builtinTypeName))
+				{
 					continue;
+				}
 				rewriteNativeAllocationUsers(M,toRemove,i,t,builtinTypeName);
 			}
 			else if(I->getOpcode()==Instruction::Call)
@@ -208,7 +225,7 @@ void DuettoUtils::rewriteNativeObjectsConstructors(Module& M, Function& F)
 						continue;
 					Type* t=bc->getDestTy()->getContainedType(0);
 					std::string builtinTypeName;
-					if(!t->isStructTy() || !isBuiltinType((std::string)t->getStructName(), builtinTypeName))
+					if(!t->isStructTy() || !isBuiltinType(t->getStructName().data(), builtinTypeName))
 						continue;
 					rewriteNativeAllocationUsers(M,toRemove,bc,t,builtinTypeName);
 				}
