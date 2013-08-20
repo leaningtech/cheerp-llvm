@@ -397,6 +397,7 @@ uint64_t AttributeImpl::getAttrMask(Attribute::AttrKind Val) {
   case Attribute::InAlloca:        return 1ULL << 43;
   case Attribute::Client:          return 1ULL << 44;
   case Attribute::Server:          return 1ULL << 45;
+  case Attribute::IsCast:          return 1ULL << 46;
   }
   llvm_unreachable("Unsupported attribute type");
 }
