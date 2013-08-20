@@ -618,6 +618,12 @@ bool BitcodeReader::ParseAttrKind(uint64_t Code, Attribute::AttrKind *Kind) {
   case bitc::ATTR_KIND_Z_EXT:
     *Kind = Attribute::ZExt;
     return false;
+  case bitc::ATTR_KIND_CLIENT:
+    *Kind = Attribute::Client;
+    return false;
+  case bitc::ATTR_KIND_SERVER:
+    *Kind = Attribute::Server;
+    return false;
   default:
     std::string Buf;
     raw_string_ostream fmt(Buf);
