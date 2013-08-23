@@ -667,7 +667,7 @@ private:
 
   void EmitJumpTableEntry(const MachineJumpTableInfo *MJTI,
                           const MachineBasicBlock *MBB, unsigned uid) const;
-  void EmitLLVMUsedList(const ConstantArray *InitList);
+  void EmitLLVMUsedList(const ConstantArray *InitList, const DataLayout &DL);
   /// Emit llvm.ident metadata in an '.ident' directive.
   void EmitModuleIdents(Module &M);
   /// Emit bytes for llvm.commandline metadata.

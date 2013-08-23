@@ -105,8 +105,8 @@ static int64_t GetOffsetFromIndex(const GEPOperator *GEP, unsigned Idx,
 /// might be &A[40]. In this case offset would be -8.
 static bool IsPointerOffset(Value *Ptr1, Value *Ptr2, int64_t &Offset,
                             const DataLayout &DL) {
-  Ptr1 = Ptr1->stripPointerCasts();
-  Ptr2 = Ptr2->stripPointerCasts();
+  Ptr1 = Ptr1->stripPointerCasts(DL.isByteAddressable());
+  Ptr2 = Ptr2->stripPointerCasts(DL.isByteAddressable());
 
   // Handle the trivial case first.
   if (Ptr1 == Ptr2) {
@@ -121,12 +121,12 @@ static bool IsPointerOffset(Value *Ptr1, Value *Ptr2, int64_t &Offset,
 
   // If one pointer is a GEP and the other isn't, then see if the GEP is a
   // constant offset from the base, as in "P" and "gep P, 1".
-  if (GEP1 && !GEP2 && GEP1->getOperand(0)->stripPointerCasts() == Ptr2) {
+  if (GEP1 && !GEP2 && GEP1->getOperand(0)->stripPointerCasts(DL.isByteAddressable()) == Ptr2) {
     Offset = -GetOffsetFromIndex(GEP1, 1, VariableIdxFound, DL);
     return !VariableIdxFound;
   }
 
-  if (GEP2 && !GEP1 && GEP2->getOperand(0)->stripPointerCasts() == Ptr1) {
+  if (GEP2 && !GEP1 && GEP2->getOperand(0)->stripPointerCasts(DL.isByteAddressable()) == Ptr1) {
     Offset = GetOffsetFromIndex(GEP2, 1, VariableIdxFound, DL);
     return !VariableIdxFound;
   }
@@ -705,7 +705,7 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
       if (C) {
         // Check that nothing touches the dest of the "copy" between
         // the call and the store.
-        Value *CpyDest = SI->getPointerOperand()->stripPointerCasts();
+        Value *CpyDest = SI->getPointerOperand()->stripPointerCastsSafe();
         bool CpyDestIsLocal = isa<AllocaInst>(CpyDest);
         AliasAnalysis &AA = LookupAliasAnalysis();
         MemoryLocation StoreLoc = MemoryLocation::get(SI);
@@ -726,8 +726,8 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
 
       if (C) {
         bool changed = performCallSlotOptzn(
-            LI, SI->getPointerOperand()->stripPointerCasts(),
-            LI->getPointerOperand()->stripPointerCasts(),
+            LI, SI->getPointerOperand()->stripPointerCasts(DL.isByteAddressable()),
+            LI->getPointerOperand()->stripPointerCasts(DL.isByteAddressable()),
             DL.getTypeStoreSize(SI->getOperand(0)->getType()),
             findCommonAlignment(DL, SI, LI), C);
         if (changed) {
@@ -953,7 +953,7 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpy, Value *cpyDest,
       cpyDest->getType()->getPointerAddressSpace())
     return false;
   for (unsigned i = 0; i < CS.arg_size(); ++i)
-    if (CS.getArgument(i)->stripPointerCasts() == cpySrc &&
+    if (CS.getArgument(i)->stripPointerCastsSafe() == cpySrc &&
         cpySrc->getType()->getPointerAddressSpace() !=
         CS.getArgument(i)->getType()->getPointerAddressSpace())
       return false;
@@ -961,7 +961,7 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpy, Value *cpyDest,
   // All the checks have passed, so do the transformation.
   bool changedArgument = false;
   for (unsigned i = 0; i < CS.arg_size(); ++i)
-    if (CS.getArgument(i)->stripPointerCasts() == cpySrc) {
+    if (CS.getArgument(i)->stripPointerCasts(DL.isByteAddressable()) == cpySrc) {
       Value *Dest = cpySrc->getType() == cpyDest->getType() ?  cpyDest
         : CastInst::CreatePointerCast(cpyDest, cpySrc->getType(),
                                       cpyDest->getName(), C);
@@ -1352,7 +1352,7 @@ bool MemCpyOptPass::processByValArgument(CallSite CS, unsigned ArgNo) {
   // result.
   MemCpyInst *MDep = dyn_cast<MemCpyInst>(DepInfo.getInst());
   if (!MDep || MDep->isVolatile() ||
-      ByValArg->stripPointerCasts() != MDep->getDest())
+      ByValArg->stripPointerCasts(DL.isByteAddressable()) != MDep->getDest())
     return false;
 
   // The length of the memcpy must be larger or equal to the size of the byval.

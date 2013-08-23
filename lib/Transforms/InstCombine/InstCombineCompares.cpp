@@ -879,7 +879,7 @@ Instruction *InstCombiner::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
   // Look through bitcasts and addrspacecasts. We do not however want to remove
   // 0 GEPs.
   if (!isa<GetElementPtrInst>(RHS))
-    RHS = RHS->stripPointerCasts();
+    RHS = RHS->stripPointerCasts(DL.isByteAddressable());
 
   Value *PtrBase = GEPLHS->getOperand(0);
   if (PtrBase == RHS && GEPLHS->isInBounds()) {
@@ -919,8 +919,8 @@ Instruction *InstCombiner::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
       if (GEPLHS->isInBounds() && GEPRHS->isInBounds() &&
           (GEPLHS->hasAllConstantIndices() || GEPLHS->hasOneUse()) &&
           (GEPRHS->hasAllConstantIndices() || GEPRHS->hasOneUse()) &&
-          PtrBase->stripPointerCasts() ==
-              GEPRHS->getOperand(0)->stripPointerCasts()) {
+          PtrBase->stripPointerCasts(DL.isByteAddressable()) ==
+              GEPRHS->getOperand(0)->stripPointerCasts(DL.isByteAddressable())) {
         Value *LOffset = EmitGEPOffset(GEPLHS);
         Value *ROffset = EmitGEPOffset(GEPRHS);
 

@@ -231,7 +231,7 @@ static bool genericValueTraversal(
     // Explicitly look through calls with a "returned" attribute if we do
     // not have a pointer as stripPointerCasts only works on them.
     if (V->getType()->isPointerTy()) {
-      V = V->stripPointerCasts();
+      V = V->stripPointerCastsSafe();
     } else {
       CallSite CS(V);
       if (CS && CS.getCalledFunction()) {

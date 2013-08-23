@@ -764,7 +764,7 @@ void ObjCARCOpt::OptimizeIndividualCalls(Function &F) {
     // variables that are inert in ARC.
     if (IsNoopOnGlobal(Class)) {
       Value *Opnd = Inst->getOperand(0);
-      if (auto *GV = dyn_cast<GlobalVariable>(Opnd->stripPointerCasts()))
+      if (auto *GV = dyn_cast<GlobalVariable>(Opnd->stripPointerCastsSafe()))
         if (GV->hasAttribute("objc_arc_inert")) {
           if (!Inst->getType()->isVoidTy())
             Inst->replaceAllUsesWith(Opnd);

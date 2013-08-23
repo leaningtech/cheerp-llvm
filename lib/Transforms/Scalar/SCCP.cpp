@@ -1982,7 +1982,7 @@ static void forceIndeterminateEdge(Instruction* I, SCCPSolver &Solver) {
       C = ConstantInt::getFalse(BI->getContext());
     }
   } else if (IndirectBrInst *IBR = dyn_cast<IndirectBrInst>(I)) {
-    if (!isa<BlockAddress>(IBR->getAddress()->stripPointerCasts())) {
+    if (!isa<BlockAddress>(IBR->getAddress()->stripPointerCastsSafe())) {
       // Indeterminate indirectbr; use successor 0.
       Dest = IBR->getSuccessor(0);
       C = BlockAddress::get(IBR->getSuccessor(0));

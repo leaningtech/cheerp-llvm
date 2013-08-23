@@ -302,7 +302,7 @@ bool FixFunctionBitcasts::runOnModule(Module &M) {
   if (CallMain) {
     Main->setName("__original_main");
     auto *MainWrapper =
-        cast<Function>(CallMain->getCalledValue()->stripPointerCasts());
+        cast<Function>(CallMain->getCalledValue()->stripPointerCastsSafe());
     delete CallMain;
     if (Main->isDeclaration()) {
       // The wrapper is not needed in this case as we don't need to export

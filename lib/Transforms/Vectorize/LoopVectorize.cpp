@@ -2103,7 +2103,7 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(Instruction *Instr,
     Index += (VF - 1) * Group->getFactor();
 
   bool InBounds = false;
-  if (auto *gep = dyn_cast<GetElementPtrInst>(Ptr->stripPointerCasts()))
+  if (auto *gep = dyn_cast<GetElementPtrInst>(Ptr->stripPointerCastsSafe()))
     InBounds = gep->isInBounds();
 
   for (unsigned Part = 0; Part < UF; Part++) {
@@ -2297,7 +2297,7 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(Instruction *Instr,
 
   bool InBounds = false;
   if (auto *gep = dyn_cast<GetElementPtrInst>(
-          getLoadStorePointerOperand(Instr)->stripPointerCasts()))
+          getLoadStorePointerOperand(Instr)->stripPointerCastsSafe()))
     InBounds = gep->isInBounds();
 
   const auto CreateVecPtr = [&](unsigned Part, Value *Ptr) -> Value * {

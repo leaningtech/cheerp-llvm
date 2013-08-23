@@ -504,7 +504,7 @@ static void addMustTailToCoroResumes(Function &F) {
       if (auto *CalledValue = Call->getCalledValue())
         // CoroEarly pass replaced coro resumes with indirect calls to an
         // address return by CoroSubFnInst intrinsic. See if it is one of those.
-        if (isa<CoroSubFnInst>(CalledValue->stripPointerCasts()))
+        if (isa<CoroSubFnInst>(CalledValue->stripPointerCastsSafe()))
           Resumes.push_back(Call);
 
   // Set musttail on those that are followed by a ret instruction.
@@ -623,7 +623,7 @@ static bool simplifySuspendPoint(CoroSuspendInst *Suspend,
 
   auto *CallInstr = CS.getInstruction();
 
-  auto *Callee = CS.getCalledValue()->stripPointerCasts();
+  auto *Callee = CS.getCalledValue()->stripPointerCastsSafe();
 
   // See if the callsite is for resumption or destruction of the coroutine.
   auto *SubFn = dyn_cast<CoroSubFnInst>(Callee);

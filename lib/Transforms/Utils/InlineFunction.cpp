@@ -1331,7 +1331,7 @@ static bool hasLifetimeMarkers(AllocaInst *AI) {
   // Do a scan to find all the casts to i8*.
   for (User *U : AI->users()) {
     if (U->getType() != Int8PtrTy) continue;
-    if (U->stripPointerCasts() != AI) continue;
+    if (U->stripPointerCastsSafe() != AI) continue;
     if (isUsedByLifetimeMarker(U))
       return true;
   }
@@ -1591,7 +1591,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   // Get the personality function from the callee if it contains a landing pad.
   Constant *CalledPersonality =
       CalledFunc->hasPersonalityFn()
-          ? CalledFunc->getPersonalityFn()->stripPointerCasts()
+          ? cast<Constant>(CalledFunc->getPersonalityFn()->stripPointerCastsSafe())
           : nullptr;
 
   // Find the personality function used by the landing pads of the caller. If it
@@ -1599,7 +1599,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
   // the callee.
   Constant *CallerPersonality =
       Caller->hasPersonalityFn()
-          ? Caller->getPersonalityFn()->stripPointerCasts()
+          ? cast<Constant>(Caller->getPersonalityFn()->stripPointerCastsSafe())
           : nullptr;
   if (CalledPersonality) {
     if (!CallerPersonality)
@@ -2060,7 +2060,7 @@ llvm::InlineResult llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
 
         // Skip call sites which are nounwind intrinsics.
         auto *CalledFn =
-            dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
+            dyn_cast<Function>(CS.getCalledValue()->stripPointerCastsSafe());
         if (CalledFn && CalledFn->isIntrinsic() && CS.doesNotThrow())
           continue;
 

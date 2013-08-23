@@ -815,7 +815,7 @@ static Value *emitLibCall(LibFunc TheLibFunc, Type *ReturnType,
   inferLibFuncAttributes(M, FuncName, *TLI);
   CallInst *CI = B.CreateCall(Callee, Operands, FuncName);
   if (const Function *F =
-          dyn_cast<Function>(Callee.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(Callee.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -891,7 +891,7 @@ Value *llvm::emitMemCpyChk(Value *Dst, Value *Src, Value *Len, Value *ObjSize,
   Src = castToCStr(Src, B);
   CallInst *CI = B.CreateCall(MemCpy, {Dst, Src, Len, ObjSize});
   if (const Function *F =
-          dyn_cast<Function>(MemCpy.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(MemCpy.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -1026,7 +1026,7 @@ static Value *emitUnaryFloatFnCallHelper(Value *Op, StringRef Name,
                                           AttributeList::FunctionIndex,
                                           Attribute::Speculatable));
   if (const Function *F =
-          dyn_cast<Function>(Callee.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(Callee.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -1064,7 +1064,7 @@ Value *llvm::emitBinaryFloatFnCall(Value *Op1, Value *Op2, StringRef Name,
   CallInst *CI = B.CreateCall(Callee, {Op1, Op2}, Name);
   CI->setAttributes(Attrs);
   if (const Function *F =
-          dyn_cast<Function>(Callee.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(Callee.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -1088,7 +1088,7 @@ Value *llvm::emitPutChar(Value *Char, IRBuilder<> &B,
                               PutCharName);
 
   if (const Function *F =
-          dyn_cast<Function>(PutChar.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(PutChar.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -1105,7 +1105,7 @@ Value *llvm::emitPutS(Value *Str, IRBuilder<> &B,
   inferLibFuncAttributes(M, PutsName, *TLI);
   CallInst *CI = B.CreateCall(PutS, castToCStr(Str, B), PutsName);
   if (const Function *F =
-          dyn_cast<Function>(PutS.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(PutS.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -1126,7 +1126,7 @@ Value *llvm::emitFPutC(Value *Char, Value *File, IRBuilder<> &B,
   CallInst *CI = B.CreateCall(F, {Char, File}, FPutcName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1146,7 +1146,7 @@ Value *llvm::emitFPutCUnlocked(Value *Char, Value *File, IRBuilder<> &B,
   CallInst *CI = B.CreateCall(F, {Char, File}, FPutcUnlockedName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1165,7 +1165,7 @@ Value *llvm::emitFPutS(Value *Str, Value *File, IRBuilder<> &B,
   CallInst *CI = B.CreateCall(F, {castToCStr(Str, B), File}, FPutsName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1184,7 +1184,7 @@ Value *llvm::emitFPutSUnlocked(Value *Str, Value *File, IRBuilder<> &B,
   CallInst *CI = B.CreateCall(F, {castToCStr(Str, B), File}, FPutsUnlockedName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1208,7 +1208,7 @@ Value *llvm::emitFWrite(Value *Ptr, Value *Size, Value *File, IRBuilder<> &B,
                        ConstantInt::get(DL.getIntPtrType(Context), 1), File});
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1227,7 +1227,7 @@ Value *llvm::emitMalloc(Value *Num, IRBuilder<> &B, const DataLayout &DL,
   CallInst *CI = B.CreateCall(Malloc, Num, MallocName);
 
   if (const Function *F =
-          dyn_cast<Function>(Malloc.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(Malloc.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -1248,7 +1248,7 @@ Value *llvm::emitCalloc(Value *Num, Value *Size, const AttributeList &Attrs,
   CallInst *CI = B.CreateCall(Calloc, {Num, Size}, CallocName);
 
   if (const auto *F =
-          dyn_cast<Function>(Calloc.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(Calloc.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -1272,7 +1272,7 @@ Value *llvm::emitFWriteUnlocked(Value *Ptr, Value *Size, Value *N, Value *File,
   CallInst *CI = B.CreateCall(F, {castToCStr(Ptr, B), Size, N, File});
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1291,7 +1291,7 @@ Value *llvm::emitFGetCUnlocked(Value *File, IRBuilder<> &B,
   CallInst *CI = B.CreateCall(F, File, FGetCUnlockedName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1311,7 +1311,7 @@ Value *llvm::emitFGetSUnlocked(Value *Str, Value *Size, Value *File,
       B.CreateCall(F, {castToCStr(Str, B), Size, File}, FGetSUnlockedName);
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -1334,7 +1334,7 @@ Value *llvm::emitFReadUnlocked(Value *Ptr, Value *Size, Value *N, Value *File,
   CallInst *CI = B.CreateCall(F, {castToCStr(Ptr, B), Size, N, File});
 
   if (const Function *Fn =
-          dyn_cast<Function>(F.getCallee()->stripPointerCasts()))
+          dyn_cast<Function>(F.getCallee()->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }

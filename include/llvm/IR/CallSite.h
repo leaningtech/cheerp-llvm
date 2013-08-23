@@ -865,7 +865,7 @@ public:
   /// return null (if it's an indirect call).
   Function *getCalledFunction() const {
     Value *V = getCalledValue();
-    return V ? dyn_cast<Function>(V->stripPointerCasts()) : nullptr;
+    return V ? dyn_cast<Function>(V->stripPointerCastsSafe()) : nullptr;
   }
 };
 
