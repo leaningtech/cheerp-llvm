@@ -4725,7 +4725,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // Get and store the index of the function context.
     MachineFrameInfo *MFI = DAG.getMachineFunction().getFrameInfo();
     AllocaInst *FnCtx =
-      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCasts());
+      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCastsSafe());
     int FI = FuncInfo.StaticAllocaMap[FnCtx];
     MFI->setFunctionContextIndex(FI);
     return 0;
@@ -5058,7 +5058,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     return 0;
 
   case Intrinsic::init_trampoline: {
-    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCasts());
+    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCastsSafe());
 
     SDValue Ops[6];
     Ops[0] = getRoot();
@@ -5081,7 +5081,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   }
   case Intrinsic::gcroot:
     if (GFI) {
-      const Value *Alloca = I.getArgOperand(0)->stripPointerCasts();
+      const Value *Alloca = I.getArgOperand(0)->stripPointerCastsSafe();
       const Constant *TypeMap = cast<Constant>(I.getArgOperand(1));
 
       FrameIndexSDNode *FI = cast<FrameIndexSDNode>(getValue(Alloca).getNode());

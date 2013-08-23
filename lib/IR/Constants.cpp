@@ -1389,7 +1389,7 @@ void BlockAddress::replaceUsesOfWithOnConstant(Value *From, Value *To, Use *U) {
   BasicBlock *NewBB = getBasicBlock();
 
   if (U == &Op<0>())
-    NewF = cast<Function>(To->stripPointerCasts());
+    NewF = cast<Function>(To->stripPointerCastsSafe());
   else
     NewBB = cast<BasicBlock>(To);
 

@@ -1184,8 +1184,8 @@ BasicAliasAnalysis::aliasCheck(const Value *V1, uint64_t V1Size,
     return NoAlias;
 
   // Strip off any casts if they exist.
-  V1 = V1->stripPointerCasts();
-  V2 = V2->stripPointerCasts();
+  V1 = V1->stripPointerCasts(TD && TD->isByteAddressable());
+  V2 = V2->stripPointerCasts(TD && TD->isByteAddressable());
 
   // Are we checking for alias of the same value?
   if (V1 == V2) return MustAlias;

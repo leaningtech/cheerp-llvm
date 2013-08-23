@@ -310,7 +310,7 @@ static Constant *getKnownConstant(Value *Val, ConstantPreference Preference) {
     return U;
 
   if (Preference == WantBlockAddress)
-    return dyn_cast<BlockAddress>(Val->stripPointerCasts());
+    return dyn_cast<BlockAddress>(Val->stripPointerCastsSafe());
 
   return dyn_cast<ConstantInt>(Val);
 }
@@ -682,7 +682,7 @@ bool JumpThreading::ProcessBlock(BasicBlock *BB) {
   } else if (IndirectBrInst *IB = dyn_cast<IndirectBrInst>(Terminator)) {
     // Can't thread indirect branch with no successors.
     if (IB->getNumSuccessors() == 0) return false;
-    Condition = IB->getAddress()->stripPointerCasts();
+    Condition = IB->getAddress()->stripPointerCastsSafe();
     Preference = WantBlockAddress;
   } else {
     return false; // Must be an invoke.

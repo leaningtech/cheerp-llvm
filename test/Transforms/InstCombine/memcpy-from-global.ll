@@ -57,7 +57,7 @@ define void @test2() {
 ; CHECK-NEXT: getelementptr inbounds [124 x i8]*
 
 ; use @G instead of %A
-; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i64(i8* %{{.*}}, i8* getelementptr inbounds (%T* @G, i64 0, i32 0)
+; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i64(i8* %{{.*}}, i8* bitcast (%T* @G to i8*)
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast (%T* @G to i8*), i64 124, i32 4, i1 false)
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %b, i8* %a, i64 124, i32 4, i1 false)
   call void @bar(i8* %b)
@@ -74,7 +74,7 @@ define void @test3() {
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast (%T* @G to i8*), i64 124, i32 4, i1 false)
   call void @bar(i8* %a) readonly
 ; CHECK-LABEL: @test3(
-; CHECK-NEXT: call void @bar(i8* getelementptr inbounds (%T* @G, i64 0, i32 0))
+; CHECK-NEXT: call void @bar(i8* bitcast (%T* @G to i8*))
   ret void
 }
 
@@ -84,7 +84,7 @@ define void @test4() {
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast (%T* @G to i8*), i64 124, i32 4, i1 false)
   call void @baz(i8* byval %a) 
 ; CHECK-LABEL: @test4(
-; CHECK-NEXT: call void @baz(i8* byval getelementptr inbounds (%T* @G, i64 0, i32 0))
+; CHECK-NEXT: call void @baz(i8* byval bitcast (%T* @G to i8*))
   ret void
 }
 
@@ -96,7 +96,7 @@ define void @test5() {
   call void @llvm.memcpy.p0i8.p0i8.i64(i8* %a, i8* bitcast (%T* @G to i8*), i64 124, i32 4, i1 false)
   call void @baz(i8* byval %a) 
 ; CHECK-LABEL: @test5(
-; CHECK-NEXT: call void @baz(i8* byval getelementptr inbounds (%T* @G, i64 0, i32 0))
+; CHECK-NEXT: call void @baz(i8* byval bitcast (%T* @G to i8*))
   ret void
 }
 

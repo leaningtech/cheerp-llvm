@@ -161,7 +161,7 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
       if (ConstantPointerNull *CPN =
           dyn_cast<ConstantPointerNull>(I->getOperand(1)))
         if (CPN->getType()->getAddressSpace() == 0)
-          if (isNoAliasCall(V->stripPointerCasts()))
+          if (isNoAliasCall(V->stripPointerCastsSafe()))
             break;
       // Otherwise, be conservative. There are crazy ways to capture pointers
       // using comparisons.

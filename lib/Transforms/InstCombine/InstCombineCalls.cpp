@@ -103,7 +103,7 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
   // an i64 load+store, here because this improves the odds that the source or
   // dest address will be promotable.  See if we can find a better type than the
   // integer datatype.
-  Value *StrippedDest = MI->getArgOperand(0)->stripPointerCasts();
+  Value *StrippedDest = MI->getArgOperand(0)->stripPointerCasts(TD && TD->isByteAddressable());
   MDNode *CopyMD = 0;
   if (StrippedDest != MI->getArgOperand(0)) {
     Type *SrcETy = cast<PointerType>(StrippedDest->getType())
@@ -157,7 +157,7 @@ Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
 }
 
 Instruction *InstCombiner::SimplifyMemSet(MemSetInst *MI) {
-  unsigned Alignment = getKnownAlignment(MI->getDest(), TD);
+  unsigned Alignment = getKnownAlignment(MI->getDest(TD && TD->isByteAddressable()), TD);
   if (MI->getAlignment() < Alignment) {
     MI->setAlignment(ConstantInt::get(MI->getAlignmentType(),
                                              Alignment, false));
@@ -181,7 +181,7 @@ Instruction *InstCombiner::SimplifyMemSet(MemSetInst *MI) {
   if (Len <= 8 && isPowerOf2_32((uint32_t)Len)) {
     Type *ITy = IntegerType::get(MI->getContext(), Len*8);  // n=1 -> i8.
 
-    Value *Dest = MI->getDest();
+    Value *Dest = MI->getDest(TD && TD->isByteAddressable());
     unsigned DstAddrSp = cast<PointerType>(Dest->getType())->getAddressSpace();
     Type *NewDstPtrTy = PointerType::get(ITy, DstAddrSp);
     Dest = Builder->CreateBitCast(Dest, NewDstPtrTy);
@@ -248,7 +248,10 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // then the source and dest pointers can't alias, so we can change this
     // into a call to memcpy.
     if (MemMoveInst *MMI = dyn_cast<MemMoveInst>(MI)) {
-      if (GlobalVariable *GVSrc = dyn_cast<GlobalVariable>(MMI->getSource()))
+      Value* source = MMI->getSource(TD && TD->isByteAddressable());
+      //We can strip all indexes, if the base is constant also the contents are so
+      if (GlobalVariable *GVSrc = dyn_cast<GlobalVariable>(source->stripInBoundsConstantOffsets()))
+      {
         if (GVSrc->isConstant()) {
           Module *M = CI.getParent()->getParent()->getParent();
           Intrinsic::ID MemCpyID = Intrinsic::memcpy;
@@ -258,11 +261,12 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
           CI.setCalledFunction(Intrinsic::getDeclaration(M, MemCpyID, Tys));
           Changed = true;
         }
+      }
     }
 
     if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
       // memmove(x,x,size) -> noop.
-      if (MTI->getSource() == MTI->getDest())
+      if (MTI->getSource(TD && TD->isByteAddressable()) == MTI->getDest(TD && TD->isByteAddressable()))
         return EraseInstFromFunction(CI);
     }
 
@@ -810,7 +814,8 @@ Instruction *InstCombiner::tryOptimizeCall(CallInst *CI, const DataLayout *TD) {
 static IntrinsicInst *FindInitTrampolineFromAlloca(Value *TrampMem) {
   // Strip off at most one level of pointer casts, looking for an alloca.  This
   // is good enough in practice and simpler than handling any number of casts.
-  Value *Underlying = TrampMem->stripPointerCasts();
+  // Passing true we force to strip away also GEP,0,0
+  Value *Underlying = TrampMem->stripPointerCasts(true);
   if (Underlying != TrampMem &&
       (!Underlying->hasOneUse() || *Underlying->use_begin() != TrampMem))
     return 0;
@@ -869,7 +874,7 @@ static IntrinsicInst *FindInitTrampolineFromBB(IntrinsicInst *AdjustTramp,
 // to a direct call to a function.  Otherwise return NULL.
 //
 static IntrinsicInst *FindInitTrampoline(Value *Callee) {
-  Callee = Callee->stripPointerCasts();
+  Callee = Callee->stripPointerCastsSafe();
   IntrinsicInst *AdjustTramp = dyn_cast<IntrinsicInst>(Callee);
   if (!AdjustTramp ||
       AdjustTramp->getIntrinsicID() != Intrinsic::adjust_trampoline)
@@ -989,7 +994,7 @@ Instruction *InstCombiner::visitCallSite(CallSite CS) {
 //
 bool InstCombiner::transformConstExprCastCall(CallSite CS) {
   Function *Callee =
-    dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
+    dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts(TD && TD->isByteAddressable()));
   if (Callee == 0)
     return false;
   Instruction *Caller = CS.getInstruction();
@@ -1273,7 +1278,7 @@ InstCombiner::transformCallThroughTrampoline(CallSite CS,
   assert(Tramp &&
          "transformCallThroughTrampoline called with incorrect CallSite.");
 
-  Function *NestF =cast<Function>(Tramp->getArgOperand(1)->stripPointerCasts());
+  Function *NestF =cast<Function>(Tramp->getArgOperand(1)->stripPointerCastsSafe());
   PointerType *NestFPTy = cast<PointerType>(NestF->getType());
   FunctionType *NestFTy = cast<FunctionType>(NestFPTy->getElementType());
 

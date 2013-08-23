@@ -1177,7 +1177,7 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   }
 
   // Handle gep(bitcast x) and gep(gep x, 0, 0, 0).
-  Value *StrippedPtr = PtrOp->stripPointerCasts();
+  Value *StrippedPtr = PtrOp->stripPointerCasts(TD && TD->isByteAddressable());
   PointerType *StrippedPtrTy = dyn_cast<PointerType>(StrippedPtr->getType());
 
   // We do not handle pointer-vector geps here.
@@ -1812,7 +1812,7 @@ enum Personality_Type {
 /// function is one that we understand.  If so, return a description of it;
 /// otherwise return Unknown_Personality.
 static Personality_Type RecognizePersonality(Value *Pers) {
-  Function *F = dyn_cast<Function>(Pers->stripPointerCasts());
+  Function *F = dyn_cast<Function>(Pers->stripPointerCastsSafe());
   if (!F)
     return Unknown_Personality;
   return StringSwitch<Personality_Type>(F->getName())
@@ -1863,7 +1863,7 @@ Instruction *InstCombiner::visitLandingPadInst(LandingPadInst &LI) {
     if (LI.isCatch(i)) {
       // A catch clause.
       Value *CatchClause = LI.getClause(i);
-      Constant *TypeInfo = cast<Constant>(CatchClause->stripPointerCasts());
+      Constant *TypeInfo = cast<Constant>(CatchClause->stripPointerCasts(TD && TD->isByteAddressable()));
 
       // If we already saw this clause, there is no point in having a second
       // copy of it.
@@ -1937,7 +1937,7 @@ Instruction *InstCombiner::visitLandingPadInst(LandingPadInst &LI) {
         bool SawCatchAll = false;
         for (unsigned j = 0; j != NumTypeInfos; ++j) {
           Value *Elt = Filter->getOperand(j);
-          Constant *TypeInfo = cast<Constant>(Elt->stripPointerCasts());
+          Constant *TypeInfo = cast<Constant>(Elt->stripPointerCasts(TD && TD->isByteAddressable()));
           if (isCatchAll(Personality, TypeInfo)) {
             // This element is a catch-all.  Bail out, noting this fact.
             SawCatchAll = true;
@@ -2091,10 +2091,10 @@ Instruction *InstCombiner::visitLandingPadInst(LandingPadInst &LI) {
       ConstantArray *FArray = cast<ConstantArray>(Filter);
       bool AllFound = true;
       for (unsigned f = 0; f != FElts; ++f) {
-        Value *FTypeInfo = FArray->getOperand(f)->stripPointerCasts();
+        Value *FTypeInfo = FArray->getOperand(f)->stripPointerCasts(TD && TD->isByteAddressable());
         AllFound = false;
         for (unsigned l = 0; l != LElts; ++l) {
-          Value *LTypeInfo = LArray->getOperand(l)->stripPointerCasts();
+          Value *LTypeInfo = LArray->getOperand(l)->stripPointerCasts(TD && TD->isByteAddressable());
           if (LTypeInfo == FTypeInfo) {
             AllFound = true;
             break;

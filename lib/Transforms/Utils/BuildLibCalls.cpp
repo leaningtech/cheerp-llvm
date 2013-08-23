@@ -52,7 +52,7 @@ Value *llvm::EmitStrLen(Value *Ptr, IRBuilder<> &B, const DataLayout *TD,
                                             B.getInt8PtrTy(),
                                             NULL);
   CallInst *CI = B.CreateCall(StrLen, CastToCStr(Ptr, B), "strlen");
-  if (const Function *F = dyn_cast<Function>(StrLen->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrLen->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -82,7 +82,7 @@ Value *llvm::EmitStrNLen(Value *Ptr, Value *MaxLen, IRBuilder<> &B,
                                              TD->getIntPtrType(Context),
                                              NULL);
   CallInst *CI = B.CreateCall2(StrNLen, CastToCStr(Ptr, B), MaxLen, "strnlen");
-  if (const Function *F = dyn_cast<Function>(StrNLen->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrNLen->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -110,7 +110,7 @@ Value *llvm::EmitStrChr(Value *Ptr, char C, IRBuilder<> &B,
                                             I8Ptr, I8Ptr, I32Ty, NULL);
   CallInst *CI = B.CreateCall2(StrChr, CastToCStr(Ptr, B),
                                ConstantInt::get(I32Ty, C), "strchr");
-  if (const Function *F = dyn_cast<Function>(StrChr->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrChr->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -141,7 +141,7 @@ Value *llvm::EmitStrNCmp(Value *Ptr1, Value *Ptr2, Value *Len,
   CallInst *CI = B.CreateCall3(StrNCmp, CastToCStr(Ptr1, B),
                                CastToCStr(Ptr2, B), Len, "strncmp");
 
-  if (const Function *F = dyn_cast<Function>(StrNCmp->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrNCmp->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -166,7 +166,7 @@ Value *llvm::EmitStrCpy(Value *Dst, Value *Src, IRBuilder<> &B,
                                          I8Ptr, I8Ptr, I8Ptr, NULL);
   CallInst *CI = B.CreateCall2(StrCpy, CastToCStr(Dst, B), CastToCStr(Src, B),
                                Name);
-  if (const Function *F = dyn_cast<Function>(StrCpy->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrCpy->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -192,7 +192,7 @@ Value *llvm::EmitStrNCpy(Value *Dst, Value *Src, Value *Len,
                                           Len->getType(), NULL);
   CallInst *CI = B.CreateCall3(StrNCpy, CastToCStr(Dst, B), CastToCStr(Src, B),
                                Len, "strncpy");
-  if (const Function *F = dyn_cast<Function>(StrNCpy->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(StrNCpy->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -221,7 +221,7 @@ Value *llvm::EmitMemCpyChk(Value *Dst, Value *Src, Value *Len, Value *ObjSize,
   Dst = CastToCStr(Dst, B);
   Src = CastToCStr(Src, B);
   CallInst *CI = B.CreateCall4(MemCpy, Dst, Src, Len, ObjSize);
-  if (const Function *F = dyn_cast<Function>(MemCpy->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(MemCpy->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -249,7 +249,7 @@ Value *llvm::EmitMemChr(Value *Ptr, Value *Val,
                                          NULL);
   CallInst *CI = B.CreateCall3(MemChr, CastToCStr(Ptr, B), Val, Len, "memchr");
 
-  if (const Function *F = dyn_cast<Function>(MemChr->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(MemChr->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -280,7 +280,7 @@ Value *llvm::EmitMemCmp(Value *Ptr1, Value *Ptr2,
   CallInst *CI = B.CreateCall3(MemCmp, CastToCStr(Ptr1, B), CastToCStr(Ptr2, B),
                                Len, "memcmp");
 
-  if (const Function *F = dyn_cast<Function>(MemCmp->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(MemCmp->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -308,7 +308,7 @@ Value *llvm::EmitUnaryFloatFnCall(Value *Op, StringRef Name, IRBuilder<> &B,
                                          Op->getType(), NULL);
   CallInst *CI = B.CreateCall(Callee, Op, Name);
   CI->setAttributes(Attrs);
-  if (const Function *F = dyn_cast<Function>(Callee->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(Callee->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
 
   return CI;
@@ -331,7 +331,7 @@ Value *llvm::EmitPutChar(Value *Char, IRBuilder<> &B, const DataLayout *TD,
                               "chari"),
                               "putchar");
 
-  if (const Function *F = dyn_cast<Function>(PutChar->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(PutChar->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -355,7 +355,7 @@ Value *llvm::EmitPutS(Value *Str, IRBuilder<> &B, const DataLayout *TD,
                                        B.getInt8PtrTy(),
                                        NULL);
   CallInst *CI = B.CreateCall(PutS, CastToCStr(Str, B), "puts");
-  if (const Function *F = dyn_cast<Function>(PutS->stripPointerCasts()))
+  if (const Function *F = dyn_cast<Function>(PutS->stripPointerCastsSafe()))
     CI->setCallingConv(F->getCallingConv());
   return CI;
 }
@@ -388,7 +388,7 @@ Value *llvm::EmitFPutC(Value *Char, Value *File, IRBuilder<> &B,
                          "chari");
   CallInst *CI = B.CreateCall2(F, Char, File, "fputc");
 
-  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCasts()))
+  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -420,7 +420,7 @@ Value *llvm::EmitFPutS(Value *Str, Value *File, IRBuilder<> &B,
                                File->getType(), NULL);
   CallInst *CI = B.CreateCall2(F, CastToCStr(Str, B), File, "fputs");
 
-  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCasts()))
+  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }
@@ -459,7 +459,7 @@ Value *llvm::EmitFWrite(Value *Ptr, Value *Size, Value *File,
   CallInst *CI = B.CreateCall4(F, CastToCStr(Ptr, B), Size,
                         ConstantInt::get(TD->getIntPtrType(Context), 1), File);
 
-  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCasts()))
+  if (const Function *Fn = dyn_cast<Function>(F->stripPointerCastsSafe()))
     CI->setCallingConv(Fn->getCallingConv());
   return CI;
 }

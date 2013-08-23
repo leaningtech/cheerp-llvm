@@ -1279,8 +1279,9 @@ bool AsmPrinter::EmitSpecialLLVMGlobal(const GlobalVariable *GV) {
 void AsmPrinter::EmitLLVMUsedList(const ConstantArray *InitList) {
   // Should be an array of 'i8*'.
   for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i) {
+    const DataLayout *TD = TM.getDataLayout();
     const GlobalValue *GV =
-      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts());
+      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts(TD && TD->isByteAddressable()));
     if (GV && getObjFileLowering().shouldEmitUsedDirectiveFor(GV, Mang))
       OutStreamer.EmitSymbolAttribute(Mang->getSymbol(GV), MCSA_NoDeadStrip);
   }

@@ -698,11 +698,11 @@ void ConvertToScalarInfo::ConvertUsesToScalar(Value *Ptr, AllocaInst *NewAI,
       // as appropriate.
       AllocaInst *OrigAI = cast<AllocaInst>(GetUnderlyingObject(Ptr, &TD, 0));
 
-      if (GetUnderlyingObject(MTI->getSource(), &TD, 0) != OrigAI) {
+      if (GetUnderlyingObject(MTI->getSource(TD.isByteAddressable()), &TD, 0) != OrigAI) {
         // Dest must be OrigAI, change this to be a load from the original
         // pointer (bitcasted), then a store to our new alloca.
         assert(MTI->getRawDest() == Ptr && "Neither use is of pointer?");
-        Value *SrcPtr = MTI->getSource();
+        Value *SrcPtr = MTI->getSource(TD.isByteAddressable());
         PointerType* SPTy = cast<PointerType>(SrcPtr->getType());
         PointerType* AIPTy = cast<PointerType>(NewAI->getType());
         if (SPTy->getAddressSpace() != AIPTy->getAddressSpace()) {
@@ -714,19 +714,19 @@ void ConvertToScalarInfo::ConvertUsesToScalar(Value *Ptr, AllocaInst *NewAI,
         LoadInst *SrcVal = Builder.CreateLoad(SrcPtr, "srcval");
         SrcVal->setAlignment(MTI->getAlignment());
         Builder.CreateStore(SrcVal, NewAI);
-      } else if (GetUnderlyingObject(MTI->getDest(), &TD, 0) != OrigAI) {
+      } else if (GetUnderlyingObject(MTI->getDest(TD.isByteAddressable()), &TD, 0) != OrigAI) {
         // Src must be OrigAI, change this to be a load from NewAI then a store
         // through the original dest pointer (bitcasted).
         assert(MTI->getRawSource() == Ptr && "Neither use is of pointer?");
         LoadInst *SrcVal = Builder.CreateLoad(NewAI, "srcval");
 
-        PointerType* DPTy = cast<PointerType>(MTI->getDest()->getType());
+        PointerType* DPTy = cast<PointerType>(MTI->getDest(TD.isByteAddressable())->getType());
         PointerType* AIPTy = cast<PointerType>(NewAI->getType());
         if (DPTy->getAddressSpace() != AIPTy->getAddressSpace()) {
           AIPTy = PointerType::get(AIPTy->getElementType(),
                                    DPTy->getAddressSpace());
         }
-        Value *DstPtr = Builder.CreateBitCast(MTI->getDest(), AIPTy);
+        Value *DstPtr = Builder.CreateBitCast(MTI->getDest(TD.isByteAddressable()), AIPTy);
 
         StoreInst *NewStore = Builder.CreateStore(SrcVal, DstPtr);
         NewStore->setAlignment(MTI->getAlignment());
@@ -2191,7 +2191,7 @@ SROA::RewriteMemIntrinUserOfAlloca(MemIntrinsic *MI, Instruction *Inst,
     // OtherPtr may be a bitcast or GEP that currently being rewritten.  (This
     // function is only called for mem intrinsics that access the whole
     // aggregate, so non-zero GEPs are not an issue here.)
-    OtherPtr = OtherPtr->stripPointerCasts();
+    OtherPtr = OtherPtr->stripPointerCasts(TD->isByteAddressable());
 
     // Copying the alloca to itself is a no-op: just delete it.
     if (OtherPtr == AI || OtherPtr == NewElts[0]) {

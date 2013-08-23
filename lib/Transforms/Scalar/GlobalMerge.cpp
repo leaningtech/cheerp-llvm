@@ -201,9 +201,10 @@ void GlobalMerge::collectUsedGlobalVariables(Module &M) {
   // Should be an array of 'i8*'.
   const ConstantArray *InitList = cast<ConstantArray>(GV->getInitializer());
 
+  const DataLayout *TD = TM->getDataLayout();
   for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i)
     if (const GlobalVariable *G =
-        dyn_cast<GlobalVariable>(InitList->getOperand(i)->stripPointerCasts()))
+        dyn_cast<GlobalVariable>(InitList->getOperand(i)->stripPointerCasts(TD && TD->isByteAddressable())))
       MustKeepGlobalVariables.insert(G);
 }
 
@@ -219,12 +220,13 @@ void GlobalMerge::setMustKeepGlobalVariables(Module &M) {
       if (!II) continue;
 
       const LandingPadInst *LPInst = II->getUnwindDest()->getLandingPadInst();
+      const DataLayout *TD = TM->getDataLayout();
       // Look for globals in the clauses of the landing pad instruction
       for (unsigned Idx = 0, NumClauses = LPInst->getNumClauses();
            Idx != NumClauses; ++Idx)
         if (const GlobalVariable *GV =
             dyn_cast<GlobalVariable>(LPInst->getClause(Idx)
-                                     ->stripPointerCasts()))
+                                     ->stripPointerCasts(TD && TD->isByteAddressable())))
           MustKeepGlobalVariables.insert(GV);
     }
   }

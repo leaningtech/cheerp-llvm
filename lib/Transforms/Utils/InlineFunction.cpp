@@ -439,7 +439,7 @@ static bool hasLifetimeMarkers(AllocaInst *AI) {
   for (Value::use_iterator I = AI->use_begin(), E = AI->use_end(); I != E;
        ++I) {
     if (I->getType() != Int8PtrTy) continue;
-    if (I->stripPointerCasts() != AI) continue;
+    if (I->stripPointerCastsSafe() != AI) continue;
     if (isUsedByLifetimeMarker(*I))
       return true;
   }

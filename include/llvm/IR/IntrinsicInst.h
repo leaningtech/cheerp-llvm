@@ -142,7 +142,7 @@ namespace llvm {
     /// getDest - This is just like getRawDest, but it strips off any cast
     /// instructions that feed it, giving the original input.  The returned
     /// value is guaranteed to be a pointer.
-    Value *getDest() const { return getRawDest()->stripPointerCasts(); }
+    Value *getDest(bool byteAddressable) const { return getRawDest()->stripPointerCasts(byteAddressable); }
 
     /// set* - Set the specified arguments of the instruction.
     ///
@@ -219,7 +219,7 @@ namespace llvm {
     /// getSource - This is just like getRawSource, but it strips off any cast
     /// instructions that feed it, giving the original input.  The returned
     /// value is guaranteed to be a pointer.
-    Value *getSource() const { return getRawSource()->stripPointerCasts(); }
+    Value *getSource(bool byteAddressable) const { return getRawSource()->stripPointerCasts(byteAddressable); }
 
     unsigned getSourceAddressSpace() const {
       return cast<PointerType>(getRawSource()->getType())->getAddressSpace();

@@ -329,7 +329,7 @@ void MachineModuleInfo::AnalyzeModule(const Module &M) {
 
   for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i)
     if (const Function *F =
-          dyn_cast<Function>(InitList->getOperand(i)->stripPointerCasts()))
+          dyn_cast<Function>(InitList->getOperand(i)->stripPointerCastsSafe()))
       UsedFunctions.insert(F);
 }
 

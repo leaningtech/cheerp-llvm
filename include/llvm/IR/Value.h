@@ -264,9 +264,14 @@ public:
   /// all-zero GEPs and aliases from the specified value, returning the original
   /// uncasted value. If this is called on a non-pointer value, it returns
   /// 'this'.
-  Value *stripPointerCasts();
-  const Value *stripPointerCasts() const {
-    return const_cast<Value*>(this)->stripPointerCasts();
+  Value *stripPointerCasts(bool byteAddressable);
+  const Value *stripPointerCasts(bool byteAddressable) const {
+    return const_cast<Value*>(this)->stripPointerCasts(byteAddressable);
+  }
+
+  Value *stripPointerCastsSafe();
+  const Value *stripPointerCastsSafe() const {
+    return const_cast<Value*>(this)->stripPointerCastsSafe();
   }
 
   /// \brief This method strips off any unneeded pointer casts and

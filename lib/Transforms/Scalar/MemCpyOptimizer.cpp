@@ -73,8 +73,8 @@ static int64_t GetOffsetFromIndex(const GEPOperator *GEP, unsigned Idx,
 /// be &A[42], and Ptr2 might be &A[40].  In this case offset would be -8.
 static bool IsPointerOffset(Value *Ptr1, Value *Ptr2, int64_t &Offset,
                             const DataLayout &TD) {
-  Ptr1 = Ptr1->stripPointerCasts();
-  Ptr2 = Ptr2->stripPointerCasts();
+  Ptr1 = Ptr1->stripPointerCasts(TD.isByteAddressable());
+  Ptr2 = Ptr2->stripPointerCasts(TD.isByteAddressable());
   GEPOperator *GEP1 = dyn_cast<GEPOperator>(Ptr1);
   GEPOperator *GEP2 = dyn_cast<GEPOperator>(Ptr2);
 
@@ -82,12 +82,12 @@ static bool IsPointerOffset(Value *Ptr1, Value *Ptr2, int64_t &Offset,
 
   // If one pointer is a GEP and the other isn't, then see if the GEP is a
   // constant offset from the base, as in "P" and "gep P, 1".
-  if (GEP1 && GEP2 == 0 && GEP1->getOperand(0)->stripPointerCasts() == Ptr2) {
+  if (GEP1 && GEP2 == 0 && GEP1->getOperand(0)->stripPointerCasts(TD.isByteAddressable()) == Ptr2) {
     Offset = -GetOffsetFromIndex(GEP1, 1, VariableIdxFound, TD);
     return !VariableIdxFound;
   }
 
-  if (GEP2 && GEP1 == 0 && GEP2->getOperand(0)->stripPointerCasts() == Ptr1) {
+  if (GEP2 && GEP1 == 0 && GEP2->getOperand(0)->stripPointerCasts(TD.isByteAddressable()) == Ptr1) {
     Offset = GetOffsetFromIndex(GEP2, 1, VariableIdxFound, TD);
     return !VariableIdxFound;
   }
@@ -217,7 +217,7 @@ public:
 
   void addMemSet(int64_t OffsetFromFirst, MemSetInst *MSI) {
     int64_t Size = cast<ConstantInt>(MSI->getLength())->getZExtValue();
-    addRange(OffsetFromFirst, Size, MSI->getDest(), MSI->getAlignment(), MSI);
+    addRange(OffsetFromFirst, Size, MSI->getDest(TD.isByteAddressable()), MSI->getAlignment(), MSI);
   }
 
   void addRange(int64_t Start, int64_t Size, Value *Ptr,
@@ -406,7 +406,7 @@ Instruction *MemCpyOpt::tryMergingIntoMemset(Instruction *StartInst,
 
       // Check to see if this store is to a constant offset from the start ptr.
       int64_t Offset;
-      if (!IsPointerOffset(StartPtr, MSI->getDest(), Offset, *TD))
+      if (!IsPointerOffset(StartPtr, MSI->getDest(TD->isByteAddressable()), Offset, *TD))
         break;
 
       Ranges.addMemSet(Offset, MSI);
@@ -517,8 +517,8 @@ bool MemCpyOpt::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
           loadAlign = TD->getABITypeAlignment(LI->getType());
 
         bool changed = performCallSlotOptzn(LI,
-                        SI->getPointerOperand()->stripPointerCasts(),
-                        LI->getPointerOperand()->stripPointerCasts(),
+                        SI->getPointerOperand()->stripPointerCasts(TD->isByteAddressable()),
+                        LI->getPointerOperand()->stripPointerCasts(TD->isByteAddressable()),
                         TD->getTypeStoreSize(SI->getOperand(0)->getType()),
                         std::min(storeAlign, loadAlign), C);
         if (changed) {
@@ -553,7 +553,7 @@ bool MemCpyOpt::processMemSet(MemSetInst *MSI, BasicBlock::iterator &BBI) {
   // See if there is another memset or store neighboring this memset which
   // allows us to widen out the memset to do a single larger store.
   if (isa<ConstantInt>(MSI->getLength()) && !MSI->isVolatile())
-    if (Instruction *I = tryMergingIntoMemset(MSI, MSI->getDest(),
+    if (Instruction *I = tryMergingIntoMemset(MSI, MSI->getDest(TD && TD->isByteAddressable()),
                                               MSI->getValue())) {
       BBI = I;  // Don't invalidate iterator.
       return true;
@@ -697,7 +697,7 @@ bool MemCpyOpt::performCallSlotOptzn(Instruction *cpy,
   // All the checks have passed, so do the transformation.
   bool changedArgument = false;
   for (unsigned i = 0; i < CS.arg_size(); ++i)
-    if (CS.getArgument(i)->stripPointerCasts() == cpySrc) {
+    if (CS.getArgument(i)->stripPointerCasts(TD->isByteAddressable()) == cpySrc) {
       Value *Dest = cpySrc->getType() == cpyDest->getType() ?  cpyDest
         : CastInst::CreatePointerCast(cpyDest, cpySrc->getType(),
                                       cpyDest->getName(), C);
@@ -737,7 +737,8 @@ bool MemCpyOpt::processMemCpyMemCpyDependence(MemCpyInst *M, MemCpyInst *MDep,
                                               uint64_t MSize) {
   // We can only transforms memcpy's where the dest of one is the source of the
   // other.
-  if (M->getSource() != MDep->getDest() || MDep->isVolatile())
+  if (M->getSource(TD && TD->isByteAddressable()) !=
+                MDep->getDest(TD && TD->isByteAddressable()) || MDep->isVolatile())
     return false;
 
   // If dep instruction is reading from our current input, then it is a noop
@@ -745,7 +746,7 @@ bool MemCpyOpt::processMemCpyMemCpyDependence(MemCpyInst *M, MemCpyInst *MDep,
   // ignore the input and let someone else zap MDep.  This handles cases like:
   //    memcpy(a <- a)
   //    memcpy(b <- a)
-  if (M->getSource() == MDep->getSource())
+  if (M->getSource(TD && TD->isByteAddressable()) == MDep->getSource(TD && TD->isByteAddressable()))
     return false;
 
   // Second, the length of the memcpy's must be the same, or the preceding one
@@ -818,14 +819,14 @@ bool MemCpyOpt::processMemCpy(MemCpyInst *M) {
   if (CopySize == 0 || M->isVolatile()) return false;
 
   // If the source and destination of the memcpy are the same, then zap it.
-  if (M->getSource() == M->getDest()) {
+  if (M->getSource(TD && TD->isByteAddressable()) == M->getDest(TD && TD->isByteAddressable())) {
     MD->removeInstruction(M);
     M->eraseFromParent();
     return false;
   }
 
   // If copying from a constant, try to turn the memcpy into a memset.
-  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(M->getSource()))
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(M->getSource(TD && TD->isByteAddressable())))
     if (GV->isConstant() && GV->hasDefinitiveInitializer())
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
@@ -843,7 +844,8 @@ bool MemCpyOpt::processMemCpy(MemCpyInst *M) {
   MemDepResult DepInfo = MD->getDependency(M);
   if (DepInfo.isClobber()) {
     if (CallInst *C = dyn_cast<CallInst>(DepInfo.getInst())) {
-      if (performCallSlotOptzn(M, M->getDest(), M->getSource(),
+      if (performCallSlotOptzn(M, M->getDest(TD && TD->isByteAddressable()),
+                               M->getSource(TD && TD->isByteAddressable()),
                                CopySize->getZExtValue(), M->getAlignment(),
                                C)) {
         MD->removeInstruction(M);
@@ -914,7 +916,8 @@ bool MemCpyOpt::processByValArgument(CallSite CS, unsigned ArgNo) {
   // result.
   MemCpyInst *MDep = dyn_cast<MemCpyInst>(DepInfo.getInst());
   if (MDep == 0 || MDep->isVolatile() ||
-      ByValArg->stripPointerCasts() != MDep->getDest())
+      ByValArg->stripPointerCasts(TD->isByteAddressable()) !=
+      MDep->getDest(TD && TD->isByteAddressable()))
     return false;
 
   // The length of the memcpy must be larger or equal to the size of the byval.
@@ -930,7 +933,7 @@ bool MemCpyOpt::processByValArgument(CallSite CS, unsigned ArgNo) {
   // If it is greater than the memcpy, then we check to see if we can force the
   // source of the memcpy to the alignment we need.  If we fail, we bail out.
   if (MDep->getAlignment() < ByValAlign &&
-      getOrEnforceKnownAlignment(MDep->getSource(),ByValAlign, TD) < ByValAlign)
+      getOrEnforceKnownAlignment(MDep->getSource(TD && TD->isByteAddressable()),ByValAlign, TD) < ByValAlign)
     return false;
 
   // Verify that the copied-from memory doesn't change in between the memcpy and
@@ -948,9 +951,9 @@ bool MemCpyOpt::processByValArgument(CallSite CS, unsigned ArgNo) {
   if (!SourceDep.isClobber() || SourceDep.getInst() != MDep)
     return false;
 
-  Value *TmpCast = MDep->getSource();
-  if (MDep->getSource()->getType() != ByValArg->getType())
-    TmpCast = new BitCastInst(MDep->getSource(), ByValArg->getType(),
+  Value *TmpCast = MDep->getSource(TD->isByteAddressable());
+  if (MDep->getSource(TD->isByteAddressable())->getType() != ByValArg->getType())
+    TmpCast = new BitCastInst(MDep->getSource(TD->isByteAddressable()), ByValArg->getType(),
                               "tmpcast", CS.getInstruction());
 
   DEBUG(dbgs() << "MemCpyOpt: Forwarding memcpy to byval:\n"

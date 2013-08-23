@@ -1742,7 +1742,7 @@ bool llvm::getConstantStringInfo(const Value *V, StringRef &Str,
   assert(V);
 
   // Look through bitcast instructions and geps.
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
 
   // If the value is a GEP instructionor  constant expression, treat it as an
   // offset.
@@ -1824,7 +1824,7 @@ bool llvm::getConstantStringInfo(const Value *V, StringRef &Str,
 /// the specified pointer, return 'len+1'.  If we can't, return 0.
 static uint64_t GetStringLengthH(Value *V, SmallPtrSet<PHINode*, 32> &PHIs) {
   // Look through noop bitcast instructions.
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
 
   // If this is a PHI node, there are two cases: either we have already seen it
   // or we haven't.

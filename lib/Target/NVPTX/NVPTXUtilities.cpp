@@ -330,16 +330,16 @@ bool llvm::isMemorySpaceTransferIntrinsic(Intrinsic::ID id) {
 // which could be used in simple alias disambigurate.
 const Value *
 llvm::skipPointerTransfer(const Value *V, bool ignore_GEP_indices) {
-  V = V->stripPointerCasts();
+  V = V->stripPointerCasts(true);
   while (true) {
     if (const IntrinsicInst *IS = dyn_cast<IntrinsicInst>(V)) {
       if (isMemorySpaceTransferIntrinsic(IS->getIntrinsicID())) {
-        V = IS->getArgOperand(0)->stripPointerCasts();
+        V = IS->getArgOperand(0)->stripPointerCasts(true);
         continue;
       }
     } else if (ignore_GEP_indices)
       if (const GEPOperator *GEP = dyn_cast<GEPOperator>(V)) {
-        V = GEP->getPointerOperand()->stripPointerCasts();
+        V = GEP->getPointerOperand()->stripPointerCasts(true);
         continue;
       }
     break;
@@ -357,7 +357,7 @@ llvm::skipPointerTransfer(const Value *V, std::set<const Value *> &processed) {
     return NULL;
   processed.insert(V);
 
-  const Value *V2 = V->stripPointerCasts();
+  const Value *V2 = V->stripPointerCasts(true);
   if (V2 != V && processed.find(V2) != processed.end())
     return NULL;
   processed.insert(V2);
@@ -367,11 +367,11 @@ llvm::skipPointerTransfer(const Value *V, std::set<const Value *> &processed) {
   while (true) {
     if (const IntrinsicInst *IS = dyn_cast<IntrinsicInst>(V)) {
       if (isMemorySpaceTransferIntrinsic(IS->getIntrinsicID())) {
-        V = IS->getArgOperand(0)->stripPointerCasts();
+        V = IS->getArgOperand(0)->stripPointerCasts(true);
         continue;
       }
     } else if (const GEPOperator *GEP = dyn_cast<GEPOperator>(V)) {
-      V = GEP->getPointerOperand()->stripPointerCasts();
+      V = GEP->getPointerOperand()->stripPointerCasts(true);
       continue;
     } else if (const PHINode *PN = dyn_cast<PHINode>(V)) {
       if (V != V2 && processed.find(V) != processed.end())

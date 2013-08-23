@@ -296,11 +296,11 @@ static bool isShortenable(Instruction *I) {
 }
 
 /// getStoredPointerOperand - Return the pointer that is being written to.
-static Value *getStoredPointerOperand(Instruction *I) {
+static Value *getStoredPointerOperand(Instruction *I, bool byteAddressable) {
   if (StoreInst *SI = dyn_cast<StoreInst>(I))
     return SI->getPointerOperand();
   if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(I))
-    return MI->getDest();
+    return MI->getDest(byteAddressable);
 
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
     switch (II->getIntrinsicID()) {
@@ -341,8 +341,9 @@ static OverwriteResult isOverwrite(const AliasAnalysis::Location &Later,
                                    AliasAnalysis &AA,
                                    int64_t &EarlierOff,
                                    int64_t &LaterOff) {
-  const Value *P1 = Earlier.Ptr->stripPointerCasts();
-  const Value *P2 = Later.Ptr->stripPointerCasts();
+  const DataLayout *TD = AA.getDataLayout();
+  const Value *P1 = Earlier.Ptr->stripPointerCasts(TD && TD->isByteAddressable());
+  const Value *P2 = Later.Ptr->stripPointerCasts(TD && TD->isByteAddressable());
 
   // If the start pointers are the same, we just have to compare sizes to see if
   // the later store was larger than the earlier store.
@@ -376,7 +377,6 @@ static OverwriteResult isOverwrite(const AliasAnalysis::Location &Later,
   // Check to see if the later store is to the entire object (either a global,
   // an alloca, or a byval argument).  If so, then it clearly overwrites any
   // other store to the same object.
-  const DataLayout *TD = AA.getDataLayout();
 
   const Value *UO1 = GetUnderlyingObject(P1, TD),
               *UO2 = GetUnderlyingObject(P2, TD);
@@ -672,8 +672,9 @@ bool DSE::HandleFree(CallInst *F) {
       if (!hasMemoryWrite(Dependency, TLI) || !isRemovable(Dependency))
         break;
 
+      const DataLayout* DL = AA->getDataLayout();
       Value *DepPointer =
-        GetUnderlyingObject(getStoredPointerOperand(Dependency));
+        GetUnderlyingObject(getStoredPointerOperand(Dependency, DL && DL->isByteAddressable()));
 
       // Check for aliasing.
       if (!AA->isMustAlias(F->getArgOperand(0), DepPointer))
@@ -757,7 +758,8 @@ bool DSE::handleEndBlock(BasicBlock &BB) {
     if (hasMemoryWrite(BBI, TLI) && isRemovable(BBI)) {
       // See through pointer-to-pointer bitcasts
       SmallVector<Value *, 4> Pointers;
-      GetUnderlyingObjects(getStoredPointerOperand(BBI), Pointers);
+      const DataLayout* DL = AA->getDataLayout();
+      GetUnderlyingObjects(getStoredPointerOperand(BBI, DL && DL->isByteAddressable()), Pointers);
 
       // Stores to stack values are valid candidates for removal.
       bool AllDead = true;

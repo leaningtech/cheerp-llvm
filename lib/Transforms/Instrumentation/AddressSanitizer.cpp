@@ -591,9 +591,9 @@ void AddressSanitizer::instrumentMemIntrinsicParam(
 
 // Instrument memset/memmove/memcpy
 bool AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI) {
-  Value *Dst = MI->getDest();
+  Value *Dst = MI->getDest(TD->isByteAddressable());
   MemTransferInst *MemTran = dyn_cast<MemTransferInst>(MI);
-  Value *Src = MemTran ? MemTran->getSource() : 0;
+  Value *Src = MemTran ? MemTran->getSource(TD->isByteAddressable()) : 0;
   Value *Length = MI->getLength();
 
   Constant *ConstLength = dyn_cast<Constant>(Length);

@@ -106,7 +106,7 @@ void llvm::ComputeValueVTs(const TargetLowering &TLI, Type *Ty,
 
 /// ExtractTypeInfo - Returns the type info, possibly bitcast, encoded in V.
 GlobalVariable *llvm::ExtractTypeInfo(Value *V) {
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
   GlobalVariable *GV = dyn_cast<GlobalVariable>(V);
 
   if (GV && GV->getName() == "llvm.eh.catch.all.value") {

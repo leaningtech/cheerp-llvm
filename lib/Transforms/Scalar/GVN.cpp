@@ -1051,7 +1051,7 @@ static int AnalyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
   // If this is memset, we just need to see if the offset is valid in the size
   // of the memset..
   if (MI->getIntrinsicID() == Intrinsic::memset)
-    return AnalyzeLoadFromClobberingWrite(LoadTy, LoadPtr, MI->getDest(),
+    return AnalyzeLoadFromClobberingWrite(LoadTy, LoadPtr, MI->getDest(TD.isByteAddressable()),
                                           MemSizeInBits, TD);
 
   // If we have a memcpy/memmove, the only case we can handle is if this is a
@@ -1059,7 +1059,7 @@ static int AnalyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
   // constant memory.
   MemTransferInst *MTI = cast<MemTransferInst>(MI);
 
-  Constant *Src = dyn_cast<Constant>(MTI->getSource());
+  Constant *Src = dyn_cast<Constant>(MTI->getSource(TD.isByteAddressable()));
   if (Src == 0) return -1;
 
   GlobalVariable *GV = dyn_cast<GlobalVariable>(GetUnderlyingObject(Src, &TD));
@@ -1067,7 +1067,7 @@ static int AnalyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
 
   // See if the access is within the bounds of the transfer.
   int Offset = AnalyzeLoadFromClobberingWrite(LoadTy, LoadPtr,
-                                              MI->getDest(), MemSizeInBits, TD);
+                                              MI->getDest(TD.isByteAddressable()), MemSizeInBits, TD);
   if (Offset == -1)
     return Offset;
 
@@ -1229,7 +1229,7 @@ static Value *GetMemInstValueForLoad(MemIntrinsic *SrcInst, unsigned Offset,
 
   // Otherwise, this is a memcpy/memmove from a constant global.
   MemTransferInst *MTI = cast<MemTransferInst>(SrcInst);
-  Constant *Src = cast<Constant>(MTI->getSource());
+  Constant *Src = cast<Constant>(MTI->getSource(TD.isByteAddressable()));
 
   // Otherwise, see if we can constant fold a load from the constant with the
   // offset applied as appropriate.
