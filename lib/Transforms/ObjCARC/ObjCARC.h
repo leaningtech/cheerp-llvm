@@ -234,7 +234,7 @@ static inline const Value *GetUnderlyingObjCPtr(const Value *V) {
 /// return their argument verbatim.
 static inline const Value *StripPointerCastsAndObjCCalls(const Value *V) {
   for (;;) {
-    V = V->stripPointerCasts();
+    V = V->stripPointerCastsSafe();
     if (!IsForwarding(GetBasicInstructionClass(V)))
       break;
     V = cast<CallInst>(V)->getArgOperand(0);
@@ -247,7 +247,7 @@ static inline const Value *StripPointerCastsAndObjCCalls(const Value *V) {
 /// return their argument verbatim.
 static inline Value *StripPointerCastsAndObjCCalls(Value *V) {
   for (;;) {
-    V = V->stripPointerCasts();
+    V = V->stripPointerCastsSafe();
     if (!IsForwarding(GetBasicInstructionClass(V)))
       break;
     V = cast<CallInst>(V)->getArgOperand(0);

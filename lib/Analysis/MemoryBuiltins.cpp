@@ -72,7 +72,7 @@ static const AllocFnsTy AllocationFnData[] = {
 
 static Function *getCalledFunction(const Value *V, bool LookThroughBitCast) {
   if (LookThroughBitCast)
-    V = V->stripPointerCasts();
+    V = V->stripPointerCastsSafe();
 
   CallSite CS(const_cast<Value*>(V));
   if (!CS.getInstruction())
@@ -139,7 +139,7 @@ static const AllocFnsTy *getAllocationData(const Value *V, AllocType AllocTy,
 }
 
 static bool hasNoAliasAttr(const Value *V, bool LookThroughBitCast) {
-  ImmutableCallSite CS(LookThroughBitCast ? V->stripPointerCasts() : V);
+  ImmutableCallSite CS(LookThroughBitCast ? V->stripPointerCastsSafe() : V);
   return CS && CS.hasFnAttr(Attribute::NoAlias);
 }
 
@@ -407,7 +407,7 @@ SizeOffsetType ObjectSizeOffsetVisitor::compute(Value *V) {
   IntTyBits = DL->getPointerTypeSizeInBits(V->getType());
   Zero = APInt::getNullValue(IntTyBits);
 
-  V = V->stripPointerCasts();
+  V = V->stripPointerCasts(DL && DL->isByteAddressable());
   if (Instruction *I = dyn_cast<Instruction>(V)) {
     // If we have already seen this instruction, bail out. Cycles can happen in
     // unreachable code after constant propagation.
@@ -628,7 +628,7 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::compute_(Value *V) {
     return std::make_pair(ConstantInt::get(Context, Const.first),
                           ConstantInt::get(Context, Const.second));
 
-  V = V->stripPointerCasts();
+  V = V->stripPointerCasts(DL && DL->isByteAddressable());
 
   // check cache
   CacheMapTy::iterator CacheIt = CacheMap.find(V);

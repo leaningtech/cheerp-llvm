@@ -179,7 +179,7 @@ static bool IsSafeComputationToRemove(Value *V, const TargetLibraryInfo *TLI) {
 /// value that isn't dynamically allocated.
 ///
 static bool CleanupPointerRootUsers(GlobalVariable *GV,
-                                    const TargetLibraryInfo *TLI) {
+                                    const TargetLibraryInfo *TLI, bool byteAddressable) {
   // A brief explanation of leak checkers.  The goal is to find bugs where
   // pointers are forgotten, causing an accumulating growth in memory
   // usage over time.  The common strategy for leak checkers is to whitelist the
@@ -217,7 +217,7 @@ static bool CleanupPointerRootUsers(GlobalVariable *GV,
           Dead.push_back(std::make_pair(I, MSI));
       }
     } else if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(U)) {
-      GlobalVariable *MemSrc = dyn_cast<GlobalVariable>(MTI->getSource());
+      GlobalVariable *MemSrc = dyn_cast<GlobalVariable>(MTI->getSource(byteAddressable));
       if (MemSrc && MemSrc->isConstant()) {
         Changed = true;
         MTI->eraseFromParent();
@@ -235,7 +235,7 @@ static bool CleanupPointerRootUsers(GlobalVariable *GV,
         C->destroyConstant();
         // This could have invalidated UI, start over from scratch.
         Dead.clear();
-        CleanupPointerRootUsers(GV, TLI);
+        CleanupPointerRootUsers(GV, TLI, byteAddressable);
         return true;
       }
     }
@@ -782,7 +782,7 @@ static bool OptimizeAwayTrappingUsesOfLoads(GlobalVariable *GV, Constant *LV,
   // nor is the global.
   if (AllNonStoreUsesGone) {
     if (isLeakCheckerRoot(GV)) {
-      Changed |= CleanupPointerRootUsers(GV, TLI);
+      Changed |= CleanupPointerRootUsers(GV, TLI, DL && DL->isByteAddressable());
     } else {
       Changed = true;
       CleanupConstantGlobalUsers(GV, 0, DL, TLI);
@@ -1561,7 +1561,7 @@ static bool OptimizeOnceStoredGlobal(GlobalVariable *GV, Value *StoredOnceVal,
                                      const DataLayout *DL,
                                      TargetLibraryInfo *TLI) {
   // Ignore no-op GEPs and bitcasts.
-  StoredOnceVal = StoredOnceVal->stripPointerCasts();
+  StoredOnceVal = StoredOnceVal->stripPointerCasts(DL && DL->isByteAddressable());
 
   // If we are dealing with a pointer global that is initialized to null and
   // only has one (non-null) value stored into it, then we can optimize any
@@ -1738,7 +1738,7 @@ bool GlobalOpt::ProcessInternalGlobal(GlobalVariable *GV,
     bool Changed;
     if (isLeakCheckerRoot(GV)) {
       // Delete any constant stores to the global.
-      Changed = CleanupPointerRootUsers(GV, TLI);
+      Changed = CleanupPointerRootUsers(GV, TLI, DL && DL->isByteAddressable());
     } else {
       // Delete any stores we can find to the global.  We may not be able to
       // make it completely dead though.
@@ -2528,7 +2528,7 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
                   "intrinsic.\n");
             return false;
           }
-          Constant *Ptr = getVal(MSI->getDest());
+          Constant *Ptr = getVal(MSI->getDest(DL && DL->isByteAddressable()));
           Constant *Val = getVal(MSI->getValue());
           Constant *DestVal = ComputeLoadResult(getVal(Ptr));
           if (Val->isNullValue() && DestVal && DestVal->isNullValue()) {
@@ -2555,7 +2555,7 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
           }
           ConstantInt *Size = cast<ConstantInt>(II->getArgOperand(0));
           Value *PtrArg = getVal(II->getArgOperand(1));
-          Value *Ptr = PtrArg->stripPointerCasts();
+          Value *Ptr = PtrArg->stripPointerCasts(DL && DL->isByteAddressable());
           if (GlobalVariable *GV = dyn_cast<GlobalVariable>(Ptr)) {
             Type *ElemTy = cast<PointerType>(GV->getType())->getElementType();
             if (DL && !Size->isAllOnesValue() &&
@@ -2641,7 +2641,7 @@ bool Evaluator::EvaluateBlock(BasicBlock::iterator CurInst,
         if (!Val) return false;  // Cannot determine.
         NextBB = SI->findCaseValue(Val).getCaseSuccessor();
       } else if (IndirectBrInst *IBI = dyn_cast<IndirectBrInst>(CurInst)) {
-        Value *Val = getVal(IBI->getAddress())->stripPointerCasts();
+        Value *Val = getVal(IBI->getAddress())->stripPointerCasts(DL && DL->isByteAddressable());
         if (BlockAddress *BA = dyn_cast<BlockAddress>(Val))
           NextBB = BA->getBasicBlock();
         else
@@ -2937,7 +2937,7 @@ static bool hasUsesToReplace(GlobalAlias &GA, LLVMUsed &U, bool &RenameTarget) {
   // into:
   //   define ... @a(...)
   Constant *Aliasee = GA.getAliasee();
-  GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCasts());
+  GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCastsSafe());
   if (!Target->hasLocalLinkage())
     return Ret;
 
@@ -2971,7 +2971,7 @@ bool GlobalOpt::OptimizeGlobalAliases(Module &M) {
       continue;
 
     Constant *Aliasee = J->getAliasee();
-    GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCasts());
+    GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCasts(DL && DL->isByteAddressable()));
     Target->removeDeadConstantUsers();
 
     // Make all users of the alias use the aliasee instead.
@@ -3105,7 +3105,7 @@ bool GlobalOpt::OptimizeEmptyGlobalCXXDtors(Function *CXAAtExitFn) {
       continue;
 
     Function *DtorFn =
-      dyn_cast<Function>(CI->getArgOperand(0)->stripPointerCasts());
+      dyn_cast<Function>(CI->getArgOperand(0)->stripPointerCasts(DL && DL->isByteAddressable()));
     if (!DtorFn)
       continue;
 

@@ -464,7 +464,7 @@ define i8* @same_addrspace() nounwind noinline {
 ; OPT: same_addrspace
   %p = getelementptr inbounds i8* bitcast ([4 x i8] * @p0 to i8*), i32 2
   ret i8* %p
-; OPT: ret i8* getelementptr inbounds ([4 x i8]* @p0, i32 0, i32 2)
+; XFAIL: ret i8* bitcast ([4 x i8]* @p0 to i8*)
 }
 
 ; CHECK: attributes #0 = { nounwind }

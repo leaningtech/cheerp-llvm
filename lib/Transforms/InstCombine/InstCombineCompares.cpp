@@ -651,8 +651,8 @@ Instruction *InstCombiner::FoldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
       if (DL && GEPLHS->isInBounds() && GEPRHS->isInBounds() &&
           (GEPLHS->hasAllConstantIndices() || GEPLHS->hasOneUse()) &&
           (GEPRHS->hasAllConstantIndices() || GEPRHS->hasOneUse()) &&
-          PtrBase->stripPointerCasts() ==
-            GEPRHS->getOperand(0)->stripPointerCasts()) {
+          PtrBase->stripPointerCasts(DL && DL->isByteAddressable()) ==
+            GEPRHS->getOperand(0)->stripPointerCasts(DL && DL->isByteAddressable())) {
         Value *Cmp = Builder->CreateICmp(ICmpInst::getSignedPredicate(Cond),
                                          EmitGEPOffset(GEPLHS),
                                          EmitGEPOffset(GEPRHS));

@@ -183,7 +183,7 @@ bool NVPTXLowerAggrCopies::runOnFunction(Function &F) {
     // operand yet. So always making it non-volatile
     // optimistically, so that we don't see unnecessary
     // st.volatile in ptx
-    convertTransferToLoop(cpy, cpy->getSource(), cpy->getDest(), len, false,
+    convertTransferToLoop(cpy, cpy->getSource(true), cpy->getDest(true), len, false,
                           false, Context, F);
     cpy->eraseFromParent();
   }
@@ -192,7 +192,7 @@ bool NVPTXLowerAggrCopies::runOnFunction(Function &F) {
     MemSetInst *memsetinst = aggrMemsets[i];
     Value *len = memsetinst->getLength();
     Value *val = memsetinst->getValue();
-    convertMemSetToLoop(memsetinst, memsetinst->getDest(), len, val, Context,
+    convertMemSetToLoop(memsetinst, memsetinst->getDest(true), len, val, Context,
                         F);
     memsetinst->eraseFromParent();
   }

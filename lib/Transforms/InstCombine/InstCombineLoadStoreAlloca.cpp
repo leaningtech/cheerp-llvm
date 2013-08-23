@@ -46,7 +46,7 @@ static bool pointsToConstantGlobal(Value *V) {
 static bool
 isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
                                SmallVectorImpl<Instruction *> &ToDelete,
-                               bool IsOffset = false) {
+                               bool IsOffset, bool byteAddressable) {
   // We track lifetime intrinsics as we encounter them.  If we decide to go
   // ahead and replace the value with the global, this lets the caller quickly
   // eliminate the markers.
@@ -62,7 +62,7 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
 
     if (BitCastInst *BCI = dyn_cast<BitCastInst>(I)) {
       // If uses of the bitcast are ok, we are ok.
-      if (!isOnlyCopiedFromConstantGlobal(BCI, TheCopy, ToDelete, IsOffset))
+      if (!isOnlyCopiedFromConstantGlobal(BCI, TheCopy, ToDelete, IsOffset, byteAddressable))
         return false;
       continue;
     }
@@ -70,7 +70,7 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
       // If the GEP has all zero indices, it doesn't offset the pointer.  If it
       // doesn't, it does.
       if (!isOnlyCopiedFromConstantGlobal(
-              GEP, TheCopy, ToDelete, IsOffset || !GEP->hasAllZeroIndices()))
+              GEP, TheCopy, ToDelete, IsOffset || !GEP->hasAllZeroIndices(), byteAddressable))
         return false;
       continue;
     }
@@ -133,7 +133,7 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
     if (U.getOperandNo() != 0) return false;
 
     // If the source of the memcpy/move is not a constant global, reject it.
-    if (!pointsToConstantGlobal(MI->getSource()))
+    if (!pointsToConstantGlobal(MI->getSource(byteAddressable)))
       return false;
 
     // Otherwise, the transform is safe.  Remember the copy instruction.
@@ -147,9 +147,10 @@ isOnlyCopiedFromConstantGlobal(Value *V, MemTransferInst *&TheCopy,
 /// replace any uses of the alloca with uses of the global directly.
 static MemTransferInst *
 isOnlyCopiedFromConstantGlobal(AllocaInst *AI,
-                               SmallVectorImpl<Instruction *> &ToDelete) {
+                               SmallVectorImpl<Instruction *> &ToDelete,
+                               bool byteAddressable) {
   MemTransferInst *TheCopy = 0;
-  if (isOnlyCopiedFromConstantGlobal(AI, TheCopy, ToDelete))
+  if (isOnlyCopiedFromConstantGlobal(AI, TheCopy, ToDelete, false, byteAddressable))
     return TheCopy;
   return 0;
 }
@@ -258,15 +259,15 @@ Instruction *InstCombiner::visitAllocaInst(AllocaInst &AI) {
     // constructs like "void foo() { int A[] = {1,2,3,4,5,6,7,8,9...}; }" if 'A'
     // is only subsequently read.
     SmallVector<Instruction *, 4> ToDelete;
-    if (MemTransferInst *Copy = isOnlyCopiedFromConstantGlobal(&AI, ToDelete)) {
-      unsigned SourceAlign = getOrEnforceKnownAlignment(Copy->getSource(),
+    if (MemTransferInst *Copy = isOnlyCopiedFromConstantGlobal(&AI, ToDelete, DL && DL->isByteAddressable())) {
+      unsigned SourceAlign = getOrEnforceKnownAlignment(Copy->getSource(DL && DL->isByteAddressable()),
                                                         AI.getAlignment(), DL);
       if (AI.getAlignment() <= SourceAlign) {
         DEBUG(dbgs() << "Found alloca equal to global: " << AI << '\n');
         DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
         for (unsigned i = 0, e = ToDelete.size(); i != e; ++i)
           EraseInstFromFunction(*ToDelete[i]);
-        Constant *TheSrc = cast<Constant>(Copy->getSource());
+        Constant *TheSrc = cast<Constant>(Copy->getSource(DL && DL->isByteAddressable()));
         Constant *Cast
           = ConstantExpr::getPointerBitCastOrAddrSpaceCast(TheSrc, AI.getType());
         Instruction *NewI = ReplaceInstUsesWith(AI, Cast);
