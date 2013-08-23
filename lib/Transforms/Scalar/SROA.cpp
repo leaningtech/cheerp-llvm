@@ -3478,6 +3478,9 @@ bool SROA::runOnFunction(Function &F) {
     DEBUG(dbgs() << "  Skipping SROA -- no target data!\n");
     return false;
   }
+  if (!DL->isByteAddressable()) {
+    return false;
+  }
   DT = getAnalysisIfAvailable<DominatorTree>();
 
   BasicBlock &EntryBB = F.getEntryBlock();

@@ -1725,7 +1725,7 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
     Constant *ZeroUInt =
       Constant::getNullValue(Type::getInt32Ty(CI.getContext()));
     unsigned NumZeros = 0;
-    while (SrcElTy != DstElTy &&
+    while (TD && TD->isByteAddressable() && SrcElTy != DstElTy &&
            isa<CompositeType>(SrcElTy) && !SrcElTy->isPointerTy() &&
            SrcElTy->getNumContainedTypes() /* not "{}" */) {
       SrcElTy = cast<CompositeType>(SrcElTy)->getTypeAtIndex(ZeroUInt);

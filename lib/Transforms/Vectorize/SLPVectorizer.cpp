@@ -1574,7 +1574,7 @@ struct SLPVectorizer : public FunctionPass {
 
     // Must have DataLayout. We can't require it because some tests run w/o
     // triple.
-    if (!DL)
+    if (!DL || !DL->isByteAddressable())
       return false;
 
     // Don't vectorize when the attribute NoImplicitFloat is used.

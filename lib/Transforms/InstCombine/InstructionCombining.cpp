@@ -1328,11 +1328,12 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
     if (TD &&
         !isa<BitCastInst>(BCI->getOperand(0)) &&
         GEP.accumulateConstantOffset(*TD, Offset) &&
-        StrippedPtrTy->getAddressSpace() == GEP.getPointerAddressSpace()) {
+        StrippedPtrTy->getAddressSpace() == GEP.getPointerAddressSpace() &&
+        TD->isByteAddressable()) {
 
       // If this GEP instruction doesn't move the pointer, just replace the GEP
       // with a bitcast of the real input to the dest type.
-      if (!Offset && TD->isByteAddressable()) {
+      if (!Offset) {
         // If the bitcast is of an allocation, and the allocation will be
         // converted to match the type of the cast, don't touch this.
         if (isa<AllocaInst>(BCI->getOperand(0)) ||
