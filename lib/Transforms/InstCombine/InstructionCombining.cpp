@@ -1756,11 +1756,11 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
     unsigned OffsetBits = DL->getPointerTypeSizeInBits(GEP.getType());
     APInt Offset(OffsetBits, 0);
     if (!isa<BitCastInst>(Operand) &&
-        GEP.accumulateConstantOffset(*DL, Offset)) {
+        GEP.accumulateConstantOffset(*DL, Offset) && DL->isByteAddressable()) {
 
       // If this GEP instruction doesn't move the pointer, just replace the GEP
       // with a bitcast of the real input to the dest type.
-      if (!Offset && DL->isByteAddressable()) {
+      if (!Offset) {
         // If the bitcast is of an allocation, and the allocation will be
         // converted to match the type of the cast, don't touch this.
         if (isa<AllocaInst>(Operand) || isAllocationFn(Operand, TLI)) {
