@@ -456,7 +456,7 @@ static bool simplifySuspendPoint(CoroSuspendInst *Suspend,
   if (!CallInstr)
     return false;
 
-  auto *Callee = SingleCallSite.getCalledValue()->stripPointerCasts();
+  auto *Callee = SingleCallSite.getCalledValue()->stripPointerCastsSafe();
 
   // See if the callsite is for resumption or destruction of the coroutine.
   auto *SubFn = dyn_cast<CoroSubFnInst>(Callee);

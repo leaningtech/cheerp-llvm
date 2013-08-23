@@ -553,7 +553,7 @@ Instruction *llvm::promoteIndirectCall(Instruction *Inst,
     SmallVector<uint32_t, 1> Weights;
     Weights.push_back(Count);
     MDBuilder MDB(NewInst->getContext());
-    dyn_cast<Instruction>(NewInst->stripPointerCasts())
+    dyn_cast<Instruction>(NewInst->stripPointerCastsSafe())
         ->setMetadata(LLVMContext::MD_prof, MDB.createBranchWeights(Weights));
   }
 

@@ -721,7 +721,7 @@ bool SampleProfileLoader::inlineHotFunctions(
             // call is likely taken.
             DI = dyn_cast<Instruction>(
                 promoteIndirectCall(I, CalledFunction, 80, 100, false)
-                    ->stripPointerCasts());
+                    ->stripPointerCastsSafe());
             PromotedInsns.insert(I);
           } else {
             DEBUG(dbgs() << "\nFailed to promote indirect call to "

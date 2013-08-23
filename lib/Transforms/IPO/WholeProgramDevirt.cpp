@@ -663,7 +663,7 @@ bool DevirtModule::tryFindVirtualCallTargets(
     if (!Ptr)
       return false;
 
-    auto Fn = dyn_cast<Function>(Ptr->stripPointerCasts());
+    auto Fn = dyn_cast<Function>(Ptr->stripPointerCastsSafe());
     if (!Fn)
       return false;
 
@@ -1109,7 +1109,7 @@ void DevirtModule::scanTypeTestUsers(Function *TypeTestFunc,
     if (!Assumes.empty()) {
       Metadata *TypeId =
           cast<MetadataAsValue>(CI->getArgOperand(1))->getMetadata();
-      Value *Ptr = CI->getArgOperand(0)->stripPointerCasts();
+      Value *Ptr = CI->getArgOperand(0)->stripPointerCastsSafe();
       if (SeenPtrs.insert(Ptr).second) {
         for (DevirtCallSite Call : DevirtCalls) {
           CallSlots[{TypeId, Call.Offset}].addCallSite(CI->getArgOperand(0),

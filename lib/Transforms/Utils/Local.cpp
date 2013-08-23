@@ -251,7 +251,7 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
   if (IndirectBrInst *IBI = dyn_cast<IndirectBrInst>(T)) {
     // indirectbr blockaddress(@F, @BB) -> br label @BB
     if (BlockAddress *BA =
-          dyn_cast<BlockAddress>(IBI->getAddress()->stripPointerCasts())) {
+          dyn_cast<BlockAddress>(IBI->getAddress()->stripPointerCastsSafe())) {
       BasicBlock *TheOnlyDest = BA->getBasicBlock();
       // Insert the new branch.
       Builder.CreateBr(TheOnlyDest);
@@ -990,7 +990,7 @@ static unsigned enforceKnownAlignment(Value *V, unsigned Align,
                                       const DataLayout &DL) {
   assert(PrefAlign > Align);
 
-  V = V->stripPointerCasts();
+  V = V->stripPointerCasts(DL.isByteAddressable());
 
   if (AllocaInst *AI = dyn_cast<AllocaInst>(V)) {
     // TODO: ideally, computeKnownBits ought to have used

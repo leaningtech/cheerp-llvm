@@ -235,7 +235,7 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
       raw_string_ostream OS(FallbackName);
       Msymtab.printSymbolName(
           OS, cast<GlobalValue>(
-                  cast<GlobalAlias>(GV)->getAliasee()->stripPointerCasts()));
+                  cast<GlobalAlias>(GV)->getAliasee()->stripPointerCastsSafe()));
       OS.flush();
       setStr(Uncommon().COFFWeakExternFallbackName, Saver.save(FallbackName));
     }

@@ -5227,7 +5227,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // Get and store the index of the function context.
     MachineFrameInfo &MFI = DAG.getMachineFunction().getFrameInfo();
     AllocaInst *FnCtx =
-      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCasts());
+      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCastsSafe());
     int FI = FuncInfo.StaticAllocaMap[FnCtx];
     MFI.setFunctionContextIndex(FI);
     return nullptr;
@@ -5623,7 +5623,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     return nullptr;
 
   case Intrinsic::init_trampoline: {
-    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCasts());
+    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCastsSafe());
 
     SDValue Ops[6];
     Ops[0] = getRoot();
@@ -5651,7 +5651,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     assert(F->hasGC() &&
            "only valid in functions with gc specified, enforced by Verifier");
     assert(GFI && "implied by previous");
-    const Value *Alloca = I.getArgOperand(0)->stripPointerCasts();
+    const Value *Alloca = I.getArgOperand(0)->stripPointerCastsSafe();
     const Constant *TypeMap = cast<Constant>(I.getArgOperand(1));
 
     FrameIndexSDNode *FI = cast<FrameIndexSDNode>(getValue(Alloca).getNode());
@@ -5819,7 +5819,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // Directly emit some LOCAL_ESCAPE machine instrs. Label assignment emission
     // is the same on all targets.
     for (unsigned Idx = 0, E = I.getNumArgOperands(); Idx < E; ++Idx) {
-      Value *Arg = I.getArgOperand(Idx)->stripPointerCasts();
+      Value *Arg = I.getArgOperand(Idx)->stripPointerCastsSafe();
       if (isa<ConstantPointerNull>(Arg))
         continue; // Skip null pointers. They represent a hole in index space.
       AllocaInst *Slot = cast<AllocaInst>(Arg);
@@ -5844,7 +5844,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout(), 0);
 
     // Get the symbol that defines the frame offset.
-    auto *Fn = cast<Function>(I.getArgOperand(0)->stripPointerCasts());
+    auto *Fn = cast<Function>(I.getArgOperand(0)->stripPointerCastsSafe());
     auto *Idx = cast<ConstantInt>(I.getArgOperand(2));
     unsigned IdxVal = unsigned(Idx->getLimitedValue(INT_MAX));
     MCSymbol *FrameAllocSym =
@@ -8342,7 +8342,7 @@ findArgumentCopyElisionCandidates(const DataLayout &DL,
   auto GetInfoIfStaticAlloca = [&](const Value *V) -> StaticAllocaInfo * {
     if (!V)
       return nullptr;
-    V = V->stripPointerCasts();
+    V = V->stripPointerCastsSafe();
     const auto *AI = dyn_cast<AllocaInst>(V);
     if (!AI || !AI->isStaticAlloca() || !FuncInfo->StaticAllocaMap.count(AI))
       return nullptr;
@@ -8379,7 +8379,7 @@ findArgumentCopyElisionCandidates(const DataLayout &DL,
       *Info = StaticAllocaInfo::Clobbered;
 
     // Check if the destination is a static alloca.
-    const Value *Dst = SI->getPointerOperand()->stripPointerCasts();
+    const Value *Dst = SI->getPointerOperand()->stripPointerCastsSafe();
     StaticAllocaInfo *Info = GetInfoIfStaticAlloca(Dst);
     if (!Info)
       continue;
@@ -8391,7 +8391,7 @@ findArgumentCopyElisionCandidates(const DataLayout &DL,
 
     // Check if the stored value is an argument, and that this store fully
     // initializes the alloca. Don't elide copies from the same argument twice.
-    const Value *Val = SI->getValueOperand()->stripPointerCasts();
+    const Value *Val = SI->getValueOperand()->stripPointerCastsSafe();
     const auto *Arg = dyn_cast<Argument>(Val);
     if (!Arg || Arg->hasInAllocaAttr() || Arg->hasByValAttr() ||
         Arg->getType()->isEmptyTy() ||

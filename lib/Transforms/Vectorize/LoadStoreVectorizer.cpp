@@ -240,7 +240,7 @@ GetElementPtrInst *Vectorizer::getSourceGEP(Value *Src) const {
   // TODO: a stride set by the add instruction below can match the difference
   // in pointee type size here. Currently it will not be vectorized.
   Value *SrcPtr = getPointerOperand(Src);
-  Value *SrcBase = SrcPtr->stripPointerCasts();
+  Value *SrcBase = SrcPtr->stripPointerCastsSafe();
   if (DL.getTypeStoreSize(SrcPtr->getType()->getPointerElementType()) ==
       DL.getTypeStoreSize(SrcBase->getType()->getPointerElementType()))
     SrcPtr = SrcBase;

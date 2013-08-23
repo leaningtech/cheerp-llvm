@@ -2064,8 +2064,8 @@ computePointerICmp(const DataLayout &DL, const TargetLibraryInfo *TLI,
                    const DominatorTree *DT, CmpInst::Predicate Pred,
                    const Instruction *CxtI, Value *LHS, Value *RHS) {
   // First, skip past any trivial no-ops.
-  LHS = LHS->stripPointerCasts();
-  RHS = RHS->stripPointerCasts();
+  LHS = LHS->stripPointerCasts(DL.isByteAddressable());
+  RHS = RHS->stripPointerCasts(DL.isByteAddressable());
 
   // A non-null pointer is not equal to a null pointer.
   if (llvm::isKnownNonNull(LHS) && isa<ConstantPointerNull>(RHS) &&

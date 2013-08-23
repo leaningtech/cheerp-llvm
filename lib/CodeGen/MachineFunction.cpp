@@ -724,7 +724,7 @@ try_next:;
 void llvm::addLandingPadInfo(const LandingPadInst &I, MachineBasicBlock &MBB) {
   MachineFunction &MF = *MBB.getParent();
   if (const auto *PF = dyn_cast<Function>(
-          I.getParent()->getParent()->getPersonalityFn()->stripPointerCasts()))
+          I.getParent()->getParent()->getPersonalityFn()->stripPointerCastsSafe()))
     MF.getMMI().addPersonality(PF);
 
   if (I.isCleanup())
@@ -737,14 +737,14 @@ void llvm::addLandingPadInfo(const LandingPadInst &I, MachineBasicBlock &MBB) {
     Value *Val = I.getClause(i - 1);
     if (I.isCatch(i - 1)) {
       MF.addCatchTypeInfo(&MBB,
-                          dyn_cast<GlobalValue>(Val->stripPointerCasts()));
+                          dyn_cast<GlobalValue>(Val->stripPointerCastsSafe()));
     } else {
       // Add filters in a list.
       Constant *CVal = cast<Constant>(Val);
       SmallVector<const GlobalValue *, 4> FilterList;
       for (User::op_iterator II = CVal->op_begin(), IE = CVal->op_end();
            II != IE; ++II)
-        FilterList.push_back(cast<GlobalValue>((*II)->stripPointerCasts()));
+        FilterList.push_back(cast<GlobalValue>((*II)->stripPointerCastsSafe()));
 
       MF.addFilterTypeInfo(&MBB, FilterList);
     }

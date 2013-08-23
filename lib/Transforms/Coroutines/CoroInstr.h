@@ -102,7 +102,7 @@ public:
     Value *Arg = getArgOperand(PromiseArg);
     return isa<ConstantPointerNull>(Arg)
                ? nullptr
-               : cast<AllocaInst>(Arg->stripPointerCasts());
+               : cast<AllocaInst>(Arg->stripPointerCastsSafe());
   }
 
   void clearPromise() {
@@ -158,13 +158,13 @@ public:
     return Result;
   }
   Constant *getRawInfo() const {
-    return cast<Constant>(getArgOperand(InfoArg)->stripPointerCasts());
+    return cast<Constant>(getArgOperand(InfoArg)->stripPointerCastsSafe());
   }
 
   void setInfo(Constant *C) { setArgOperand(InfoArg, C); }
 
   Function *getCoroutine() const {
-    return cast<Function>(getArgOperand(CoroutineArg)->stripPointerCasts());
+    return cast<Function>(getArgOperand(CoroutineArg)->stripPointerCastsSafe());
   }
   void setCoroutineSelf() {
     assert(isa<ConstantPointerNull>(getArgOperand(CoroutineArg)) &&

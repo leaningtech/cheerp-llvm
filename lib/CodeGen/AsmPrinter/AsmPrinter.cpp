@@ -1670,7 +1670,7 @@ void AsmPrinter::EmitJumpTableEntry(const MachineJumpTableInfo *MJTI,
 bool AsmPrinter::EmitSpecialLLVMGlobal(const GlobalVariable *GV) {
   if (GV->getName() == "llvm.used") {
     if (MAI->hasNoDeadStrip())    // No need to emit this at all.
-      EmitLLVMUsedList(cast<ConstantArray>(GV->getInitializer()));
+      EmitLLVMUsedList(cast<ConstantArray>(GV->getInitializer()), GV->getParent()->getDataLayout());
     return true;
   }
 
@@ -1703,11 +1703,11 @@ bool AsmPrinter::EmitSpecialLLVMGlobal(const GlobalVariable *GV) {
 /// EmitLLVMUsedList - For targets that define a MAI::UsedDirective, mark each
 /// global in the specified llvm.used list for which emitUsedDirectiveFor
 /// is true, as being used with this directive.
-void AsmPrinter::EmitLLVMUsedList(const ConstantArray *InitList) {
+void AsmPrinter::EmitLLVMUsedList(const ConstantArray *InitList, const DataLayout& DL) {
   // Should be an array of 'i8*'.
   for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i) {
     const GlobalValue *GV =
-      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts());
+      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts(DL.isByteAddressable()));
     if (GV)
       OutStreamer->EmitSymbolAttribute(getSymbol(GV), MCSA_NoDeadStrip);
   }
@@ -1760,7 +1760,7 @@ void AsmPrinter::EmitXXStructorList(const DataLayout &DL, const Constant *List,
     S.Func = CS->getOperand(1);
     if (ETy->getNumElements() == 3 && !CS->getOperand(2)->isNullValue())
       S.ComdatKey =
-          dyn_cast<GlobalValue>(CS->getOperand(2)->stripPointerCasts());
+          dyn_cast<GlobalValue>(CS->getOperand(2)->stripPointerCastsSafe());
   }
 
   // Emit the function pointers in the target-specific order

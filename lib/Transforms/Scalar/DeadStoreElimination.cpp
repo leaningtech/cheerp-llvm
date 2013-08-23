@@ -307,8 +307,8 @@ static OverwriteResult isOverwrite(const MemoryLocation &Later,
       Earlier.Size == MemoryLocation::UnknownSize)
     return OW_Unknown;
 
-  const Value *P1 = Earlier.Ptr->stripPointerCasts();
-  const Value *P2 = Later.Ptr->stripPointerCasts();
+  const Value *P1 = Earlier.Ptr->stripPointerCasts(DL.isByteAddressable());
+  const Value *P2 = Later.Ptr->stripPointerCasts(DL.isByteAddressable());
 
   // If the start pointers are the same, we just have to compare sizes to see if
   // the later store was larger than the earlier store.
@@ -924,7 +924,7 @@ static bool removePartiallyOverlappedStores(AliasAnalysis *AA,
     assert(isRemovable(EarlierWrite) && "Expect only removable instruction");
     assert(Loc.Size != MemoryLocation::UnknownSize && "Unexpected mem loc");
 
-    const Value *Ptr = Loc.Ptr->stripPointerCasts();
+    const Value *Ptr = Loc.Ptr->stripPointerCastsSafe();
     int64_t EarlierStart = 0;
     int64_t EarlierSize = int64_t(Loc.Size);
     GetPointerBaseWithConstantOffset(Ptr, EarlierStart, DL);

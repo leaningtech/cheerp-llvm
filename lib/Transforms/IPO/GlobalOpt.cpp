@@ -1510,7 +1510,7 @@ static bool optimizeOnceStoredGlobal(GlobalVariable *GV, Value *StoredOnceVal,
                                      const DataLayout &DL,
                                      TargetLibraryInfo *TLI) {
   // Ignore no-op GEPs and bitcasts.
-  StoredOnceVal = StoredOnceVal->stripPointerCasts();
+  StoredOnceVal = StoredOnceVal->stripPointerCasts(DL.isByteAddressable());
 
   // If we are dealing with a pointer global that is initialized to null and
   // only has one (non-null) value stored into it, then we can optimize any
@@ -2319,7 +2319,7 @@ static bool hasUsesToReplace(GlobalAlias &GA, const LLVMUsed &U,
   // into:
   //   define ... @a(...)
   Constant *Aliasee = GA.getAliasee();
-  GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCasts());
+  GlobalValue *Target = cast<GlobalValue>(Aliasee->stripPointerCastsSafe());
   if (!Target->hasLocalLinkage())
     return Ret;
 
@@ -2360,7 +2360,7 @@ OptimizeGlobalAliases(Module &M,
       continue;
 
     Constant *Aliasee = J->getAliasee();
-    GlobalValue *Target = dyn_cast<GlobalValue>(Aliasee->stripPointerCasts());
+    GlobalValue *Target = dyn_cast<GlobalValue>(Aliasee->stripPointerCasts(M.getDataLayout().isByteAddressable()));
     // We can't trivially replace the alias with the aliasee if the aliasee is
     // non-trivial in some way.
     // TODO: Try to handle non-zero GEPs of local aliasees.
@@ -2492,7 +2492,7 @@ static bool OptimizeEmptyGlobalCXXDtors(Function *CXAAtExitFn) {
       continue;
 
     Function *DtorFn =
-      dyn_cast<Function>(CI->getArgOperand(0)->stripPointerCasts());
+      dyn_cast<Function>(CI->getArgOperand(0)->stripPointerCasts(CXAAtExitFn->getParent()->getDataLayout().isByteAddressable()));
     if (!DtorFn)
       continue;
 

@@ -332,7 +332,7 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
       if (ConstantPointerNull *CPN =
           dyn_cast<ConstantPointerNull>(I->getOperand(1)))
         if (CPN->getType()->getAddressSpace() == 0)
-          if (isNoAliasCall(V->stripPointerCasts()))
+          if (isNoAliasCall(V->stripPointerCastsSafe()))
             break;
       // Comparison against value stored in global variable. Given the pointer
       // does not escape, its value cannot be guessed and stored separately in a
