@@ -820,7 +820,7 @@ static bool hasLifetimeMarkers(AllocaInst *AI) {
   // Do a scan to find all the casts to i8*.
   for (User *U : AI->users()) {
     if (U->getType() != Int8PtrTy) continue;
-    if (U->stripPointerCasts() != AI) continue;
+    if (U->stripPointerCastsSafe() != AI) continue;
     if (isUsedByLifetimeMarker(U))
       return true;
   }

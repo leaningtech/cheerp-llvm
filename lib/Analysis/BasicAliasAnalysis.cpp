@@ -1287,8 +1287,8 @@ BasicAliasAnalysis::aliasCheck(const Value *V1, uint64_t V1Size,
     return NoAlias;
 
   // Strip off any casts if they exist.
-  V1 = V1->stripPointerCasts();
-  V2 = V2->stripPointerCasts();
+  V1 = V1->stripPointerCasts(DL && DL->isByteAddressable());
+  V2 = V2->stripPointerCasts(DL && DL->isByteAddressable());
 
   // Are we checking for alias of the same value?
   // Because we look 'through' phi nodes we could look at "Value" pointers from

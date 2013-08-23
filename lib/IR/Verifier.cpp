@@ -2564,7 +2564,7 @@ void Verifier::visitIntrinsicFunctionCall(Intrinsic::ID ID, CallInst &CI) {
   case Intrinsic::gcread:
     if (ID == Intrinsic::gcroot) {
       AllocaInst *AI =
-        dyn_cast<AllocaInst>(CI.getArgOperand(0)->stripPointerCasts());
+        dyn_cast<AllocaInst>(CI.getArgOperand(0)->stripPointerCastsSafe());
       Assert1(AI, "llvm.gcroot parameter #1 must be an alloca.", &CI);
       Assert1(isa<Constant>(CI.getArgOperand(1)),
               "llvm.gcroot parameter #2 must be a constant.", &CI);
@@ -2579,7 +2579,7 @@ void Verifier::visitIntrinsicFunctionCall(Intrinsic::ID ID, CallInst &CI) {
             "Enclosing function does not use GC.", &CI);
     break;
   case Intrinsic::init_trampoline:
-    Assert1(isa<Function>(CI.getArgOperand(1)->stripPointerCasts()),
+    Assert1(isa<Function>(CI.getArgOperand(1)->stripPointerCastsSafe()),
             "llvm.init_trampoline parameter #2 must resolve to a function.",
             &CI);
     break;
@@ -2592,7 +2592,7 @@ void Verifier::visitIntrinsicFunctionCall(Intrinsic::ID ID, CallInst &CI) {
             &CI);
     break;
   case Intrinsic::stackprotector:
-    Assert1(isa<AllocaInst>(CI.getArgOperand(1)->stripPointerCasts()),
+    Assert1(isa<AllocaInst>(CI.getArgOperand(1)->stripPointerCastsSafe()),
             "llvm.stackprotector parameter #2 must resolve to an alloca.",
             &CI);
     break;
@@ -2620,7 +2620,7 @@ void Verifier::visitIntrinsicFunctionCall(Intrinsic::ID ID, CallInst &CI) {
     break;
   }
   case Intrinsic::framerecover: {
-    Value *FnArg = CI.getArgOperand(0)->stripPointerCasts();
+    Value *FnArg = CI.getArgOperand(0)->stripPointerCastsSafe();
     Function *Fn = dyn_cast<Function>(FnArg);
     Assert1(Fn && !Fn->isDeclaration(), "llvm.framerecover first "
             "argument must be function defined in this module", &CI);

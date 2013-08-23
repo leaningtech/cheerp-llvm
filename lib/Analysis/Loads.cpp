@@ -114,7 +114,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Instruction *ScanFrom,
 
   // We can at least always strip pointer casts even though we can't use the
   // base here.
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
 
   while (BBI != E) {
     --BBI;
@@ -141,7 +141,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Instruction *ScanFrom,
       continue;
 
     auto *AccessedTy = cast<PointerType>(AccessedPtr->getType());
-    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCasts(), V) &&
+    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCasts(DL && DL->isByteAddressable()), V) &&
         LoadSize <= DL->getTypeStoreSize(AccessedTy->getElementType()))
       return true;
   }
@@ -184,7 +184,8 @@ Value *llvm::FindAvailableLoadedValue(Value *Ptr, BasicBlock *ScanBB,
   uint64_t AccessSize = DL ? DL->getTypeStoreSize(AccessTy)
                            : AA ? AA->getTypeStoreSize(AccessTy) : 0;
 
-  Value *StrippedPtr = Ptr->stripPointerCasts();
+  // Cheerp: We don't want to change the type as we may break union support
+  Value *StrippedPtr = DL && DL->isByteAddressable() ? Ptr->stripPointerCasts(true) : Ptr;
 
   while (ScanFrom != ScanBB->begin()) {
     // We must ignore debug info directives when counting (otherwise they
@@ -206,7 +207,7 @@ Value *llvm::FindAvailableLoadedValue(Value *Ptr, BasicBlock *ScanBB,
     // those cases are unlikely.)
     if (LoadInst *LI = dyn_cast<LoadInst>(Inst))
       if (AreEquivalentAddressValues(
-              LI->getPointerOperand()->stripPointerCasts(), StrippedPtr) &&
+              LI->getPointerOperand()->stripPointerCasts(DL && DL->isByteAddressable()), StrippedPtr) &&
           CastInst::isBitOrNoopPointerCastable(LI->getType(), AccessTy, DL)) {
         if (AATags)
           LI->getAAMetadata(*AATags);
@@ -214,7 +215,7 @@ Value *llvm::FindAvailableLoadedValue(Value *Ptr, BasicBlock *ScanBB,
       }
 
     if (StoreInst *SI = dyn_cast<StoreInst>(Inst)) {
-      Value *StorePtr = SI->getPointerOperand()->stripPointerCasts();
+      Value *StorePtr = SI->getPointerOperand()->stripPointerCasts(DL && DL->isByteAddressable());
       // If this is a store through Ptr, the value is available!
       // (This is true even if the store is volatile or atomic, although
       // those cases are unlikely.)

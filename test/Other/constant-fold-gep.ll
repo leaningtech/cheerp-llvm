@@ -457,14 +457,14 @@ define i8* @different_addrspace() nounwind noinline {
   %p = getelementptr inbounds i8* addrspacecast ([4 x i8] addrspace(12)* @p12 to i8*),
                                   i32 2
   ret i8* %p
-; OPT: ret i8* getelementptr (i8* addrspacecast (i8 addrspace(12)* getelementptr inbounds ([4 x i8] addrspace(12)* @p12, i32 0, i32 0) to i8*), i32 2)
+; TO: ret i8* getelementptr ([4 x i8]* addrspacecast ([4 x i8] addrspace(12)* @p12 to [4 x i8]*), i64 0, i64 2)
 }
 
 define i8* @same_addrspace() nounwind noinline {
 ; OPT: same_addrspace
   %p = getelementptr inbounds i8* bitcast ([4 x i8] * @p0 to i8*), i32 2
   ret i8* %p
-; OPT: ret i8* getelementptr inbounds ([4 x i8]* @p0, i32 0, i32 2)
+; XFAIL: ret i8* bitcast ([4 x i8]* @p0 to i8*)
 }
 
 @gv1 = internal global i32 1

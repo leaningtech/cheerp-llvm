@@ -1371,8 +1371,9 @@ bool AsmPrinter::EmitSpecialLLVMGlobal(const GlobalVariable *GV) {
 void AsmPrinter::EmitLLVMUsedList(const ConstantArray *InitList) {
   // Should be an array of 'i8*'.
   for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i) {
+    const DataLayout *TD = TM.getSubtargetImpl()->getDataLayout();
     const GlobalValue *GV =
-      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts());
+      dyn_cast<GlobalValue>(InitList->getOperand(i)->stripPointerCasts(TD && TD->isByteAddressable()));
     if (GV)
       OutStreamer.EmitSymbolAttribute(getSymbol(GV), MCSA_NoDeadStrip);
   }
@@ -1420,7 +1421,7 @@ void AsmPrinter::EmitXXStructorList(const Constant *List, bool isCtor) {
     S.Priority = Priority->getLimitedValue(65535);
     S.Func = CS->getOperand(1);
     if (ETy->getNumElements() == 3 && !CS->getOperand(2)->isNullValue())
-      S.ComdatKey = dyn_cast<GlobalValue>(CS->getOperand(2)->stripPointerCasts());
+      S.ComdatKey = dyn_cast<GlobalValue>(CS->getOperand(2)->stripPointerCastsSafe());
   }
 
   // Emit the function pointers in the target-specific order

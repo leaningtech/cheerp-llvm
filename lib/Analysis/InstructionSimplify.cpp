@@ -1937,8 +1937,8 @@ static Constant *computePointerICmp(const DataLayout *DL,
                                     CmpInst::Predicate Pred,
                                     Value *LHS, Value *RHS) {
   // First, skip past any trivial no-ops.
-  LHS = LHS->stripPointerCasts();
-  RHS = RHS->stripPointerCasts();
+  LHS = LHS->stripPointerCasts(DL && DL->isByteAddressable());
+  RHS = RHS->stripPointerCasts(DL && DL->isByteAddressable());
 
   // A non-null pointer is not equal to a null pointer.
   if (llvm::isKnownNonNull(LHS, TLI) && isa<ConstantPointerNull>(RHS) &&

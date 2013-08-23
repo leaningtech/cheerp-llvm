@@ -147,7 +147,7 @@ namespace {
                         SmallVectorImpl<BasicBlock*> &ExitBlocks);
 
     bool processLoopStore(StoreInst *SI, const SCEV *BECount);
-    bool processLoopMemSet(MemSetInst *MSI, const SCEV *BECount);
+    bool processLoopMemSet(MemSetInst *MSI, const SCEV *BECount, bool byteAddressable);
 
     bool processLoopStridedStore(Value *DestPtr, unsigned StoreSize,
                                  unsigned StoreAlignment,
@@ -753,7 +753,7 @@ bool LoopIdiomRecognize::runOnLoopBlock(BasicBlock *BB, const SCEV *BECount,
     // Look for memset instructions, which may be optimized to a larger memset.
     if (MemSetInst *MSI = dyn_cast<MemSetInst>(Inst))  {
       WeakVH InstPtr(I);
-      if (!processLoopMemSet(MSI, BECount)) continue;
+      if (!processLoopMemSet(MSI, BECount, DL && DL->isByteAddressable())) continue;
       MadeChange = true;
 
       // If processing the memset invalidated our iterator, start over from the
@@ -828,7 +828,7 @@ bool LoopIdiomRecognize::processLoopStore(StoreInst *SI, const SCEV *BECount) {
 
 /// processLoopMemSet - See if this memset can be promoted to a large memset.
 bool LoopIdiomRecognize::
-processLoopMemSet(MemSetInst *MSI, const SCEV *BECount) {
+processLoopMemSet(MemSetInst *MSI, const SCEV *BECount, bool byteAddressable) {
   // We can only handle non-volatile memsets with a constant size.
   if (MSI->isVolatile() || !isa<ConstantInt>(MSI->getLength())) return false;
 
@@ -836,7 +836,7 @@ processLoopMemSet(MemSetInst *MSI, const SCEV *BECount) {
   if (!TLI->has(LibFunc::memset))
     return false;
 
-  Value *Pointer = MSI->getDest();
+  Value *Pointer = MSI->getDest(byteAddressable);
 
   // See if the pointer expression is an AddRec like {base,+,1} on the current
   // loop, which indicates a strided store.  If we have something else, it's a

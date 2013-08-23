@@ -1102,7 +1102,7 @@ Value *LibCallSimplifier::optimizeExp2(CallInst *CI, IRBuilder<> &B) {
           M->getOrInsertFunction(TLI->getName(LdExp), Op->getType(),
                                  Op->getType(), B.getInt32Ty(), nullptr);
       CallInst *CI = B.CreateCall2(Callee, One, LdExpArg);
-      if (const Function *F = dyn_cast<Function>(Callee->stripPointerCasts()))
+      if (const Function *F = dyn_cast<Function>(Callee->stripPointerCasts(DL && DL->isByteAddressable())))
         CI->setCallingConv(F->getCallingConv());
 
       return CI;
@@ -1533,7 +1533,7 @@ Value *LibCallSimplifier::optimizePrintFString(CallInst *CI, IRBuilder<> &B) {
     // Create a string literal with no \n on it.  We expect the constant merge
     // pass to be run after this pass, to merge duplicate strings.
     FormatStr = FormatStr.drop_back();
-    Value *GV = B.CreateGlobalString(FormatStr, "str");
+    Value *GV = B.CreateGlobalStringPtr(FormatStr, "str");
     Value *NewCI = EmitPutS(GV, B, DL, TLI);
     return (CI->use_empty() || !NewCI)
                ? NewCI

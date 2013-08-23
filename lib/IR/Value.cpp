@@ -379,7 +379,7 @@ enum PointerStripKind {
 };
 
 template <PointerStripKind StripKind>
-static Value *stripPointerCastsAndOffsets(Value *V) {
+static Value *stripPointerCastsAndOffsets(Value *V, bool byteAddressable) {
   if (!V->getType()->isPointerTy())
     return V;
 
@@ -393,7 +393,7 @@ static Value *stripPointerCastsAndOffsets(Value *V) {
       switch (StripKind) {
       case PSK_ZeroIndicesAndAliases:
       case PSK_ZeroIndices:
-        if (!GEP->hasAllZeroIndices())
+        if (!GEP->hasAllZeroIndices() || !byteAddressable)
           return V;
         break;
       case PSK_InBoundsConstantIndices:
@@ -423,16 +423,20 @@ static Value *stripPointerCastsAndOffsets(Value *V) {
 }
 } // namespace
 
-Value *Value::stripPointerCasts() {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this);
+Value *Value::stripPointerCasts(bool byteAddressable) {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this, byteAddressable);
+}
+
+Value *Value::stripPointerCastsSafe() {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this, false);
 }
 
 Value *Value::stripPointerCastsNoFollowAliases() {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this, false);
 }
 
 Value *Value::stripInBoundsConstantOffsets() {
-  return stripPointerCastsAndOffsets<PSK_InBoundsConstantIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_InBoundsConstantIndices>(this, false);
 }
 
 Value *Value::stripAndAccumulateInBoundsConstantOffsets(const DataLayout &DL,
@@ -473,7 +477,7 @@ Value *Value::stripAndAccumulateInBoundsConstantOffsets(const DataLayout &DL,
 }
 
 Value *Value::stripInBoundsOffsets() {
-  return stripPointerCastsAndOffsets<PSK_InBounds>(this);
+  return stripPointerCastsAndOffsets<PSK_InBounds>(this, false);
 }
 
 /// \brief Check if Value is always a dereferenceable pointer.

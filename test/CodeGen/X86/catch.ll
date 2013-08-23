@@ -3,8 +3,8 @@
 ; PR18390
 ; We used to assert creating this label. The name itself is not critical. It
 ; just needs to be a unique local symbol.
-; CHECK:      .L.Lstr.DW.stub:
-; CHECK-NEXT: .quad   .Lstr
+; CHECK:      DW.ref.h:
+; CHECK-NEXT: .quad   h
 
 @str = private unnamed_addr constant [12 x i8] c"NSException\00"
 define void @f() {

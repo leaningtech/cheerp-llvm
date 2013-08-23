@@ -296,7 +296,7 @@ bool AlignmentFromAssumptions::extractAlignmentInfo(CallInst *I,
   else if (OffSCEVBits > 64)
     return false;
 
-  AAPtr = AAPtr->stripPointerCasts();
+  AAPtr = AAPtr->stripPointerCastsSafe();
   return true;
 }
 
@@ -341,7 +341,7 @@ bool AlignmentFromAssumptions::processAssumption(CallInst *ACall) {
       }
     } else if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(J)) {
       unsigned NewDestAlignment = getNewAlignment(AASCEV, AlignSCEV, OffSCEV,
-        MI->getDest(), SE);
+        MI->getDest(DL && DL->isByteAddressable()), SE);
 
       // For memory transfers, we need a common alignment for both the
       // source and destination. If we have a new alignment for this
@@ -350,7 +350,7 @@ bool AlignmentFromAssumptions::processAssumption(CallInst *ACall) {
       // change the alignment at that point.
       if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
         unsigned NewSrcAlignment = getNewAlignment(AASCEV, AlignSCEV, OffSCEV,
-          MTI->getSource(), SE);
+          MTI->getSource(DL && DL->isByteAddressable()), SE);
 
         DenseMap<MemTransferInst *, unsigned>::iterator DI =
           NewDestAlignments.find(MTI);

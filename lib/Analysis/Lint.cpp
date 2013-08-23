@@ -279,10 +279,10 @@ void Lint::visitCallSite(CallSite CS) {
     case Intrinsic::memcpy: {
       MemCpyInst *MCI = cast<MemCpyInst>(&I);
       // TODO: If the size is known, use it.
-      visitMemoryReference(I, MCI->getDest(), AliasAnalysis::UnknownSize,
+      visitMemoryReference(I, MCI->getDest(false), AliasAnalysis::UnknownSize,
                            MCI->getAlignment(), nullptr,
                            MemRef::Write);
-      visitMemoryReference(I, MCI->getSource(), AliasAnalysis::UnknownSize,
+      visitMemoryReference(I, MCI->getSource(false), AliasAnalysis::UnknownSize,
                            MCI->getAlignment(), nullptr,
                            MemRef::Read);
 
@@ -295,7 +295,7 @@ void Lint::visitCallSite(CallSite CS) {
                                             /*OffsetOk=*/false)))
         if (Len->getValue().isIntN(32))
           Size = Len->getValue().getZExtValue();
-      Assert1(AA->alias(MCI->getSource(), Size, MCI->getDest(), Size) !=
+      Assert1(AA->alias(MCI->getSource(false), Size, MCI->getDest(false), Size) !=
               AliasAnalysis::MustAlias,
               "Undefined behavior: memcpy source and destination overlap", &I);
       break;
@@ -303,10 +303,10 @@ void Lint::visitCallSite(CallSite CS) {
     case Intrinsic::memmove: {
       MemMoveInst *MMI = cast<MemMoveInst>(&I);
       // TODO: If the size is known, use it.
-      visitMemoryReference(I, MMI->getDest(), AliasAnalysis::UnknownSize,
+      visitMemoryReference(I, MMI->getDest(false), AliasAnalysis::UnknownSize,
                            MMI->getAlignment(), nullptr,
                            MemRef::Write);
-      visitMemoryReference(I, MMI->getSource(), AliasAnalysis::UnknownSize,
+      visitMemoryReference(I, MMI->getSource(false), AliasAnalysis::UnknownSize,
                            MMI->getAlignment(), nullptr,
                            MemRef::Read);
       break;
@@ -314,7 +314,7 @@ void Lint::visitCallSite(CallSite CS) {
     case Intrinsic::memset: {
       MemSetInst *MSI = cast<MemSetInst>(&I);
       // TODO: If the size is known, use it.
-      visitMemoryReference(I, MSI->getDest(), AliasAnalysis::UnknownSize,
+      visitMemoryReference(I, MSI->getDest(false), AliasAnalysis::UnknownSize,
                            MSI->getAlignment(), nullptr,
                            MemRef::Write);
       break;
@@ -639,7 +639,7 @@ Value *Lint::findValueImpl(Value *V, bool OffsetOk,
   // TODO: Look through eliminable cast pairs.
   // TODO: Look through calls with unique return values.
   // TODO: Look through vector insert/extract/shuffle.
-  V = OffsetOk ? GetUnderlyingObject(V, DL) : V->stripPointerCasts();
+  V = OffsetOk ? GetUnderlyingObject(V, DL) : V->stripPointerCastsSafe();
   if (LoadInst *L = dyn_cast<LoadInst>(V)) {
     BasicBlock::iterator BBI = L;
     BasicBlock *BB = L->getParent();

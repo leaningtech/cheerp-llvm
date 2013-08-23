@@ -321,7 +321,9 @@ struct DFSanFunction {
 class DFSanVisitor : public InstVisitor<DFSanVisitor> {
  public:
   DFSanFunction &DFSF;
-  DFSanVisitor(DFSanFunction &DFSF) : DFSF(DFSF) {}
+  const DataLayout *DL;
+
+  DFSanVisitor(DFSanFunction &DFSF, const DataLayout* DL) : DFSF(DFSF), DL(DL) {}
 
   void visitOperandShadowInst(Instruction &I);
 
@@ -581,7 +583,7 @@ Constant *DataFlowSanitizer::getOrBuildTrampolineFunction(FunctionType *FT,
     Function::arg_iterator ValAI = F->arg_begin(), ShadowAI = AI; ++ValAI;
     for (unsigned N = FT->getNumParams(); N != 0; ++ValAI, ++ShadowAI, --N)
       DFSF.ValShadowMap[ValAI] = ShadowAI;
-    DFSanVisitor(DFSF).visitCallInst(*CI);
+    DFSanVisitor(DFSF, DL).visitCallInst(*CI);
     if (!FT->getReturnType()->isVoidTy())
       new StoreInst(DFSF.getShadow(RI->getReturnValue()),
                     &F->getArgumentList().back(), RI);
@@ -815,7 +817,7 @@ bool DataFlowSanitizer::runOnModule(Module &M) {
         // terminator.
         bool IsTerminator = isa<TerminatorInst>(Inst);
         if (!DFSF.SkipInsts.count(Inst))
-          DFSanVisitor(DFSF).visit(Inst);
+          DFSanVisitor(DFSF, DL).visit(Inst);
         if (IsTerminator)
           break;
         Inst = Next;
@@ -1335,14 +1337,14 @@ void DFSanVisitor::visitMemSetInst(MemSetInst &I) {
   Value *ValShadow = DFSF.getShadow(I.getValue());
   IRB.CreateCall3(
       DFSF.DFS.DFSanSetLabelFn, ValShadow,
-      IRB.CreateBitCast(I.getDest(), Type::getInt8PtrTy(*DFSF.DFS.Ctx)),
+      IRB.CreateBitCast(I.getDest(DL->isByteAddressable()), Type::getInt8PtrTy(*DFSF.DFS.Ctx)),
       IRB.CreateZExtOrTrunc(I.getLength(), DFSF.DFS.IntptrTy));
 }
 
 void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
   IRBuilder<> IRB(&I);
-  Value *DestShadow = DFSF.DFS.getShadowAddress(I.getDest(), &I);
-  Value *SrcShadow = DFSF.DFS.getShadowAddress(I.getSource(), &I);
+  Value *DestShadow = DFSF.DFS.getShadowAddress(I.getDest(DL->isByteAddressable()), &I);
+  Value *SrcShadow = DFSF.DFS.getShadowAddress(I.getSource(DL->isByteAddressable()), &I);
   Value *LenShadow = IRB.CreateMul(
       I.getLength(),
       ConstantInt::get(I.getLength()->getType(), DFSF.DFS.ShadowWidth / 8));

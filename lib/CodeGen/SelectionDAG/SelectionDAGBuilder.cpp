@@ -5019,7 +5019,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // Get and store the index of the function context.
     MachineFrameInfo *MFI = DAG.getMachineFunction().getFrameInfo();
     AllocaInst *FnCtx =
-      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCasts());
+      cast<AllocaInst>(I.getArgOperand(0)->stripPointerCastsSafe());
     int FI = FuncInfo.StaticAllocaMap[FnCtx];
     MFI->setFunctionContextIndex(FI);
     return nullptr;
@@ -5416,7 +5416,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     return nullptr;
 
   case Intrinsic::init_trampoline: {
-    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCasts());
+    const Function *F = cast<Function>(I.getArgOperand(1)->stripPointerCastsSafe());
 
     SDValue Ops[6];
     Ops[0] = getRoot();
@@ -5439,7 +5439,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   }
   case Intrinsic::gcroot:
     if (GFI) {
-      const Value *Alloca = I.getArgOperand(0)->stripPointerCasts();
+      const Value *Alloca = I.getArgOperand(0)->stripPointerCastsSafe();
       const Constant *TypeMap = cast<Constant>(I.getArgOperand(1));
 
       FrameIndexSDNode *FI = cast<FrameIndexSDNode>(getValue(Alloca).getNode());
@@ -5639,7 +5639,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     MVT PtrVT = TLI.getPointerTy(0);
 
     // Get the symbol that defines the frame offset.
-    Function *Fn = cast<Function>(I.getArgOperand(0)->stripPointerCasts());
+    Function *Fn = cast<Function>(I.getArgOperand(0)->stripPointerCastsSafe());
     MCSymbol *FrameAllocSym =
         MF.getMMI().getContext().getOrCreateFrameAllocSymbol(Fn->getName());
 

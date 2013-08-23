@@ -178,12 +178,12 @@ public:
   /// with potentially dead constants hanging off of the globals.
   void removeDeadConstantUsers() const;
 
-  Constant *stripPointerCasts() {
-    return cast<Constant>(Value::stripPointerCasts());
+  Constant *stripPointerCasts(bool byteAddressable) {
+    return cast<Constant>(Value::stripPointerCasts(byteAddressable));
   }
 
-  const Constant *stripPointerCasts() const {
-    return const_cast<Constant*>(this)->stripPointerCasts();
+  const Constant *stripPointerCasts(bool byteAddressable) const {
+    return const_cast<Constant*>(this)->stripPointerCasts(byteAddressable);
   }
 };
 
