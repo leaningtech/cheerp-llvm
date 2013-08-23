@@ -34,7 +34,7 @@ public:
   void visitCallSite(CallSite CS) {
     if (CS.getCalledFunction())
       return;
-    auto Callee = dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
+    auto Callee = dyn_cast<Function>(CS.getCalledValue()->stripPointerCastsSafe());
     if (Callee && isLegalToPromote(CS, Callee)) {
       promoteCall(CS, Callee);
       Modified = true;

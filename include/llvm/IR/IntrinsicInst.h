@@ -30,6 +30,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include <cassert>
@@ -289,7 +290,7 @@ namespace llvm {
     /// This is just like getRawDest, but it strips off any cast
     /// instructions (including addrspacecast) that feed it, giving the
     /// original input.  The returned value is guaranteed to be a pointer.
-    Value *getDest() const { return getRawDest()->stripPointerCasts(); }
+    Value *getDest() const { return getRawDest()->stripPointerCastsSafe(); }
 
     unsigned getDestAddressSpace() const {
       return cast<PointerType>(getRawDest()->getType())->getAddressSpace();
@@ -337,7 +338,7 @@ namespace llvm {
     /// This is just like getRawSource, but it strips off any cast
     /// instructions that feed it, giving the original input.  The returned
     /// value is guaranteed to be a pointer.
-    Value *getSource() const { return getRawSource()->stripPointerCasts(); }
+    Value *getSource() const { return getRawSource()->stripPointerCastsSafe(); }
 
     unsigned getSourceAddressSpace() const {
       return cast<PointerType>(getRawSource()->getType())->getAddressSpace();
@@ -719,7 +720,7 @@ namespace llvm {
 
     GlobalVariable *getName() const {
       return cast<GlobalVariable>(
-          const_cast<Value *>(getArgOperand(0))->stripPointerCasts());
+          const_cast<Value *>(getArgOperand(0))->stripPointerCastsSafe());
     }
 
     ConstantInt *getHash() const {
@@ -759,7 +760,7 @@ namespace llvm {
 
     GlobalVariable *getName() const {
       return cast<GlobalVariable>(
-          const_cast<Value *>(getArgOperand(0))->stripPointerCasts());
+          const_cast<Value *>(getArgOperand(0))->stripPointerCasts(true));
     }
 
     ConstantInt *getHash() const {

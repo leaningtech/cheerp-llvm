@@ -465,7 +465,7 @@ enum PointerStripKind {
 };
 
 template <PointerStripKind StripKind>
-static const Value *stripPointerCastsAndOffsets(const Value *V) {
+static const Value *stripPointerCastsAndOffsets(const Value *V, bool byteAddressable) {
   if (!V->getType()->isPointerTy())
     return V;
 
@@ -480,7 +480,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
       case PSK_ZeroIndicesAndAliases:
       case PSK_ZeroIndicesAndAliasesAndInvariantGroups:
       case PSK_ZeroIndices:
-        if (!GEP->hasAllZeroIndices())
+        if (!GEP->hasAllZeroIndices() || !byteAddressable)
           return V;
         break;
       case PSK_InBoundsConstantIndices:
@@ -525,16 +525,20 @@ static const Value *stripPointerCastsAndOffsets(const Value *V) {
 }
 } // end anonymous namespace
 
-const Value *Value::stripPointerCasts() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this);
+const Value *Value::stripPointerCasts(bool byteAddressable) const {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this, byteAddressable);
+}
+
+const Value *Value::stripPointerCastsSafe() const {
+  return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliases>(this, false);
 }
 
 const Value *Value::stripPointerCastsNoFollowAliases() const {
-  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_ZeroIndices>(this, false);
 }
 
 const Value *Value::stripInBoundsConstantOffsets() const {
-  return stripPointerCastsAndOffsets<PSK_InBoundsConstantIndices>(this);
+  return stripPointerCastsAndOffsets<PSK_InBoundsConstantIndices>(this, false);
 }
 
 const Value *Value::stripPointerCastsAndInvariantGroups() const {
@@ -586,7 +590,7 @@ Value::stripAndAccumulateInBoundsConstantOffsets(const DataLayout &DL,
 }
 
 const Value *Value::stripInBoundsOffsets() const {
-  return stripPointerCastsAndOffsets<PSK_InBounds>(this);
+  return stripPointerCastsAndOffsets<PSK_InBounds>(this, false);
 }
 
 uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,

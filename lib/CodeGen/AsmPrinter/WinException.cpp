@@ -73,7 +73,7 @@ void WinException::beginFunction(const MachineFunction *MF) {
   EHPersonality Per = EHPersonality::Unknown;
   const Function *PerFn = nullptr;
   if (F.hasPersonalityFn()) {
-    PerFn = dyn_cast<Function>(F.getPersonalityFn()->stripPointerCasts());
+    PerFn = dyn_cast<Function>(F.getPersonalityFn()->stripPointerCastsSafe());
     Per = classifyEHPersonality(PerFn);
   }
 
@@ -118,7 +118,7 @@ void WinException::endFunction(const MachineFunction *MF) {
   const Function &F = MF->getFunction();
   EHPersonality Per = EHPersonality::Unknown;
   if (F.hasPersonalityFn())
-    Per = classifyEHPersonality(F.getPersonalityFn()->stripPointerCasts());
+    Per = classifyEHPersonality(F.getPersonalityFn()->stripPointerCastsSafe());
 
   // Get rid of any dead landing pads if we're not using funclets. In funclet
   // schemes, the landing pad is not actually reachable. It only exists so
@@ -216,7 +216,7 @@ void WinException::beginFunclet(const MachineBasicBlock &MBB,
 
     // Determine which personality routine we are using for this funclet.
     if (F.hasPersonalityFn())
-      PerFn = dyn_cast<Function>(F.getPersonalityFn()->stripPointerCasts());
+      PerFn = dyn_cast<Function>(F.getPersonalityFn()->stripPointerCastsSafe());
     const MCSymbol *PersHandlerSym =
         TLOF.getCFIPersonalitySymbol(PerFn, Asm->TM, MMI);
 
@@ -240,7 +240,7 @@ void WinException::endFunclet() {
     const Function &F = MF->getFunction();
     EHPersonality Per = EHPersonality::Unknown;
     if (F.hasPersonalityFn())
-      Per = classifyEHPersonality(F.getPersonalityFn()->stripPointerCasts());
+      Per = classifyEHPersonality(F.getPersonalityFn()->stripPointerCastsSafe());
 
     // On funclet exit, we emit a fake "function" end marker, so that the call
     // to EmitWinEHHandlerData below can calculate the size of the funclet or
@@ -974,7 +974,7 @@ void WinException::emitExceptHandlerTable(const MachineFunction *MF) {
   OS.EmitLabel(LSDALabel);
 
   const Function *Per =
-      dyn_cast<Function>(F.getPersonalityFn()->stripPointerCasts());
+      dyn_cast<Function>(F.getPersonalityFn()->stripPointerCastsSafe());
   StringRef PerName = Per->getName();
   int BaseState = -1;
   if (PerName == "_except_handler4") {

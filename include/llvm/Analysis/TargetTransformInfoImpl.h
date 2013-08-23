@@ -717,7 +717,7 @@ public:
       assert(Ptr->getType()->getScalarType()->getPointerElementType() ==
                  PointeeType &&
              "explicit pointee type doesn't match operand's pointee type");
-      BaseGV = dyn_cast<GlobalValue>(Ptr->stripPointerCasts());
+      BaseGV = dyn_cast<GlobalValue>(Ptr->stripPointerCastsSafe());
     }
     bool HasBaseReg = (BaseGV == nullptr);
 

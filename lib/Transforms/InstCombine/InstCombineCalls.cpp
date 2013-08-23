@@ -1209,7 +1209,7 @@ static Instruction *simplifyMaskedGather(IntrinsicInst &II, InstCombiner &IC) {
 static Instruction *simplifyInvariantGroupIntrinsic(IntrinsicInst &II,
                                                     InstCombiner &IC) {
   auto *Arg = II.getArgOperand(0);
-  auto *StrippedArg = Arg->stripPointerCasts();
+  auto *StrippedArg = Arg->stripPointerCastsSafe();
   auto *StrippedInvariantGroupsArg = Arg->stripPointerCastsAndInvariantGroups();
   if (StrippedArg == StrippedInvariantGroupsArg)
     return nullptr; // No launders/strips to remove.
@@ -1842,7 +1842,14 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // then the source and dest pointers can't alias, so we can change this
     // into a call to memcpy.
     if (auto *MMI = dyn_cast<AnyMemMoveInst>(MI)) {
-      if (GlobalVariable *GVSrc = dyn_cast<GlobalVariable>(MMI->getSource()))
+      Value* Src = MMI->getSource();
+      // This is also true if we are gepping inside a constant global
+      if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Src))
+      {
+        if (CE->getOpcode()==Instruction::GetElementPtr)
+          Src = CE->getOperand(0);
+      }
+      if (GlobalVariable *GVSrc = dyn_cast<GlobalVariable>(Src))
         if (GVSrc->isConstant()) {
           Module *M = CI.getModule();
           Intrinsic::ID MemCpyID =
@@ -4043,7 +4050,8 @@ Instruction *InstCombiner::tryOptimizeCall(CallInst *CI) {
 static IntrinsicInst *findInitTrampolineFromAlloca(Value *TrampMem) {
   // Strip off at most one level of pointer casts, looking for an alloca.  This
   // is good enough in practice and simpler than handling any number of casts.
-  Value *Underlying = TrampMem->stripPointerCasts();
+  // Passing true we force to strip away also GEP,0,0
+  Value *Underlying = TrampMem->stripPointerCasts(true);
   if (Underlying != TrampMem &&
       (!Underlying->hasOneUse() || Underlying->user_back() != TrampMem))
     return nullptr;
@@ -4101,7 +4109,7 @@ static IntrinsicInst *findInitTrampolineFromBB(IntrinsicInst *AdjustTramp,
 // call to llvm.init.trampoline if the call to the trampoline can be optimized
 // to a direct call to a function.  Otherwise return NULL.
 static IntrinsicInst *findInitTrampoline(Value *Callee) {
-  Callee = Callee->stripPointerCasts();
+  Callee = Callee->stripPointerCastsSafe();
   IntrinsicInst *AdjustTramp = dyn_cast<IntrinsicInst>(Callee);
   if (!AdjustTramp ||
       AdjustTramp->getIntrinsicID() != Intrinsic::adjust_trampoline)
@@ -4254,7 +4262,7 @@ Instruction *InstCombiner::visitCallBase(CallBase &Call) {
 /// If the callee is a constexpr cast of a function, attempt to move the cast to
 /// the arguments of the call/invoke.
 bool InstCombiner::transformConstExprCastCall(CallBase &Call) {
-  auto *Callee = dyn_cast<Function>(Call.getCalledValue()->stripPointerCasts());
+  auto *Callee = dyn_cast<Function>(Call.getCalledValue()->stripPointerCastsSafe());
   if (!Callee)
     return false;
 
@@ -4535,7 +4543,7 @@ InstCombiner::transformCallThroughTrampoline(CallBase &Call,
   if (Attrs.hasAttrSomewhere(Attribute::Nest))
     return nullptr;
 
-  Function *NestF = cast<Function>(Tramp.getArgOperand(1)->stripPointerCasts());
+  Function *NestF = cast<Function>(Tramp.getArgOperand(1)->stripPointerCastsSafe());
   FunctionType *NestFTy = cast<FunctionType>(NestF->getValueType());
 
   AttributeList NestAttrs = NestF->getAttributes();

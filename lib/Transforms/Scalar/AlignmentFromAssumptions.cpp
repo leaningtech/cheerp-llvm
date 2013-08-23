@@ -286,7 +286,7 @@ bool AlignmentFromAssumptionsPass::extractAlignmentInfo(CallInst *I,
   else if (OffSCEVBits > 64)
     return false;
 
-  AAPtr = AAPtr->stripPointerCasts();
+  AAPtr = AAPtr->stripPointerCastsSafe();
   return true;
 }
 

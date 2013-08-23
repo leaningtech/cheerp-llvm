@@ -266,7 +266,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, unsigned Align,
 
   // We can at least always strip pointer casts even though we can't use the
   // base here.
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
 
   while (BBI != E) {
     --BBI;
@@ -306,7 +306,7 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, unsigned Align,
     if (AccessedPtr == V)
       return true;
 
-    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCasts(), V) &&
+    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCastsSafe(), V) &&
         LoadSize <= DL.getTypeStoreSize(AccessedTy))
       return true;
   }
@@ -354,7 +354,8 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
   // Try to get the store size for the type.
   auto AccessSize = LocationSize::precise(DL.getTypeStoreSize(AccessTy));
 
-  Value *StrippedPtr = Ptr->stripPointerCasts();
+  // Cheerp: We don't want to change the type as we may break union support
+  Value *StrippedPtr = DL.isByteAddressable() ? Ptr->stripPointerCasts(true) : Ptr;
 
   while (ScanFrom != ScanBB->begin()) {
     // We must ignore debug info directives when counting (otherwise they
@@ -379,7 +380,7 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
     // those cases are unlikely.)
     if (LoadInst *LI = dyn_cast<LoadInst>(Inst))
       if (AreEquivalentAddressValues(
-              LI->getPointerOperand()->stripPointerCasts(), StrippedPtr) &&
+              LI->getPointerOperand()->stripPointerCastsSafe(), StrippedPtr) &&
           CastInst::isBitOrNoopPointerCastable(LI->getType(), AccessTy, DL)) {
 
         // We can value forward from an atomic to a non-atomic, but not the
@@ -393,7 +394,7 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
       }
 
     if (StoreInst *SI = dyn_cast<StoreInst>(Inst)) {
-      Value *StorePtr = SI->getPointerOperand()->stripPointerCasts();
+      Value *StorePtr = SI->getPointerOperand()->stripPointerCasts(DL.isByteAddressable());
       // If this is a store through Ptr, the value is available!
       // (This is true even if the store is volatile or atomic, although
       // those cases are unlikely.)

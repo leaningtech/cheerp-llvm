@@ -443,7 +443,7 @@ public:
       auto *V = mdconst::extract_or_null<Constant>(MDN->getOperand(0));
       // The optimizer may optimize away a global entirely.
       if (!V) continue;
-      auto *StrippedV = V->stripPointerCasts();
+      auto *StrippedV = V->stripPointerCastsSafe();
       auto *GV = dyn_cast<GlobalVariable>(StrippedV);
       if (!GV) continue;
       // We can already have an entry for GV if it was merged with another
@@ -2481,7 +2481,7 @@ void AddressSanitizer::markEscapedLocalAllocas(Function &F) {
     if (II && II->getIntrinsicID() == Intrinsic::localescape) {
       // We found a call. Mark all the allocas passed in as uninteresting.
       for (Value *Arg : II->arg_operands()) {
-        AllocaInst *AI = dyn_cast<AllocaInst>(Arg->stripPointerCasts());
+        AllocaInst *AI = dyn_cast<AllocaInst>(Arg->stripPointerCastsSafe());
         assert(AI && AI->isStaticAlloca() &&
                "non-static alloca arg to localescape");
         ProcessedAllocas[AI] = false;

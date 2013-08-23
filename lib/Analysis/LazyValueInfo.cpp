@@ -1541,7 +1541,7 @@ LazyValueInfo LazyValueAnalysis::run(Function &F,
 /// precision in dead code (a constant result) in favour of avoiding a
 /// expensive search for a easily answered common query.
 static bool isKnownNonConstant(Value *V) {
-  V = V->stripPointerCasts();
+  V = V->stripPointerCastsSafe();
   // The return val of alloc cannot be a Constant.
   if (isa<AllocaInst>(V))
     return true;
@@ -1712,7 +1712,7 @@ LazyValueInfo::getPredicateAt(unsigned Pred, Value *V, Constant *C,
   // through would still be correct.
   const DataLayout &DL = CxtI->getModule()->getDataLayout();
   if (V->getType()->isPointerTy() && C->isNullValue() &&
-      isKnownNonZero(V->stripPointerCasts(), DL)) {
+      isKnownNonZero(V->stripPointerCastsSafe(), DL)) {
     if (Pred == ICmpInst::ICMP_EQ)
       return LazyValueInfo::False;
     else if (Pred == ICmpInst::ICMP_NE)
