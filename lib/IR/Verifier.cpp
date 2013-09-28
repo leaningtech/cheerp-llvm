@@ -840,7 +840,8 @@ void Verifier::VerifyAttributeTypes(AttributeSet Attrs, unsigned Idx,
         I->getKindAsEnum() == Attribute::OptimizeNone ||
         I->getKindAsEnum() == Attribute::JumpTable ||
         I->getKindAsEnum() == Attribute::Client ||
-        I->getKindAsEnum() == Attribute::Server) {
+        I->getKindAsEnum() == Attribute::Server ||
+        I->getKindAsEnum() == Attribute::IsCast) {
       if (!isFunction) {
         CheckFailed("Attribute '" + I->getAsString() +
                     "' only applies to functions!", V);

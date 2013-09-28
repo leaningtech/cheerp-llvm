@@ -537,6 +537,9 @@ struct AttributeComparator {
     ModRefKind RK = getModRefKind(*R);
     if (LK != RK) return (LK > RK);
 
+    if (L->isCast != R->isCast)
+      return R->isCast;
+
     // Order by argument attributes.
     // This is reliable because each side is already sorted internally.
     return (L->ArgumentAttributes < R->ArgumentAttributes);
@@ -644,7 +647,7 @@ EmitAttributes(const std::vector<CodeGenIntrinsic> &Ints, raw_ostream &OS) {
     ModRefKind modRef = getModRefKind(intrinsic);
 
     if (!intrinsic.canThrow || modRef || intrinsic.isNoReturn ||
-        intrinsic.isNoDuplicate) {
+        intrinsic.isNoDuplicate || intrinsic.isCast) {
       OS << "      const Attribute::AttrKind Atts[] = {";
       bool addComma = false;
       if (!intrinsic.canThrow) {
@@ -661,6 +664,12 @@ EmitAttributes(const std::vector<CodeGenIntrinsic> &Ints, raw_ostream &OS) {
         if (addComma)
           OS << ",";
         OS << "Attribute::NoDuplicate";
+        addComma = true;
+      }
+      if (intrinsic.isCast) {
+        if (addComma)
+          OS << ",";
+        OS << "Attribute::IsCast";
         addComma = true;
       }
 
