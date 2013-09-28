@@ -725,6 +725,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_IMMARG;
   case Attribute::SanitizeMemTag:
     return bitc::ATTR_KIND_SANITIZE_MEMTAG;
+  case Attribute::IsCast:
+    return bitc::ATTR_KIND_ISCAST;
   case Attribute::EndAttrKinds:
     llvm_unreachable("Can not encode end-attribute kinds marker.");
   case Attribute::None:
