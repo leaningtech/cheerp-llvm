@@ -69,6 +69,10 @@ class ReadNone<int argNo> : IntrinsicProperty {
 
 def IntrNoReturn : IntrinsicProperty;
 
+// IntrIsCast - The intrinsic is a placeholder for a cast, it should not be collapsed
+// with another one
+def IntrIsCast : IntrinsicProperty;
+
 //===----------------------------------------------------------------------===//
 // Types used by intrinsics.
 //===----------------------------------------------------------------------===//
