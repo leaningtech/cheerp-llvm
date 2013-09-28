@@ -378,7 +378,8 @@ namespace bitc {
     ATTR_KIND_JUMP_TABLE = 40,
     ATTR_KIND_DEREFERENCEABLE = 41,
     ATTR_KIND_CLIENT = 42,
-    ATTR_KIND_SERVER = 43
+    ATTR_KIND_SERVER = 43,
+    ATTR_KIND_ISCAST = 44
   };
 
   enum ComdatSelectionKindCodes {
