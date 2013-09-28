@@ -61,7 +61,7 @@ namespace {
     static bool canHandle(Instruction *Inst) {
       // This can only handle non-void readnone functions.
       if (CallInst *CI = dyn_cast<CallInst>(Inst))
-        return CI->doesNotAccessMemory() && !CI->getType()->isVoidTy();
+        return CI->doesNotAccessMemory() && !CI->hasFnAttr(Attribute::IsCast) && !CI->getType()->isVoidTy();
       return isa<CastInst>(Inst) || isa<BinaryOperator>(Inst) ||
              isa<GetElementPtrInst>(Inst) || isa<CmpInst>(Inst) ||
              isa<SelectInst>(Inst) || isa<ExtractElementInst>(Inst) ||
@@ -212,7 +212,7 @@ namespace {
         return false;
 
       CallInst *CI = dyn_cast<CallInst>(Inst);
-      if (CI == 0 || !CI->onlyReadsMemory())
+      if (CI == 0 || !CI->onlyReadsMemory() || CI->hasFnAttr(Attribute::IsCast))
         return false;
       return true;
     }
