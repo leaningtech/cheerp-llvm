@@ -230,6 +230,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "client";
   if (hasAttribute(Attribute::Server))
     return "server";
+  if (hasAttribute(Attribute::IsCast))
+    return "iscast";
 
   // FIXME: These should be output like this:
   //

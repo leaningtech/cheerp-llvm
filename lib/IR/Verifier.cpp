@@ -753,7 +753,8 @@ void Verifier::VerifyAttributeTypes(AttributeSet Attrs, unsigned Idx,
         I->getKindAsEnum() == Attribute::NoBuiltin ||
         I->getKindAsEnum() == Attribute::Cold ||
         I->getKindAsEnum() == Attribute::Client ||
-        I->getKindAsEnum() == Attribute::Server) {
+        I->getKindAsEnum() == Attribute::Server ||
+        I->getKindAsEnum() == Attribute::IsCast) {
       if (!isFunction) {
         CheckFailed("Attribute '" + I->getAsString() +
                     "' only applies to functions!", V);

@@ -108,6 +108,7 @@ public:
     ZExt,                  ///< Zero extended before/after call
     Client,                ///< Client side method for duetto
     Server,                ///< Server side method for duetto
+    IsCast,                ///< Casts for duetto
 
     EndAttrKinds           ///< Sentinal value useful for loops
   };
