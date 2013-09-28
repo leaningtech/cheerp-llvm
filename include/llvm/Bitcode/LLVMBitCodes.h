@@ -373,7 +373,8 @@ namespace bitc {
     ATTR_KIND_OPTIMIZE_NONE = 37,
     ATTR_KIND_IN_ALLOCA = 38,
     ATTR_KIND_CLIENT = 39,
-    ATTR_KIND_SERVER = 40
+    ATTR_KIND_SERVER = 40,
+    ATTR_KIND_ISCAST = 41
   };
 
 } // End bitc namespace
