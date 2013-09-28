@@ -298,9 +298,13 @@ bool Instruction::isIdenticalToWhenDefined(const Instruction *I) const {
   if (const CmpInst *CI = dyn_cast<CmpInst>(this))
     return CI->getPredicate() == cast<CmpInst>(I)->getPredicate();
   if (const CallInst *CI = dyn_cast<CallInst>(this))
+  {
+    if (CI->hasFnAttr(Attribute::IsCast))
+      return false;
     return CI->isTailCall() == cast<CallInst>(I)->isTailCall() &&
            CI->getCallingConv() == cast<CallInst>(I)->getCallingConv() &&
            CI->getAttributes() == cast<CallInst>(I)->getAttributes();
+  }
   if (const InvokeInst *CI = dyn_cast<InvokeInst>(this))
     return CI->getCallingConv() == cast<InvokeInst>(I)->getCallingConv() &&
            CI->getAttributes() == cast<InvokeInst>(I)->getAttributes();
@@ -371,9 +375,13 @@ bool Instruction::isSameOperationAs(const Instruction *I,
   if (const CmpInst *CI = dyn_cast<CmpInst>(this))
     return CI->getPredicate() == cast<CmpInst>(I)->getPredicate();
   if (const CallInst *CI = dyn_cast<CallInst>(this))
+  {
+    if (CI->hasFnAttr(Attribute::IsCast))
+      return false;
     return CI->isTailCall() == cast<CallInst>(I)->isTailCall() &&
            CI->getCallingConv() == cast<CallInst>(I)->getCallingConv() &&
            CI->getAttributes() == cast<CallInst>(I)->getAttributes();
+  }
   if (const InvokeInst *CI = dyn_cast<InvokeInst>(this))
     return CI->getCallingConv() == cast<InvokeInst>(I)->getCallingConv() &&
            CI->getAttributes() ==
