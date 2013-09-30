@@ -583,7 +583,7 @@ bool DuettoWriter::handleBuiltinCall(const char* ident, const Value* callV,
 	}
 	else if(strncmp(ident,"llvm.memset",11)==0)
 	{
-		//TODO: memset on allocate memmory may be optimized
+		//TODO: memset on allocate memory may be optimized
 		uint32_t resetVal = getIntFromValue(*(it+1));
 		compileMemFunc(*(it), NULL, *(it+2), FORWARD, resetVal);
 		return true;
