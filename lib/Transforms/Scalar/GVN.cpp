@@ -710,9 +710,6 @@ SpeculationFailure:
   return false;
 }
 
-
-
-
 /// Given a set of loads specified by ValuesPerBlock,
 /// construct SSA form, allowing us to eliminate LI.  This returns the value
 /// that should be used at LI's definition site.
@@ -842,6 +839,9 @@ bool GVN::AnalyzeLoadAvailability(LoadInst *LI, MemDepResult DepInfo,
   const DataLayout &DL = LI->getModule()->getDataLayout();
 
   if (DepInfo.isClobber()) {
+    // TODO: Cheerp: Verify if we can relax the byte addressable requirement
+    if(!DL.isByteAddressable())
+      return false;
     // If the dependence is to a store that writes to a superset of the bits
     // read by the load, we can extract the bits we need for the load from the
     // stored value.
