@@ -823,6 +823,10 @@ SpeculationFailure:
 static bool CanCoerceMustAliasedValueToLoad(Value *StoredVal,
                                             Type *LoadTy,
                                             const DataLayout &TD) {
+  // Do not even try on NBA targets
+  if (!TD.isByteAddressable())
+    return false;
+
   // If the loaded or stored value is an first class array or struct, don't try
   // to transform them.  We need to be able to bitcast to integer.
   if (LoadTy->isStructTy() || LoadTy->isArrayTy() ||
@@ -935,6 +939,8 @@ static int AnalyzeLoadFromClobberingWrite(Type *LoadTy, Value *LoadPtr,
                                           Value *WritePtr,
                                           uint64_t WriteSizeInBits,
                                           const DataLayout &TD) {
+  if (!TD.isByteAddressable())
+    return -1;
   // If the loaded or stored value is a first class array or struct, don't try
   // to transform them.  We need to be able to bitcast to integer.
   if (LoadTy->isStructTy() || LoadTy->isArrayTy())
@@ -1008,6 +1014,8 @@ static int AnalyzeLoadFromClobberingWrite(Type *LoadTy, Value *LoadPtr,
 static int AnalyzeLoadFromClobberingStore(Type *LoadTy, Value *LoadPtr,
                                           StoreInst *DepSI,
                                           const DataLayout &TD) {
+  if (!TD.isByteAddressable())
+    return -1;
   // Cannot handle reading from store of first-class aggregate yet.
   if (DepSI->getValueOperand()->getType()->isStructTy() ||
       DepSI->getValueOperand()->getType()->isArrayTy())
@@ -1024,6 +1032,8 @@ static int AnalyzeLoadFromClobberingStore(Type *LoadTy, Value *LoadPtr,
 /// the other load can feed into the second load.
 static int AnalyzeLoadFromClobberingLoad(Type *LoadTy, Value *LoadPtr,
                                          LoadInst *DepLI, const DataLayout &TD){
+  if (!TD.isByteAddressable())
+    return -1;
   // Cannot handle reading from store of first-class aggregate yet.
   if (DepLI->getType()->isStructTy() || DepLI->getType()->isArrayTy())
     return -1;
@@ -1800,7 +1810,8 @@ bool GVN::processLoad(LoadInst *L) {
 
   // If we have a clobber and target data is around, see if this is a clobber
   // that we can fix up through code synthesis.
-  if (Dep.isClobber() && TD) {
+  // Duetto: Verify if we can relax the byte addressable requirement
+  if (Dep.isClobber() && TD && TD->isByteAddressable()) {
     // Check to see if we have something like this:
     //   store i32 123, i32* %P
     //   %A = bitcast i32* %P to i8*
