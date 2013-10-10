@@ -2128,7 +2128,8 @@ const Type* DuettoWriter::compileObjectForPointerGEP(const Value* val, const Use
 		assert(t->isPointerTy());
 		PointerType* ptrT=static_cast<PointerType*>(t);
 		//First dereference the pointer
-		compileDereferencePointer(val, *it);
+		if(flag!=DRY_RUN)
+			compileDereferencePointer(val, *it);
 		return compileRecursiveAccessToGEP(ptrT->getElementType(), ++it, itE, flag);
 	}
 }
