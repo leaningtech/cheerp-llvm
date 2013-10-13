@@ -1453,7 +1453,7 @@ void DuettoWriter::compileConstant(const Constant* c)
 		assert(d->getType()->getNumElements() == d->getNumOperands());
 		for(uint32_t i=0;i<d->getNumOperands();i++)
 		{
-			compileConstant(d->getOperand(i));
+			compileOperand(d->getOperand(i), OPERAND_EXPAND_COMPLETE_OBJECTS);
 			if((i+1)<d->getNumOperands())
 				stream << ",";
 		}
