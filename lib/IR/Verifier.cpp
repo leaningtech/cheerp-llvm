@@ -2211,7 +2211,7 @@ void Verifier::visitIntrinsicFunctionCall(Intrinsic::ID ID, CallInst &CI) {
   // know they are legal for the intrinsic!) get the intrinsic name through the
   // usual means.  This allows us to verify the mangling of argument types into
   // the name.
-  Assert1(Intrinsic::getName(ID, ArgTys) == IF->getName(),
+  Assert1(IF->hasFnAttribute(Attribute::IsCast) || Intrinsic::getName(ID, ArgTys) == IF->getName(),
           "Intrinsic name not mangled correctly for type arguments!", IF);
 
   // If the intrinsic takes MDNode arguments, verify that they are either global

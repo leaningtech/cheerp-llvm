@@ -390,7 +390,7 @@ unsigned Function::lookupIntrinsicID() const {
   return 0;
 }
 
-std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys) {
+std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys, StringRef TySuffix) {
   assert(id < num_intrinsics && "Invalid intrinsic ID!");
   static const char * const Table[] = {
     "not_intrinsic",
@@ -401,6 +401,11 @@ std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys) {
   if (Tys.empty())
     return Table[id];
   std::string Result(Table[id]);
+  if (!TySuffix.empty())
+  {
+    Result.append(TySuffix.data(), TySuffix.size());
+    return Result;
+  }
   for (unsigned i = 0; i < Tys.size(); ++i) {
     if (PointerType* PTyp = dyn_cast<PointerType>(Tys[i])) {
       Result += ".p" + llvm::utostr(PTyp->getAddressSpace()) +
@@ -663,11 +668,11 @@ bool Intrinsic::isOverloaded(ID id) {
 #include "llvm/IR/Intrinsics.gen"
 #undef GET_INTRINSIC_ATTRIBUTES
 
-Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys) {
+Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys, StringRef TySuffix) {
   // There can never be multiple globals with the same name of different types,
   // because intrinsics must be a specific type.
   return
-    cast<Function>(M->getOrInsertFunction(getName(id, Tys),
+    cast<Function>(M->getOrInsertFunction(getName(id, Tys, TySuffix),
                                           getType(M->getContext(), id, Tys)));
 }
 
