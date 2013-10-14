@@ -50,6 +50,8 @@ struct AllocFnsTy {
 // FIXME: certain users need more information. E.g., SimplifyLibCalls needs to
 // know which functions are nounwind, noalias, nocapture parameters, etc.
 static const AllocFnsTy AllocationFnData[] = {
+  // Keep this one as the first one
+  {LibFunc::duetto_allocate,     CallocLike,  1, 0,  -1},
   {LibFunc::malloc,              MallocLike,  1, 0,  -1},
   {LibFunc::valloc,              MallocLike,  1, 0,  -1},
   {LibFunc::Znwj,                MallocLike,  1, 0,  -1}, // new(unsigned int)
@@ -91,9 +93,13 @@ static Function *getCalledFunction(const Value *V, bool LookThroughBitCast) {
 static const AllocFnsTy *getAllocationData(const Value *V, AllocType AllocTy,
                                            const TargetLibraryInfo *TLI,
                                            bool LookThroughBitCast = false) {
-  // Skip intrinsics
-  if (isa<IntrinsicInst>(V))
+  // Skip all intrinsics but duetto.allocate
+  if (const IntrinsicInst* II = dyn_cast<IntrinsicInst>(V))
+  {
+    if (II->getIntrinsicID() == Intrinsic::duetto_allocate)
+      return &AllocationFnData[0];
     return 0;
+  }
 
   Function *Callee = getCalledFunction(V, LookThroughBitCast);
   if (!Callee)
