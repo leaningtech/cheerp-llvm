@@ -118,6 +118,7 @@ const char* TargetLibraryInfo::StandardNames[LibFunc::NumLibFuncs] =
     "coshl",
     "cosl",
     "ctermid",
+    "duetto.allocate",
     "exp",
     "exp10",
     "exp10f",
