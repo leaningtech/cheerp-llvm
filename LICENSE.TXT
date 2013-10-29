@@ -1,5 +1,5 @@
 ==============================================================================
-LLVM Release License
+Duetto Release License
 ==============================================================================
 University of Illinois/NCSA
 Open Source License
@@ -8,6 +8,8 @@ Copyright (c) 2003-2013 University of Illinois at Urbana-Champaign.
 All rights reserved.
 
 Developed by:
+
+    Leaning Technologies Ltd.
 
     LLVM Team
 

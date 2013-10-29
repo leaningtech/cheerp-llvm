@@ -1,4 +1,4 @@
-;===- ./tools/llc/LLVMBuild.txt --------------------------------*- Conf -*--===;
+;===- ./tools/duetto/LLVMBuild.txt --------------------------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
