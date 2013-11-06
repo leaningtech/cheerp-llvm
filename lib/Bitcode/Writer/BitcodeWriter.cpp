@@ -1953,7 +1953,9 @@ static void WriteModule(const Module *M, BitstreamWriter &Stream) {
   Stream.EnterSubblock(bitc::MODULE_BLOCK_ID, 3);
 
   SmallVector<unsigned, 1> Vals;
-  unsigned CurVersion = 1;
+  // Duetto: Bump the version up to stop regular LLVM tools from trying to
+  // read the bitcode
+  unsigned CurVersion = 10;
   Vals.push_back(CurVersion);
   Stream.EmitRecord(bitc::MODULE_CODE_VERSION, Vals);
 
