@@ -37,23 +37,6 @@ OptLevel("O",
          cl::ZeroOrMore,
          cl::init(' '));
 
-// GetFileNameRoot - Helper function to get the basename of a filename.
-static inline std::string
-GetFileNameRoot(const std::string &InputFilename) {
-  std::string IFN = InputFilename;
-  std::string outputFilename;
-  int Len = IFN.length();
-  if ((Len > 2) &&
-      IFN[Len-3] == '.' &&
-      ((IFN[Len-2] == 'b' && IFN[Len-1] == 'c') ||
-       (IFN[Len-2] == 'l' && IFN[Len-1] == 'l'))) {
-    outputFilename = std::string(IFN.begin(), IFN.end()-3); // s/.bc/.s/
-  } else {
-    outputFilename = IFN;
-  }
-  return outputFilename;
-}
-
 // main - Entry point for the duetto double target compiler.
 //
 int main(int argc, char **argv) {
@@ -79,10 +62,8 @@ int main(int argc, char **argv) {
   }
   Module* clientMod = M.get();
 
-  std::string JSOutputFilename = GetFileNameRoot(InputFilename) + ".js";
-
   std::string errorInfo;
-  raw_fd_ostream JSOut(JSOutputFilename.c_str(),errorInfo);
+  raw_fd_ostream JSOut(OutputFilename.c_str(),errorInfo);
   if(!errorInfo.empty())
   {
      llvm::errs() << errorInfo << '\n';
