@@ -1301,6 +1301,13 @@ struct LoopVectorize : public FunctionPass {
       return false;
     }
 
+    //Duetto: currently JS does not support vector instructions,
+    //they might be supported in the future though.
+    if (!DL->isByteAddressable()) {
+      DEBUG(dbgs() << "LV: Not vectorizing on NBA target");
+      return false;
+    }
+
     // Build up a worklist of inner-loops to vectorize. This is necessary as
     // the act of vectorizing or partially unrolling a loop creates new loops
     // and can invalidate iterators across the loops.
