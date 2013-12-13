@@ -7621,6 +7621,13 @@ bool LoopVectorizePass::runImpl(
   if (!TTI->getNumberOfRegisters(true) && TTI->getMaxInterleaveFactor(1) < 2)
     return false;
 
+  //Cheerp: currently JS does not support vector instructions,
+  //they might be supported in the future though.
+  const DataLayout &DL = F.getParent()->getDataLayout();
+  if (!DL.isByteAddressable()) {
+    DEBUG(dbgs() << "LV: Not vectorizing on NBA target");
+    return false;
+  }
   bool Changed = false;
 
   // The vectorizer requires loops to be in simplified form.
