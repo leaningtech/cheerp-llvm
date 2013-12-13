@@ -870,6 +870,13 @@ struct LoopVectorize : public LoopPass {
       return false;
     }
 
+    //Duetto: currently JS does not support vector instructions,
+    //they might be supported in the future though.
+    if (!DL->isByteAddressable()) {
+      DEBUG(dbgs() << "LV: Not vectorizing on NBA target");
+      return false;
+    }
+
     DEBUG(dbgs() << "LV: Checking a loop in \"" <<
           L->getHeader()->getParent()->getName() << "\"\n");
 
