@@ -1999,6 +1999,10 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
     }
   }
 
+  // Duetto: disables this optimization, it not allowed on NBA platforms
+  // and it is anyway duplicated in lib/Analysis/ConstantFolding.cpp
+  // where it can be enabled depending on the isByteAddressable flag
+#if 0
   // Check to see if any array indices are not within the corresponding
   // notional array bounds. If so, try to determine if they can be factored
   // out into preceding dimensions.
@@ -2058,6 +2062,7 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
   if (!Unknown && !inBounds &&
       isa<GlobalVariable>(C) && isInBoundsIndices(Idxs))
     return ConstantExpr::getInBoundsGetElementPtr(C, Idxs);
+#endif
 
   return 0;
 }
