@@ -2147,6 +2147,10 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
       if (isa<ArrayType>(Ty) || isa<VectorType>(Ty))
         if (CI->getSExtValue() > 0 &&
             !isIndexInRangeOfSequentialType(cast<SequentialType>(Ty), CI)) {
+  // Duetto: disables this optimization, it not allowed on NBA platforms
+  // and it is anyway duplicated in lib/Analysis/ConstantFolding.cpp
+  // where it can be enabled depending on the isByteAddressable flag
+#if 0
           if (isa<SequentialType>(Prev)) {
             // It's out of range, but we can factor it into the prior
             // dimension.
@@ -2174,6 +2178,9 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
 
             NewIdxs[i-1] = ConstantExpr::getAdd(PrevIdx, Div);
           } else {
+#else
+         {
+#endif
             // It's out of range, but the prior dimension is a struct
             // so we can't do anything about it.
             Unknown = true;
