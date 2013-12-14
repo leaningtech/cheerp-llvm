@@ -2002,12 +2002,13 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
   // Duetto: disables this optimization, it not allowed on NBA platforms
   // and it is anyway duplicated in lib/Analysis/ConstantFolding.cpp
   // where it can be enabled depending on the isByteAddressable flag
-#if 0
   // Check to see if any array indices are not within the corresponding
   // notional array bounds. If so, try to determine if they can be factored
   // out into preceding dimensions.
   bool Unknown = false;
+#if 0
   SmallVector<Constant *, 8> NewIdxs;
+#endif
   Type *Ty = C->getType();
   Type *Prev = 0;
   for (unsigned i = 0, e = Idxs.size(); i != e;
@@ -2017,6 +2018,7 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
         if (ATy->getNumElements() <= INT64_MAX &&
             ATy->getNumElements() != 0 &&
             CI->getSExtValue() >= (int64_t)ATy->getNumElements()) {
+#if 0
           if (isa<SequentialType>(Prev)) {
             // It's out of range, but we can factor it into the prior
             // dimension.
@@ -2039,10 +2041,13 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
 
             NewIdxs[i-1] = ConstantExpr::getAdd(PrevIdx, Div);
           } else {
+#endif
             // It's out of range, but the prior dimension is a struct
             // so we can't do anything about it.
             Unknown = true;
+#if 0
           }
+#endif
         }
     } else {
       // We don't know if it's in range or not.
@@ -2050,19 +2055,20 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
     }
   }
 
+#if 0
   // If we did any factoring, start over with the adjusted indices.
   if (!NewIdxs.empty()) {
     for (unsigned i = 0, e = Idxs.size(); i != e; ++i)
       if (!NewIdxs[i]) NewIdxs[i] = cast<Constant>(Idxs[i]);
     return ConstantExpr::getGetElementPtr(C, NewIdxs, inBounds);
   }
+#endif
 
   // If all indices are known integers and normalized, we can do a simple
   // check for the "inbounds" property.
   if (!Unknown && !inBounds &&
       isa<GlobalVariable>(C) && isInBoundsIndices(Idxs))
     return ConstantExpr::getInBoundsGetElementPtr(C, Idxs);
-#endif
 
   return 0;
 }
