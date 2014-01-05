@@ -2002,7 +2002,7 @@ void DuettoWriter::compileTerminatorInstruction(const TerminatorInst& I,
 	}
 }
 
-bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
+DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 {
 	switch(I.getOpcode())
 	{
@@ -2016,7 +2016,7 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 			compileType(t);
 			if(isImmutableType(t))
 				stream << ']';
-			return true;
+			return isImmutableType(t)?COMPILE_OK:COMPILE_ADD_SELF;
 		}
 		case Instruction::Call:
 		{
@@ -2028,7 +2028,7 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 				if(handleBuiltinCall(funcName,&ci,ci.op_begin(),ci.op_begin()+ci.getNumArgOperands(),
 						!ci.getCalledFunction()->empty()))
 				{
-					return true;
+					return COMPILE_OK;
 				}
 				stream << '_' << funcName;
 				if(!globalsDone.count(ci.getCalledFunction()))
@@ -2044,14 +2044,14 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 				compileOperand(ci.getCalledValue());
 			}
 			compileMethodArgs(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands());
-			return true;
+			return COMPILE_OK;
 		}
 		case Instruction::LandingPad:
 		{
 			//TODO: Support exceptions
 			stream << " alert('Exceptions not supported')";
 			//Do not continue block
-			return false;
+			return COMPILE_UNSUPPORTED;
 		}
 		case Instruction::InsertValue:
 		{
@@ -2062,7 +2062,7 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 			{
 				llvm::errs() << "insertvalue: Expected struct, found " << *t << "\n";
 				llvm::report_fatal_error("Unsupported code found, please report a bug", false);
-				return true;
+				return COMPILE_UNSUPPORTED;
 			}
 			if(UndefValue::classof(aggr))
 			{
@@ -2085,7 +2085,7 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 			uint32_t offset=ivi.getIndices()[0];
 			stream << ".a" << offset << " = ";
 			compileOperand(ivi.getInsertedValueOperand());
-			return true;
+			return COMPILE_OK;
 		}
 		case Instruction::Load:
 		{
@@ -2108,7 +2108,7 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 			else
 				compileDereferencePointer(ptrOp, NULL);
 			stream << ")";
-			return true;
+			return COMPILE_OK;
 		}
 		case Instruction::Store:
 		{
@@ -2131,10 +2131,10 @@ bool DuettoWriter::compileNotInlineableInstruction(const Instruction& I)
 				compileDereferencePointer(ptrOp, NULL);
 			stream << " = ";
 			compileOperand(valOp, OPERAND_EXPAND_COMPLETE_OBJECTS);
-			return true;
+			return COMPILE_OK;
 		}
 		default:
-			return compileInlineableInstruction(I);
+			return compileInlineableInstruction(I)?COMPILE_OK:COMPILE_UNSUPPORTED;
 	}
 }
 
@@ -2882,6 +2882,17 @@ bool DuettoWriter::isInlineable(const Instruction& I) const
 	return false;
 }
 
+/* We add a ".s" member pointing to itself, this can be used to convert complete objects
+   to regular pointers on demand with a low overhead. The complete pointer will be
+   { d: obj, o: "s" } */
+void DuettoWriter::addSelfPointer(const llvm::Value* obj)
+{
+	printVarName(obj);
+	stream << ".s = ";
+	printVarName(obj);
+	stream << ";\n";
+}
+
 void DuettoWriter::compileBB(const BasicBlock& BB, const std::map<const BasicBlock*, uint32_t>& blocksMap)
 {
 	BasicBlock::const_iterator I=BB.begin();
@@ -2906,9 +2917,11 @@ void DuettoWriter::compileBB(const BasicBlock& BB, const std::map<const BasicBlo
 		}
 		else
 		{
-			bool ret=compileNotInlineableInstruction(*I);
+			COMPILE_INSTRUCTION_FEEDBACK ret=compileNotInlineableInstruction(*I);
 			stream << ";\n";
-			if(ret==false)
+			if(ret==COMPILE_ADD_SELF)
+				addSelfPointer(&(*I));
+			else if(ret==COMPILE_UNSUPPORTED)
 			{
 				//Stop basic block compilation
 				return;
@@ -3272,6 +3285,7 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 	}
 	stream  << "var ";
 	printLLVMName(G.getName(), GLOBAL);
+	bool addSelf = false;
 	if(G.hasInitializer())
 	{
 		stream << " = ";
@@ -3286,8 +3300,12 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		compileOperand(C, OPERAND_EXPAND_COMPLETE_OBJECTS);
 		if(isImmutableType(t))
 			stream << ']';
+		else
+			addSelf = true;
 	}
 	stream << ";\n";
+	if(addSelf)
+		addSelfPointer(&G);
 	globalsDone.insert(&G);
 	//Now we have defined a new global, check if there are fixups for previously defined globals
 	std::pair<FixupMapType::iterator, FixupMapType::iterator> f=globalsFixupMap.equal_range(&G);
