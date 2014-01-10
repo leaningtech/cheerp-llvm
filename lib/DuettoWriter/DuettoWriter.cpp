@@ -3403,9 +3403,6 @@ uint32_t DuettoWriter::compileClassTypeRecursive(const std::string& baseName, St
 	if(!getBasesInfo(currentType, firstBase, localBaseCount))
 		return baseCount;
 	//baseCount has been already incremented above
-#ifndef NDEBUG
-	uint32_t baseMax=localBaseCount+(baseCount-1);
-#endif
 
 	for(uint32_t i=firstBase;i<(firstBase+localBaseCount);i++)
 	{
@@ -3413,7 +3410,6 @@ uint32_t DuettoWriter::compileClassTypeRecursive(const std::string& baseName, St
 		snprintf(buf,12,".a%u",i);
 		baseCount=compileClassTypeRecursive(baseName+buf, cast<StructType>(currentType->getElementType(i)), baseCount);
 	}
-	assert(baseMax==baseCount);
 	return baseCount;
 }
 
