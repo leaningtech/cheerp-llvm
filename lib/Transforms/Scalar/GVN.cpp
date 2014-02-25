@@ -939,8 +939,6 @@ static int AnalyzeLoadFromClobberingWrite(Type *LoadTy, Value *LoadPtr,
                                           Value *WritePtr,
                                           uint64_t WriteSizeInBits,
                                           const DataLayout &TD) {
-  if (!TD.isByteAddressable())
-    return -1;
   // If the loaded or stored value is a first class array or struct, don't try
   // to transform them.  We need to be able to bitcast to integer.
   if (LoadTy->isStructTy() || LoadTy->isArrayTy())
@@ -1014,8 +1012,6 @@ static int AnalyzeLoadFromClobberingWrite(Type *LoadTy, Value *LoadPtr,
 static int AnalyzeLoadFromClobberingStore(Type *LoadTy, Value *LoadPtr,
                                           StoreInst *DepSI,
                                           const DataLayout &TD) {
-  if (!TD.isByteAddressable())
-    return -1;
   // Cannot handle reading from store of first-class aggregate yet.
   if (DepSI->getValueOperand()->getType()->isStructTy() ||
       DepSI->getValueOperand()->getType()->isArrayTy())
@@ -1032,8 +1028,6 @@ static int AnalyzeLoadFromClobberingStore(Type *LoadTy, Value *LoadPtr,
 /// the other load can feed into the second load.
 static int AnalyzeLoadFromClobberingLoad(Type *LoadTy, Value *LoadPtr,
                                          LoadInst *DepLI, const DataLayout &TD){
-  if (!TD.isByteAddressable())
-    return -1;
   // Cannot handle reading from store of first-class aggregate yet.
   if (DepLI->getType()->isStructTy() || DepLI->getType()->isArrayTy())
     return -1;
@@ -1043,6 +1037,8 @@ static int AnalyzeLoadFromClobberingLoad(Type *LoadTy, Value *LoadPtr,
   int R = AnalyzeLoadFromClobberingWrite(LoadTy, LoadPtr, DepPtr, DepSize, TD);
   if (R != -1) return R;
 
+  if (!TD.isByteAddressable())
+    return -1;
   // If we have a load/load clobber an DepLI can be widened to cover this load,
   // then we should widen it!
   int64_t LoadOffs = 0;
@@ -1070,8 +1066,18 @@ static int AnalyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
   // If this is memset, we just need to see if the offset is valid in the size
   // of the memset..
   if (MI->getIntrinsicID() == Intrinsic::memset)
+  {
+    //On NBA targets we only support constant values being set on float,double,int
+    if (!TD.isByteAddressable())
+    {
+      if (!LoadTy->isIntegerTy() && !LoadTy->isFloatTy() && !LoadTy->isDoubleTy())
+        return -1;
+      if (!ConstantInt::classof(cast<MemSetInst>(MI)->getValue()))
+        return -1;
+    }
     return AnalyzeLoadFromClobberingWrite(LoadTy, LoadPtr, MI->getDest(TD.isByteAddressable()),
                                           MemSizeInBits, TD);
+  }
 
   // If we have a memcpy/memmove, the only case we can handle is if this is a
   // copy from constant memory.  In that case, we can read directly from the
@@ -1090,14 +1096,26 @@ static int AnalyzeLoadFromClobberingMemInst(Type *LoadTy, Value *LoadPtr,
   if (Offset == -1)
     return Offset;
 
-  // Otherwise, see if we can constant fold a load from the constant with the
-  // offset applied as appropriate.
-  Src = ConstantExpr::getBitCast(Src,
-                                 llvm::Type::getInt8PtrTy(Src->getContext()));
-  Constant *OffsetCst =
-    ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset);
-  Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
-  Src = ConstantExpr::getBitCast(Src, PointerType::getUnqual(LoadTy));
+  //On NBA targets we only accepts forwarding if the type is the same
+  if(!TD.isByteAddressable())
+  {
+    if(Src->getType()!=LoadPtr->getType())
+      return -1;
+    Constant *OffsetCst =
+      ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset/TD.getTypeStoreSize(LoadTy));
+    Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
+  }
+  else
+  {
+    // Otherwise, see if we can constant fold a load from the constant with the
+    // offset applied as appropriate.
+    Src = ConstantExpr::getBitCast(Src,
+                                   llvm::Type::getInt8PtrTy(Src->getContext()));
+    Constant *OffsetCst =
+      ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset);
+    Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
+    Src = ConstantExpr::getBitCast(Src, PointerType::getUnqual(LoadTy));
+  }
   if (ConstantFoldLoadFromConstPtr(Src, &TD))
     return Offset;
   return -1;
@@ -1222,6 +1240,26 @@ static Value *GetMemInstValueForLoad(MemIntrinsic *SrcInst, unsigned Offset,
     // memset(P, 'x', 1234) -> splat('x'), even if x is a variable, and
     // independently of what the offset is.
     Value *Val = MSI->getValue();
+    if (!TD.isByteAddressable())
+    {
+      //On NBA target we only support constant values
+      assert(ConstantInt::classof(Val));
+      uint8_t ValCst = cast<ConstantInt>(Val)->getZExtValue();
+      uint64_t bitData = 0;
+      for(unsigned i=0;i<LoadSize;i++)
+      {
+        bitData <<= 8;
+        bitData |= ValCst;
+      }
+      APInt intData(LoadSize*8, bitData);
+      assert(LoadTy->isFloatTy() || LoadTy->isDoubleTy() || LoadTy->isIntegerTy());
+      if (LoadTy->isFloatTy())
+        return ConstantFP::get(Ctx, APFloat(APFloat::IEEEsingle, bitData));
+      else if (LoadTy->isDoubleTy())
+        return ConstantFP::get(Ctx, APFloat(APFloat::IEEEdouble, bitData));
+      else if (LoadTy->isIntegerTy())
+        return ConstantInt::get(LoadTy, intData);
+    }
     if (LoadSize != 1)
       Val = Builder.CreateZExt(Val, IntegerType::get(Ctx, LoadSize*8));
 
@@ -1252,12 +1290,22 @@ static Value *GetMemInstValueForLoad(MemIntrinsic *SrcInst, unsigned Offset,
 
   // Otherwise, see if we can constant fold a load from the constant with the
   // offset applied as appropriate.
-  Src = ConstantExpr::getBitCast(Src,
-                                 llvm::Type::getInt8PtrTy(Src->getContext()));
-  Constant *OffsetCst =
-  ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset);
-  Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
-  Src = ConstantExpr::getBitCast(Src, PointerType::getUnqual(LoadTy));
+  if(!TD.isByteAddressable())
+  {
+    assert(Src->getType()==PointerType::getUnqual(LoadTy));
+    Constant *OffsetCst =
+    ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset/TD.getTypeStoreSize(LoadTy));
+    Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
+  }
+  else
+  {
+    Src = ConstantExpr::getBitCast(Src,
+                                   llvm::Type::getInt8PtrTy(Src->getContext()));
+    Constant *OffsetCst =
+    ConstantInt::get(Type::getInt64Ty(Src->getContext()), (unsigned)Offset);
+    Src = ConstantExpr::getGetElementPtr(Src, OffsetCst);
+    Src = ConstantExpr::getBitCast(Src, PointerType::getUnqual(LoadTy));
+  }
   return ConstantFoldLoadFromConstPtr(Src, &TD);
 }
 
@@ -1408,7 +1456,7 @@ void GVN::AnalyzeLoadAvailability(LoadInst *LI, LoadDepVect &Deps,
       if (LoadInst *DepLI = dyn_cast<LoadInst>(DepInfo.getInst())) {
         // If this is a clobber and L is the first instruction in its block, then
         // we have the first instruction in the entry block.
-        if (DepLI != LI && Address && TD) {
+        if (DepLI != LI && Address && TD && TD->isByteAddressable()) {
           int Offset = AnalyzeLoadFromClobberingLoad(LI->getType(),
                                                      LI->getPointerOperand(),
                                                      DepLI, *TD);
@@ -1810,8 +1858,7 @@ bool GVN::processLoad(LoadInst *L) {
 
   // If we have a clobber and target data is around, see if this is a clobber
   // that we can fix up through code synthesis.
-  // Duetto: Verify if we can relax the byte addressable requirement
-  if (Dep.isClobber() && TD && TD->isByteAddressable()) {
+  if (Dep.isClobber() && TD) {
     // Check to see if we have something like this:
     //   store i32 123, i32* %P
     //   %A = bitcast i32* %P to i8*
