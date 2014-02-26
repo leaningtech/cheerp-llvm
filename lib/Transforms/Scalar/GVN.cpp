@@ -944,6 +944,10 @@ static int AnalyzeLoadFromClobberingWrite(Type *LoadTy, Value *LoadPtr,
   if (LoadTy->isStructTy() || LoadTy->isArrayTy())
     return -1;
 
+  // On NBA target only support same type forwarding
+  if (!TD.isByteAddressable() && (LoadPtr->getType() != WritePtr->getType()))
+    return -1;
+
   int64_t StoreOffset = 0, LoadOffset = 0;
   Value *StoreBase = GetPointerBaseWithConstantOffset(WritePtr,StoreOffset,&TD);
   Value *LoadBase = GetPointerBaseWithConstantOffset(LoadPtr, LoadOffset, &TD);
