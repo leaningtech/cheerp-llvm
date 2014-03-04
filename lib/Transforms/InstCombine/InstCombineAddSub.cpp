@@ -1483,14 +1483,44 @@ Value *InstCombiner::OptimizePointerDifference(Value *LHS, Value *RHS,
       (GEP2 && !GEP2->hasAllConstantIndices() && !GEP2->hasOneUse()))
     return nullptr;
 
-  // Emit the offset of the GEP and an intptr_t.
-  Value *Result = EmitGEPOffset(GEP1);
+  Value *Result;
+  if(!DL->isByteAddressable())
+  {
+    if (GEP2)
+    {
+      // Duetto: the two geps must have equal indexes up to the last.
+      // The index difference is the result.
+      if (GEP1->getNumIndices() != GEP2->getNumIndices())
+        return 0;
+      GEPOperator::const_op_iterator it1=GEP1->idx_begin();
+      GEPOperator::const_op_iterator it2=GEP2->idx_begin();
+      for (;it1!=GEP1->idx_end()-1;++it1,++it2)
+      {
+        if (*it1 != *it2)
+          return 0;
+      }
+      Result = Builder->CreateSub(*it1,*it2);
+    }
+    else
+    {
+      // This is only ok if the GEP is only moving a pointer
+      // In this case it must have a single index, the result is the index itself
+      if (GEP1->getNumIndices() != 1)
+        return 0;
+      Result = *GEP1->idx_begin();
+    }
+  }
+  else
+  {
+    // Emit the offset of the GEP and an intptr_t.
+    Result = EmitGEPOffset(GEP1);
 
-  // If we had a constant expression GEP on the other side offsetting the
-  // pointer, subtract it from the offset we have.
-  if (GEP2) {
-    Value *Offset = EmitGEPOffset(GEP2);
-    Result = Builder->CreateSub(Result, Offset);
+    // If we had a constant expression GEP on the other side offsetting the
+    // pointer, subtract it from the offset we have.
+    if (GEP2) {
+      Value *Offset = EmitGEPOffset(GEP2);
+      Result = Builder->CreateSub(Result, Offset);
+    }
   }
 
   // If we have p - gep(p, ...)  then we have to negate the result.
