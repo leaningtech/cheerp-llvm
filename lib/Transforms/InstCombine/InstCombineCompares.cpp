@@ -3995,6 +3995,7 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
     return DL.getPointerTypeSizeInBits(SrcTy) == DestTy->getIntegerBitWidth();
   };
   if (LHSCI->getOpcode() == Instruction::PtrToInt &&
+      DL.isByteAddressable() &&
       CompatibleSizes(SrcTy, DestTy)) {
     Value *RHSOp = nullptr;
     if (auto *RHSC = dyn_cast<PtrToIntOperator>(ICmp.getOperand(1))) {
