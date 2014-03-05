@@ -174,13 +174,6 @@ DuettoWriter::POINTER_KIND DuettoWriter::getPointerKind(const Value* v) const
 	return iter->second;
 }
 
-//TODO this is a workaround for missing getElementPtrConstantExpr
-static const ConstantExpr* dyn_cast_to_constant_gep(const Value * v)
-{
-	const ConstantExpr * I = dyn_cast<const ConstantExpr>(v);
-	return (I && I->getOpcode() == Instruction::GetElementPtr) ? I : 0;
-}
-
 uint32_t DuettoWriter::getPointerUsageFlags(const llvm::Value * v) const
 {
 	assert(v->getType()->isPointerTy());
@@ -213,28 +206,26 @@ uint32_t DuettoWriter::getPointerUsageFlags(const llvm::Value * v) const
 			}
 			
 			// Pointer used as a base to a getElementPtr
-			else if (const GetElementPtrInst * I = dyn_cast<const GetElementPtrInst>(*it) )
+			else if (isGEP(*it) )
 			{
-				const ConstantInt * p = dyn_cast<const ConstantInt>(I->getOperand(1));
+				const User * I = cast<const User>(*it);
+  				const ConstantInt * p = dyn_cast<const ConstantInt>(I->getOperand(1));
 				if (!p || !p->isZero())
 					ans |= POINTER_ARITHMETIC;
 			}
-			else if (const ConstantExpr * I = dyn_cast_to_constant_gep(*it) )
-			{
-				// Same as GEP, constant
-				//TODO use getElementPtrConstantExpr after rebase with main llvm tree
-				const ConstantInt * p = cast<const ConstantInt>(I->getOperand(1));
-				assert(p && "First argument to GEP is not a constant int");
-				if (!p->isZero())
-					ans |= POINTER_ARITHMETIC;
-			}
 			/** TODO deal with all use cases and remove the following 2 blocks **/
-			else if (isa<const PHINode>(*it) || 
-					isa<const BitCastInst>(*it) || 
-					isa<const SelectInst>(*it) ||
-					isa<const LoadInst>(*it) ||
-					isa<const CallInst>(*it) ||
-					isa<const ReturnInst>(*it) )
+			else if (
+				isa<const PHINode>(*it) || 
+				isa<const SelectInst>(*it) ||
+				isa<const LoadInst>(*it) ||
+				isa<const CallInst>(*it) ||
+				isa<const InvokeInst>(*it) ||
+				isa<const ReturnInst>(*it) || 
+				isa<const GlobalValue>(*it) ||
+				isa<const ConstantArray>(*it) ||
+				isa<const ConstantStruct>(*it) ||
+				isBitCast(*it) ||
+				isNopCast(*it) )
 			{
 				continue;
 			}
@@ -266,13 +257,13 @@ uint32_t DuettoWriter::dfsPointerUsageFlagsComplete(const Value * v, std::set<co
 	{
 		// Check if "v" is used as a operand in a phi node
 		if (isa<const PHINode>(*it) ||
-			isa<const BitCastInst>(*it) ||
 			isa<const SelectInst>(*it) ||
+			isBitCast(*it) ||
 			isNopCast(*it))
 		{
 			f |= dfsPointerUsageFlagsComplete(*it, openset);
 		} 
-		else if (isa<const CallInst>(*it))
+		else if (isa<const CallInst>(*it) || isa<const InvokeInst>(*it) )
 		{
 			//TODO deal with me properly
 			f |= POINTER_UNKNOWN;
@@ -284,7 +275,7 @@ uint32_t DuettoWriter::dfsPointerUsageFlagsComplete(const Value * v, std::set<co
 		}
 		else if (const StoreInst * I = dyn_cast<const StoreInst>(*it) )
 		{
-			if (I->getOperand(0) == v)
+			if (I->getValueOperand() == v)
 			{
 				// Tracking the stores is almost impossible
 				/** But we can do this - in a conservative way - by checking the type of the pointed object.
@@ -293,12 +284,18 @@ uint32_t DuettoWriter::dfsPointerUsageFlagsComplete(const Value * v, std::set<co
 				f |= POINTER_UNKNOWN;
 			}
 		}
+		else if (
+			isa<const ConstantStruct>(*it) ||
+			isa<const ConstantArray>(*it) ||
+			isa<const GlobalValue>(*it) )
+		{
+			f |= POINTER_UNKNOWN;
+		}
 		else if ( // Things we know are ok
 			isa<const CmpInst>(*it) ||
- 			isa<const GetElementPtrInst>(*it) ||
 			isa<const LoadInst>(*it) ||
-			isa<const PtrToIntInst>(*it) || 
-			(dyn_cast_to_constant_gep(*it) != 0) )
+			isa<const PtrToIntInst>(*it) ||
+			isGEP(*it) )
 		{
 			continue;
 		}
