@@ -1551,7 +1551,7 @@ void DuettoWriter::compilePointer(const Value* v, POINTER_KIND acceptedKind)
 		else if(k==COMPLETE_OBJECT)
 		{
 			stream << "'s'}";
-			assert(getPointerUsageFlagsComplete(v) != 0);
+			assert(!isNoSelfPointerOptimizable(v));
 		}
 	}
 }
@@ -1833,7 +1833,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableIns
 			compileType(t, LITERAL_OBJ);
 			if(isImmutableType(t))
 				stream << ']';
-			if(isImmutableType(t) || !isa<StructType>(t) || classesNeeded.count(cast<StructType>(t)) || (getPointerUsageFlagsComplete(&I) == 0))
+			if(isImmutableType(t) || !isa<StructType>(t) || classesNeeded.count(cast<StructType>(t)) || isNoSelfPointerOptimizable(&I) )
 				return COMPILE_OK;
 			else
 				return COMPILE_ADD_SELF;
@@ -3232,7 +3232,7 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		if(isImmutableType(t))
 			stream << ']';
 
-		if(getPointerKind(&G)==COMPLETE_OBJECT)
+		if(getPointerKind(&G)==COMPLETE_OBJECT && !isNoSelfPointerOptimizable(&G) )
 			addSelf = true;
 	}
 	stream << ";\n";
