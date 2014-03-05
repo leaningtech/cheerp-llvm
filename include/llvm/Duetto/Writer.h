@@ -92,12 +92,10 @@ private:
 	enum COMPILE_TYPE_STYLE { LITERAL_OBJ=0, THIS_OBJ };
 	void compileType(llvm::Type* t, COMPILE_TYPE_STYLE style);
 	void compileTypeImpl(llvm::Type* t, COMPILE_TYPE_STYLE style);
-	enum POINTER_KIND { UNDECIDED = 0, COMPLETE_OBJECT, COMPLETE_ARRAY, REGULAR };
-	POINTER_KIND getPointerKind(const llvm::Value* v, std::map<const llvm::PHINode*, POINTER_KIND>& visitedPhis);
-	POINTER_KIND getPointerKind(const llvm::Value* v);
 	
 	/**
 	 * \addtogroup pointers Pointer implementation
+	 * \note Functions belonging to this group are implemented in Pointers.cpp
 	 * 
 	 * Three type of pointers are used:
 	 *   - COMPLETE_OBJECT This pointer can point only to a C++ struct/class type. It is implemented 
@@ -132,18 +130,32 @@ private:
 	 *       
 	 * 
 	 * Optimization:
-	 *    -  Remove self-pointer. Avoid the creation of the member ".s" if the conversion to REGULAR pointer is not required.
-	 * 
+	 *    - no-self-pointer. Avoid the creation of the member ".s" if the conversion to REGULAR pointer is not required, \sa{isNoSelfPointerOptimizable}.
+	 *    - no-wrapping-array. Avoid the creation of a wrapping array for immutable types if possible, \sa{isNoWrappingArrayOptimizable}.
 	 * 
 	 * @{
 	 */
 	
+	enum POINTER_KIND {
+		UNDECIDED = 0,
+		COMPLETE_OBJECT,
+		COMPLETE_ARRAY,
+		REGULAR
+	};
+	
+	typedef std::map<const llvm::Value *, POINTER_KIND> pointer_kind_map_t;
+	mutable pointer_kind_map_t pointerKindMap;
+
+	POINTER_KIND dfsPointerKind(const llvm::Value* v, std::map<const llvm::PHINode*, POINTER_KIND>& visitedPhis) const;
+	POINTER_KIND getPointerKind(const llvm::Value* v) const;
+	
 	// Functionalities provided by a pointer
 	enum POINTER_USAGE_FLAG {
-		POINTER_NONCONST_DEREF = 0x1, // The pointer is used to modify the pointed object
-		POINTER_ARITHMETIC = 0x2, // The pointer can be incremented/decremented etc, and/or it is used to access an array (i.e. p[i])
-		POINTER_ORDINABLE = 0x4, // The pointer is used for a comparison with another pointer
-		POINTER_CASTABLE_TO_INT = 0x8,  // The pointer is explicitly casted to an integer (usually used to implement pointers hash table)
+		POINTER_NONCONST_DEREF = 1, // The pointer is used to modify the pointed object
+		POINTER_IS_NOT_UNIQUE_OWNER = (1 << 1), // The pointer is not the only one which points to the object
+		POINTER_ARITHMETIC = (1 << 2), // The pointer can be incremented/decremented etc, and/or it is used to access an array (i.e. p[i])
+		POINTER_ORDINABLE = (1 << 3), // The pointer is used for a comparison with another pointer
+		POINTER_CASTABLE_TO_INT = (1 << 4),  // The pointer is explicitly casted to an integer (usually used to implement pointers hash table)
 		
 		POINTER_UNKNOWN = (1LL << 32LL) - 1
 	};
@@ -157,27 +169,33 @@ private:
 	//TODO at the moment if it is used in a CallInst it returns POINTER_UNKNOWN.
 	// CallInst should be handled inside getPointerUsageFlagsComplete, in order to provide information on how that pointer is used inside the function call.
 	// This is especially important at the moment for memset/memcpy/memmove.
-	uint32_t getPointerUsageFlags(const llvm::Value* v);
-	pointer_usage_map_t pointerUsageMap;
+	uint32_t getPointerUsageFlags(const llvm::Value* v) const;
+	mutable pointer_usage_map_t pointerUsageMap;
 	
 	/**
 	 * Compute the sum of the usages of all the "child" pointers, where "child pointer" means any pointer which can be initialized to this one's value.
 	 * \param v The pointer to inspect.
 	 * \param openset Set of the visited pointers in order to stop cyclic dependencies in the phi node.
 	 */
-	uint32_t dfsPointerUsageFlagsComplete(const llvm::Value * v,std::set<const llvm::Value *> & openset);
+	uint32_t dfsPointerUsageFlagsComplete(const llvm::Value * v,std::set<const llvm::Value *> & openset) const;
 	
 	/**
 	 * Memoization wrapper around dfsPointerUsageFlagsComplete
 	 */
-	uint32_t getPointerUsageFlagsComplete(const llvm::Value * v);
-	pointer_usage_map_t pointerCompleteUsageMap;
+	uint32_t getPointerUsageFlagsComplete(const llvm::Value * v) const;
+	mutable pointer_usage_map_t pointerCompleteUsageMap;
 	
 #ifdef DUETTO_DEBUG_POINTERS
 	typedef std::set<const llvm::Value *> known_pointers_t;
-	known_pointers_t debugAllPointersSet;
+	mutable known_pointers_t debugAllPointersSet;
 #endif //DUETTO_DEBUG_POINTERS
 	
+	// Detect if a no-self-pointer optimization is applicable to the pointer value
+	bool isNoSelfPointerOptimizable(const llvm::Value * v) const;
+
+	// Detect if a no-wrapping-array optimization is applicable to the pointer value
+	bool isNoWrappingArrayOptimizable(const llvm::Value * v) const;
+
 	/** @} */
 
 	/*

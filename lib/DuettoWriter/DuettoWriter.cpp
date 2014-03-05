@@ -16,6 +16,8 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <iomanip>
+#include <sstream>
 
 using namespace llvm;
 using namespace std;
@@ -991,105 +993,6 @@ bool DuettoWriter::isImmutableType(const Type* t) const
 	return false;
 }
 
-/*
- * The map is used to handle cyclic PHI nodes
- */
-DuettoWriter::POINTER_KIND DuettoWriter::getPointerKind(const Value* v, std::map<const PHINode*, POINTER_KIND>& visitedPhis)
-{
-#ifdef DUETTO_DEBUG_POINTERS
-	debugAllPointersSet.insert(v);
-#endif
-	assert(v->getType()->isPointerTy());
-	PointerType* pt=cast<PointerType>(v->getType());
-	if(isClientArrayType(pt->getElementType()))
-	{
-		//Handle client arrays like COMPLETE_ARRAYs, so the right 0 offset
-		//is used when doing GEPs
-		return COMPLETE_ARRAY;
-	}
-	if(isClientType(pt->getElementType()))
-	{
-		//Pointers to client type are complete objects, and are never expanded to
-		//regular ones since an array of client objects does not exists.
-		//NOTE: An array of pointer to client objects exists, not an array of objects.
-		return COMPLETE_OBJECT;
-	}
-	if(AllocaInst::classof(v) || GlobalVariable::classof(v))
-	{
-		if(isImmutableType(pt->getElementType()))
-			return COMPLETE_ARRAY;
-		else
-			return COMPLETE_OBJECT;
-	}
-	//Follow bitcasts
-	if(isBitCast(v))
-	{
-		const User* bi=static_cast<const User*>(v);
-		//Casts from unions return regular pointers
-		if(isUnion(bi->getOperand(0)->getType()->getPointerElementType()))
-		{
-			//Special case arrays
-			if(ArrayType::classof(pt->getElementType()))
-				return COMPLETE_OBJECT;
-			else
-				return COMPLETE_ARRAY;
-		}
-		return getPointerKind(bi->getOperand(0), visitedPhis);
-	}
-	if(isNopCast(v))
-	{
-		const User* bi=static_cast<const User*>(v);
-		return getPointerKind(bi->getOperand(0), visitedPhis);
-	}
-	//Follow select
-	if(const SelectInst* s=dyn_cast<SelectInst>(v))
-	{
-		POINTER_KIND k1=getPointerKind(s->getTrueValue(), visitedPhis);
-		if(k1==REGULAR)
-			return REGULAR;
-		POINTER_KIND k2=getPointerKind(s->getFalseValue(), visitedPhis);
-		//If the type is different we need to collapse to REGULAR
-		if(k1!=k2)
-			return REGULAR;
-		//The type is the same
-		return k1;
-	}
-	if(isComingFromAllocation(v))
-		return COMPLETE_ARRAY;
-	//Follow PHIs
-	const PHINode* newPHI=dyn_cast<const PHINode>(v);
-	if(newPHI)
-	{
-		std::map<const PHINode*, POINTER_KIND>::iterator alreadyVisited=visitedPhis.find(newPHI);
-		if(alreadyVisited!=visitedPhis.end())
-		{
-			//Assume true, if needed it will become false later on
-			return alreadyVisited->second;
-		}
-		//Intialize the PHI with undecided
-		std::map<const PHINode*, POINTER_KIND>::iterator current=
-			visitedPhis.insert(make_pair(newPHI, UNDECIDED)).first;
-		for(unsigned i=0;i<newPHI->getNumIncomingValues() && current->second!=REGULAR;i++)
-		{
-			POINTER_KIND k=getPointerKind(newPHI->getIncomingValue(i), visitedPhis);
-			if(current->second == UNDECIDED)
-				current->second = k;
-			// COMPLETE_OBJECT can't change to COMPLETE_ARRAY for the "self" optimization
-			// so switch directly to REGULAR
-			else if (k != current->second)
-				current->second = REGULAR;
-		}
-		return current->second;
-	}
-	return REGULAR;
-}
-
-DuettoWriter::POINTER_KIND DuettoWriter::getPointerKind(const Value* v)
-{
-	std::map<const PHINode*, POINTER_KIND> visitedPhis;
-	return getPointerKind(v, visitedPhis);
-}
-
 bool DuettoWriter::isNopCast(const Value* val) const
 {
 	const CallInst* newCall=dyn_cast<const CallInst>(val);
@@ -1648,7 +1551,8 @@ void DuettoWriter::compilePointer(const Value* v, POINTER_KIND acceptedKind)
 		else if(k==COMPLETE_OBJECT)
 		{
 			stream << "'s'}";
-			assert(getPointerUsageFlagsComplete(v) != 0);
+			assert(!isNoSelfPointerOptimizable(v));
+			assert(!isNoWrappingArrayOptimizable(v));
 		}
 	}
 }
@@ -1925,12 +1829,12 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableIns
 			const AllocaInst& ai=static_cast<const AllocaInst&>(I);
 			Type* t=ai.getAllocatedType();
 			//Alloca returns complete objects or arrays, not pointers
-			if(isImmutableType(t))
+			if(isImmutableType(t) && !isNoWrappingArrayOptimizable(&I))
 				stream << '[';
 			compileType(t, LITERAL_OBJ);
-			if(isImmutableType(t))
+			if(isImmutableType(t) && !isNoWrappingArrayOptimizable(&I))
 				stream << ']';
-			if(isImmutableType(t) || !isa<StructType>(t) || classesNeeded.count(cast<StructType>(t)) || (getPointerUsageFlagsComplete(&I) == 0))
+			if(isImmutableType(t) || !isa<StructType>(t) || classesNeeded.count(cast<StructType>(t)) || isNoSelfPointerOptimizable(&I) )
 				return COMPILE_OK;
 			else
 				return COMPILE_ADD_SELF;
@@ -3323,13 +3227,13 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		gatherDependencies(C, &G, "", NULL);
 
 		Type* t=C->getType();
-		if(isImmutableType(t))
+		if(isImmutableType(t) && !isNoWrappingArrayOptimizable(&G))
 			stream << '[';
 		compileOperand(C, REGULAR);
-		if(isImmutableType(t))
+		if(isImmutableType(t) && !isNoWrappingArrayOptimizable(&G))
 			stream << ']';
 
-		if(getPointerKind(&G)==COMPLETE_OBJECT)
+		if(getPointerKind(&G)==COMPLETE_OBJECT && !isNoSelfPointerOptimizable(&G) )
 			addSelf = true;
 	}
 	stream << ";\n";
@@ -3352,7 +3256,7 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		const Constant* C=otherGV->getInitializer();
 
 		printLLVMName(otherGV->getName(), GLOBAL);
-		if(isImmutableType(C->getType()))
+		if(isImmutableType(C->getType()) && !isNoWrappingArrayOptimizable(otherGV))
 			stream << "[0]";
 		stream << it->second.baseName << " = ";
 		compileOperand(it->second.value, REGULAR);
@@ -3511,18 +3415,39 @@ void DuettoWriter::makeJS()
 	
 	llvm::errs() << "Debugging pointers\n";
 	
-	llvm::errs() << "Name\t\tKind\tUsageFlags\tUsageFlagsComplete\n";
+	llvm::errs() << "Name" << std::string(92,' ') << "Kind              UsageFlags        UsageFlagsComplete IsImmutable?\n";
 	
 	for (known_pointers_t::iterator iter = debugAllPointersSet.begin(); iter != debugAllPointersSet.end(); ++iter)
 	{
 		const Value * v = *iter;
 		
-		if (v->getName().empty())
-			llvm::errs() << "unnamed(" << getUniqueIndexForValue(v) << ")";
-		else 
-			llvm::errs() << v->getName();
+		std::ostringstream fmt;
+		fmt << std::setw(96) << std::left;
+	
+		if (v->hasName())
+			fmt << v->getName().data();
+		else
+		{
+			std::ostringstream tmp;
+			tmp << "tmp" << getUniqueIndexForValue(v);
+			fmt << tmp.str();
+		}
+
+		fmt << std::setw(18) << std::left;
+		switch (getPointerKind(v))
+		{
+			case COMPLETE_OBJECT: fmt << "COMPLETE_OBJECT"; break;
+			case COMPLETE_ARRAY: fmt << "COMPLETE_ARRAY"; break;
+			case REGULAR: fmt << "REGULAR"; break;
+			default: fmt << "UNDECIDED"; break;
+		}
 		
-		llvm::errs() << "\t\t" << getPointerKind(v) << "\t" << getPointerUsageFlags(v) << "\t" << getPointerUsageFlagsComplete(v) << "\n";
+
+		fmt << std::setw(18) << std::left << getPointerUsageFlags(v);
+		fmt << std::setw(18) << std::left << getPointerUsageFlagsComplete(v);
+		fmt << std::setw(18) << std::left << std::boolalpha << isImmutableType( v->getType()->getPointerElementType() );
+
+		llvm::errs() << fmt.str() << "\n";
 	}
 #endif
 
