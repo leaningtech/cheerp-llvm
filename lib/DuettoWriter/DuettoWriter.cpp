@@ -1502,7 +1502,7 @@ void DuettoWriter::compileConstant(const Constant* c)
 		assert(d->getType()->getNumElements() == d->getNumOperands());
 		for(uint32_t i=0;i<d->getNumOperands();i++)
 		{
-			compileOperand(d->getOperand(i), OPERAND_EXPAND_COMPLETE_OBJECTS);
+			compileOperand(d->getOperand(i), REGULAR);
 			if((i+1)<d->getNumOperands())
 				stream << ",";
 		}
@@ -1516,7 +1516,7 @@ void DuettoWriter::compileConstant(const Constant* c)
 		for(uint32_t i=0;i<d->getNumOperands();i++)
 		{
 			stream << 'a' << i << ':';
-			compileOperand(d->getOperand(i), OPERAND_EXPAND_COMPLETE_OBJECTS);
+			compileOperand(d->getOperand(i), REGULAR);
 			if((i+1)<d->getNumOperands())
 				stream << ",";
 		}
@@ -1665,14 +1665,14 @@ void DuettoWriter::compileOperandImpl(const Value* v)
 	}
 }
 
-void DuettoWriter::compileOperand(const Value* v, OperandFix fix)
+void DuettoWriter::compileOperand(const Value* v, POINTER_KIND requestedPointerKind)
 {
 	//First deal with complete objects, but never expand pointers to client objects
 	if(v->getType()->isPointerTy() &&
-		fix==OPERAND_EXPAND_COMPLETE_OBJECTS &&
+		requestedPointerKind!=UNDECIDED &&
 		!isClientType(v->getType()->getPointerElementType()))
 	{
-		compilePointer(v, REGULAR);
+		compilePointer(v, requestedPointerKind);
 	}
 	else
 		compileOperandImpl(v);
@@ -1723,14 +1723,8 @@ void DuettoWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 		uint32_t tmpIndex = getUniqueIndex();
 		stream << "var tmpphi" << tmpIndex << " = ";
 		tmps.push_back(tmpIndex);
-		if(val->getType()->isPointerTy())
-		{
-			//Fix complete object pointers if needed
-			POINTER_KIND k=getPointerKind(phi);
-			compilePointer(val, k);
-		}
-		else
-			compileOperand(val);
+		POINTER_KIND k=phi->getType()->isPointerTy()?getPointerKind(phi):UNDECIDED;
+		compileOperand(val, k);
 		stream << ";\n";
 	}
 	//Phase 2, actually assign the values
@@ -1754,7 +1748,7 @@ void DuettoWriter::compileMethodArgs(const llvm::User::const_op_iterator it, con
 	{
 		if(cur!=it)
 			stream << ", ";
-		compileOperand(*cur, OPERAND_EXPAND_COMPLETE_OBJECTS);
+		compileOperand(*cur, REGULAR);
 	}
 	stream << ')';
 }
@@ -1773,7 +1767,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileTerminatorInstru
 			Value* retVal = ri.getReturnValue();
 			stream << "return ";
 			if(retVal)
-				compileOperand(retVal, OPERAND_EXPAND_COMPLETE_OBJECTS);
+				compileOperand(retVal, REGULAR);
 			stream << ";\n";
 			return COMPILE_OK;
 		}
@@ -2074,7 +2068,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableIns
 				else if(pointedType->isDoubleTy())
 					stream << ".setFloat64(0,";
 				//Special case compilation of operand, the default behavior use =
-				compileOperand(valOp, OPERAND_EXPAND_COMPLETE_OBJECTS);
+				compileOperand(valOp);
 				if(!pointedType->isIntegerTy(8))
 					stream << ",true";
 				stream << ')';
@@ -2083,7 +2077,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableIns
 			else
 				compileDereferencePointer(ptrOp, NULL);
 			stream << " = ";
-			compileOperand(valOp, OPERAND_EXPAND_COMPLETE_OBJECTS);
+			compileOperand(valOp, REGULAR);
 			return COMPILE_OK;
 		}
 		default:
@@ -2719,9 +2713,10 @@ bool DuettoWriter::compileInlineableInstruction(const Instruction& I)
 			stream << "(";
 			compileOperand(si.getCondition());
 			stream << "?";
-			compileOperand(si.getTrueValue(), OPERAND_EXPAND_COMPLETE_OBJECTS);
+			POINTER_KIND k=si.getType()->isPointerTy()?getPointerKind(&si):UNDECIDED;
+			compileOperand(si.getTrueValue(), k);
 			stream << ":";
-			compileOperand(si.getFalseValue(), OPERAND_EXPAND_COMPLETE_OBJECTS);
+			compileOperand(si.getFalseValue(), k);
 			stream << ")";
 			return true;
 		}
@@ -3317,7 +3312,7 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		Type* t=C->getType();
 		if(isImmutableType(t))
 			stream << '[';
-		compileOperand(C, OPERAND_EXPAND_COMPLETE_OBJECTS);
+		compileOperand(C, REGULAR);
 		if(isImmutableType(t))
 			stream << ']';
 
@@ -3347,7 +3342,7 @@ void DuettoWriter::compileGlobal(const GlobalVariable& G)
 		if(isImmutableType(C->getType()))
 			stream << "[0]";
 		stream << it->second.baseName << " = ";
-		compileOperand(it->second.value, OPERAND_EXPAND_COMPLETE_OBJECTS);
+		compileOperand(it->second.value, REGULAR);
 		stream << ";\n";
 	}
 	if(f.first!=f.second)
