@@ -128,7 +128,8 @@ uint32_t DuettoWriter::dfsPointerUsageFlagsComplete(const Value * v, std::set<co
 		// Check if "v" is used as a operand in a phi node
 		if (isa<const PHINode>(*it) ||
 			isa<const BitCastInst>(*it) ||
-			isa<const SelectInst>(*it) )
+			isa<const SelectInst>(*it) ||
+			isNopCast(*it))
 		{
 			f |= dfsPointerUsageFlagsComplete(*it, openset);
 		} 
