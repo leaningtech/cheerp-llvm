@@ -1739,6 +1739,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileTerminatorInstru
 		}
 		case Instruction::Br:
 		case Instruction::Switch:
+		case Instruction::Unreachable:
 			return COMPILE_OK;
 		default:
 			stream << "alert('Unsupported code');\n";
@@ -1754,6 +1755,7 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileTerminatorInstru
 	switch(I.getOpcode())
 	{
 		case Instruction::Ret:
+		case Instruction::Unreachable:
 			break;
 		case Instruction::Invoke:
 		{
