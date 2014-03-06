@@ -363,7 +363,7 @@ INITIALIZE_PASS_END(MemCpyOpt, "memcpyopt", "MemCpy Optimization",
 /// attempts to merge them together into a memcpy/memset.
 Instruction *MemCpyOpt::tryMergingIntoMemset(Instruction *StartInst,
                                              Value *StartPtr, Value *ByteVal) {
-  if (TD == 0) return 0;
+  if (TD == 0 || !TD->isByteAddressable()) return 0;
 
   // Okay, so we now have a single store that can be splatable.  Scan to find
   // all subsequent stores of the same value to offset from the same pointer.
