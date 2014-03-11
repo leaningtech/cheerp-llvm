@@ -16,8 +16,6 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/ErrorHandling.h"
-#include <iomanip>
-#include <sstream>
 
 using namespace llvm;
 using namespace std;
@@ -1163,6 +1161,21 @@ bool DuettoWriter::isUnion(const Type* t) const
 		t->getStructName().startswith("union."));
 }
 
+bool DuettoWriter::canBeCalledIndirectly(const Function * f) const 
+{
+	assert(f);
+	function_indirect_call_map_t::iterator iter = functionIndirectCallMap.find(f);
+	
+	if (functionIndirectCallMap.end() == iter)
+	{
+		bool ans = f->hasAddressTaken() ||
+			f->empty(); //TODO: atm intrinsic functions are assumed to always be called indirectly
+		iter = functionIndirectCallMap.insert(std::make_pair(f, ans) ).first;
+	}
+
+	return iter->second;
+}
+
 bool DuettoWriter::safeUsagesForNewedMemory(const Value* v) const
 {
 	Value::const_use_iterator it=v->use_begin();
@@ -1553,8 +1566,8 @@ void DuettoWriter::compilePointer(const Value* v, POINTER_KIND acceptedKind)
 		else if(k==COMPLETE_OBJECT)
 		{
 			stream << "'s'}";
-			assert(!isNoSelfPointerOptimizable(v));
-			assert(!isNoWrappingArrayOptimizable(v));
+			assert(!isNoSelfPointerOptimizable(v) || printPointerInfo(v));
+			assert(!isNoWrappingArrayOptimizable(v) || printPointerInfo(v));
 		}
 	}
 }
@@ -1668,6 +1681,24 @@ void DuettoWriter::compileMethodArgs(const llvm::User::const_op_iterator it, con
 		if(cur!=it)
 			stream << ", ";
 		compileOperand(*cur, REGULAR);
+	}
+	stream << ')';
+}
+
+void DuettoWriter::compileMethodArgsForDirectCall(const llvm::User::const_op_iterator it,
+						const llvm::User::const_op_iterator itE,
+						llvm::Function::const_arg_iterator arg_it)
+{
+	stream << '(';
+	
+	for(llvm::User::const_op_iterator cur=it;cur!=itE;++cur, ++arg_it)
+	{
+		if(cur!=it)
+			stream << ", ";
+		if ( arg_it->getType()->isPointerTy() )
+			compileOperand(*cur, getPointerKind(&(*arg_it)));
+		else
+			compileOperand(*cur, REGULAR);
 	}
 	stream << ')';
 }
@@ -1869,7 +1900,16 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::compileNotInlineableIns
 			}
 			//If we are dealing with inline asm we are done
 			if(!ci.isInlineAsm())
-				compileMethodArgs(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands());
+			{
+				const Function * f = ci.getCalledFunction();
+				if ( f && !f->isVarArg() )
+				{
+					assert( f->getArgumentList().size() == ci.getNumArgOperands() );
+					compileMethodArgsForDirectCall(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands(),f->arg_begin() );
+				}
+				else
+					compileMethodArgs(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands());
+			}
 			return COMPILE_OK;
 		}
 		case Instruction::LandingPad:
@@ -3423,35 +3463,13 @@ void DuettoWriter::makeJS()
 	
 	for (known_pointers_t::iterator iter = debugAllPointersSet.begin(); iter != debugAllPointersSet.end(); ++iter)
 	{
-		const Value * v = *iter;
-		
-		std::ostringstream fmt;
-		fmt << std::setw(96) << std::left;
+		printPointerInfo(*iter);
+	}
 	
-		if (v->hasName())
-			fmt << v->getName().data();
-		else
-		{
-			std::ostringstream tmp;
-			tmp << "tmp" << getUniqueIndexForValue(v);
-			fmt << tmp.str();
-		}
-
-		fmt << std::setw(18) << std::left;
-		switch (getPointerKind(v))
-		{
-			case COMPLETE_OBJECT: fmt << "COMPLETE_OBJECT"; break;
-			case COMPLETE_ARRAY: fmt << "COMPLETE_ARRAY"; break;
-			case REGULAR: fmt << "REGULAR"; break;
-			default: fmt << "UNDECIDED"; break;
-		}
-		
-
-		fmt << std::setw(18) << std::left << getPointerUsageFlags(v);
-		fmt << std::setw(18) << std::left << getPointerUsageFlagsComplete(v);
-		fmt << std::setw(18) << std::left << std::boolalpha << isImmutableType( v->getType()->getPointerElementType() );
-
-		llvm::errs() << fmt.str() << "\n";
+	llvm::errs() << "Debug indirect function calls:\n";
+	for (function_indirect_call_map_t::iterator iter = functionIndirectCallMap.begin(); iter != functionIndirectCallMap.end(); ++iter)
+	{
+		llvm::errs() << iter->first->getName() << ": " << iter->second << "\n";
 	}
 #endif
 

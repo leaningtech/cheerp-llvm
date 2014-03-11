@@ -74,6 +74,13 @@ private:
 	bool isGEP(const llvm::Value* v) const;
 	bool isImmutableType(const llvm::Type* t) const;
 	bool isUnion(const llvm::Type* t) const;
+	
+	// Detect if a function can be used in an indirect call
+	bool canBeCalledIndirectly(const llvm::Function * f) const;
+	typedef std::map<const llvm::Function *, bool> function_indirect_call_map_t;
+	mutable function_indirect_call_map_t functionIndirectCallMap;
+
+	
 	// COMPILE_ADD_SELF is returned by AllocaInst when a self pointer must be added to the returned value
 	// COMPILE_EMPTY is returned if there is no need to add a ;\n to end the line
 	enum COMPILE_INSTRUCTION_FEEDBACK { COMPILE_OK = 0, COMPILE_UNSUPPORTED, COMPILE_ADD_SELF, COMPILE_EMPTY };
@@ -146,7 +153,7 @@ private:
 	typedef std::map<const llvm::Value *, POINTER_KIND> pointer_kind_map_t;
 	mutable pointer_kind_map_t pointerKindMap;
 
-	POINTER_KIND dfsPointerKind(const llvm::Value* v, std::map<const llvm::PHINode*, POINTER_KIND>& visitedPhis) const;
+	POINTER_KIND dfsPointerKind(const llvm::Value* v, std::map<const llvm::Value*, POINTER_KIND>& visitedPhis) const;
 	POINTER_KIND getPointerKind(const llvm::Value* v) const;
 	
 	// Functionalities provided by a pointer
@@ -188,6 +195,11 @@ private:
 #ifdef DUETTO_DEBUG_POINTERS
 	typedef std::set<const llvm::Value *> known_pointers_t;
 	mutable known_pointers_t debugAllPointersSet;
+	
+	// Debugging utility to send formatted output to llvm::errs. Always returns false for ease of use in assertions
+	bool printPointerInfo(const llvm::Value *);
+#else
+	bool printPointerInfo(const llvm::Value *) const {return false;}
 #endif //DUETTO_DEBUG_POINTERS
 	
 	// Detect if a no-self-pointer optimization is applicable to the pointer value
@@ -234,6 +246,7 @@ private:
 	void printVarName(const llvm::Value* v);
 	void printArgName(const llvm::Argument* v) const;
 	void compileMethodArgs(const llvm::User::const_op_iterator it, const llvm::User::const_op_iterator itE);
+	void compileMethodArgsForDirectCall(const llvm::User::const_op_iterator it, const llvm::User::const_op_iterator itE, llvm::Function::const_arg_iterator arg_it);
 	void handleBuiltinNamespace(const char* ident, llvm::User::const_op_iterator it,
 			llvm::User::const_op_iterator itE);
 	COMPILE_INSTRUCTION_FEEDBACK handleBuiltinCall(const char* ident, const llvm::Value* callV,
