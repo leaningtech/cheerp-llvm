@@ -515,26 +515,44 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
     // If we're storing the same value back to a pointer that we just
     // loaded from, then the store can be removed.
     if (StoreInst *SI = dyn_cast<StoreInst>(Inst)) {
+      bool shouldDelete = false;
       if (LoadInst *DepLoad = dyn_cast<LoadInst>(InstDep.getInst())) {
         if (SI->getPointerOperand() == DepLoad->getPointerOperand() &&
             SI->getOperand(0) == DepLoad && isRemovable(SI)) {
           DEBUG(dbgs() << "DSE: Remove Store Of Load from same pointer:\n  "
                        << "LOAD: " << *DepLoad << "\n  STORE: " << *SI << '\n');
 
-          // DeleteDeadInstruction can delete the current instruction.  Save BBI
-          // in case we need it.
-          WeakVH NextInst(BBI);
-
-          DeleteDeadInstruction(SI, *MD, TLI);
-
-          if (NextInst == 0)  // Next instruction deleted.
-            BBI = BB.begin();
-          else if (BBI != BB.begin())  // Revisit this instruction if possible.
-            --BBI;
-          ++NumFastStores;
-          MadeChange = true;
-          continue;
+          shouldDelete = true;
         }
+      }
+      else if(AllocaInst::classof(InstDep.getInst()))
+      {
+        const DataLayout* DL = AA->getDataLayout();
+        if (!DL->isByteAddressable())
+        {
+          // On Duetto newly allocated memory is already zeroed
+          if (Constant* COp = dyn_cast<Constant>(SI->getOperand(0)))
+          {
+            if(COp->isNullValue())
+              shouldDelete = true;
+          }
+        }
+      }
+      if (shouldDelete)
+      {
+        // DeleteDeadInstruction can delete the current instruction.  Save BBI
+        // in case we need it.
+        WeakVH NextInst(BBI);
+
+        DeleteDeadInstruction(SI, *MD, TLI);
+
+        if (NextInst == 0)  // Next instruction deleted.
+          BBI = BB.begin();
+        else if (BBI != BB.begin())  // Revisit this instruction if possible.
+          --BBI;
+        ++NumFastStores;
+        MadeChange = true;
+        continue;
       }
     }
 
