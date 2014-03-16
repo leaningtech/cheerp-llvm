@@ -528,7 +528,7 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
       else if(AllocaInst::classof(InstDep.getInst()))
       {
         const DataLayout* DL = AA->getDataLayout();
-        if (!DL->isByteAddressable())
+        if (DL && !DL->isByteAddressable())
         {
           // On Duetto newly allocated memory is already zeroed
           if (Constant* COp = dyn_cast<Constant>(SI->getOperand(0)))
