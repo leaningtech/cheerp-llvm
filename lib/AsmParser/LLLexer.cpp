@@ -631,6 +631,8 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(sanitize_memory);
   KEYWORD(uwtable);
   KEYWORD(zeroext);
+  KEYWORD(client);
+  KEYWORD(server);
   KEYWORD(typed_intrinsic);
 
   KEYWORD(type);
