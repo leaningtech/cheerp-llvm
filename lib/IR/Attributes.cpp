@@ -354,8 +354,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "client";
   if (hasAttribute(Attribute::Server))
     return "server";
-  if (hasAttribute(Attribute::IsCast))
-    return "iscast";
+  if (hasAttribute(Attribute::TypedIntrinsic))
+    return "typed_intrinsic";
 
   // FIXME: These should be output like this:
   //
