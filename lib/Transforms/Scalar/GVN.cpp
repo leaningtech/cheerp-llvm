@@ -281,19 +281,10 @@ void ValueTable::add(Value *V, uint32_t num) {
 uint32_t ValueTable::lookup_or_add_call(CallInst *C) {
   if (AA->doesNotAccessMemory(C)) {
     Expression exp = create_expression(C);
-    if (C->hasFnAttr(Attribute::IsCast))
-    {
-      uint32_t e = nextValueNumber++;
-      valueNumbering[C] = e;
-      return e;
-    }
-    else
-    {
-      uint32_t &e = expressionNumbering[exp];
-      if (!e) e = nextValueNumber++;
-      valueNumbering[C] = e;
-      return e;
-    }
+    uint32_t &e = expressionNumbering[exp];
+    if (!e) e = nextValueNumber++;
+    valueNumbering[C] = e;
+    return e;
   } else if (AA->onlyReadsMemory(C)) {
     Expression exp = create_expression(C);
     uint32_t &e = expressionNumbering[exp];
