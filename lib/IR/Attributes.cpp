@@ -234,8 +234,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "client";
   if (hasAttribute(Attribute::Server))
     return "server";
-  if (hasAttribute(Attribute::IsCast))
-    return "iscast";
+  if (hasAttribute(Attribute::TypedIntrinsic))
+    return "typed_intrinsic";
 
   // FIXME: These should be output like this:
   //
@@ -399,7 +399,7 @@ uint64_t AttributeImpl::getAttrMask(Attribute::AttrKind Val) {
   case Attribute::InAlloca:        return 1ULL << 43;
   case Attribute::Client:          return 1ULL << 44;
   case Attribute::Server:          return 1ULL << 45;
-  case Attribute::IsCast:          return 1ULL << 46;
+  case Attribute::TypedIntrinsic:  return 1ULL << 46;
   }
   llvm_unreachable("Unsupported attribute type");
 }

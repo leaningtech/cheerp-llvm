@@ -510,8 +510,8 @@ struct AttributeComparator {
     ModRefKind RK = getModRefKind(*R);
     if (LK != RK) return (LK > RK);
 
-    if (L->isCast != R->isCast)
-      return R->isCast;
+    if (L->isFullyTyped != R->isFullyTyped)
+      return R->isFullyTyped;
 
     // Order by argument attributes.
     // This is reliable because each side is already sorted internally.
@@ -619,7 +619,7 @@ EmitAttributes(const std::vector<CodeGenIntrinsic> &Ints, raw_ostream &OS) {
 
     ModRefKind modRef = getModRefKind(intrinsic);
 
-    if (!intrinsic.canThrow || modRef || intrinsic.isNoReturn || intrinsic.isCast) {
+    if (!intrinsic.canThrow || modRef || intrinsic.isNoReturn || intrinsic.isFullyTyped) {
       OS << "      const Attribute::AttrKind Atts[] = {";
       bool addComma = false;
       if (!intrinsic.canThrow) {
@@ -632,10 +632,10 @@ EmitAttributes(const std::vector<CodeGenIntrinsic> &Ints, raw_ostream &OS) {
         OS << "Attribute::NoReturn";
         addComma = true;
       }
-      if (intrinsic.isCast) {
+      if (intrinsic.isFullyTyped) {
         if (addComma)
           OS << ",";
-        OS << "Attribute::IsCast";
+        OS << "Attribute::TypedIntrinsic";
         addComma = true;
       }
 

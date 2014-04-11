@@ -606,6 +606,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(sanitize_memory);
   KEYWORD(uwtable);
   KEYWORD(zeroext);
+  KEYWORD(typed_intrinsic);
 
   KEYWORD(type);
   KEYWORD(opaque);
