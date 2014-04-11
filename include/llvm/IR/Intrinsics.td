@@ -73,9 +73,8 @@ def IntrNoReturn : IntrinsicProperty;
 // Parallels the noduplicate attribute on LLVM IR functions.
 def IntrNoDuplicate : IntrinsicProperty;
 
-// IntrIsCast - The intrinsic is a placeholder for a cast, it should not be collapsed
-// with another one
-def IntrIsCast : IntrinsicProperty;
+// IntrFullyTyped - The intrinsic uses fully typed pointers
+def IntrFullyTyped : IntrinsicProperty;
 
 //===----------------------------------------------------------------------===//
 // Types used by intrinsics.

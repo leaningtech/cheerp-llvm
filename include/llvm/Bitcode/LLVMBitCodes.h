@@ -379,7 +379,7 @@ namespace bitc {
     ATTR_KIND_DEREFERENCEABLE = 41,
     ATTR_KIND_CLIENT = 42,
     ATTR_KIND_SERVER = 43,
-    ATTR_KIND_ISCAST = 44
+    ATTR_KIND_TYPED_INTRINSIC = 44
   };
 
   enum ComdatSelectionKindCodes {

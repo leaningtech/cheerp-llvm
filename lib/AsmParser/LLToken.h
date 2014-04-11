@@ -139,6 +139,7 @@ namespace lltok {
     kw_sanitize_memory,
     kw_uwtable,
     kw_zeroext,
+    kw_typed_intrinsic,
 
     kw_type,
     kw_opaque,

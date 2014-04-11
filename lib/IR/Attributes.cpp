@@ -253,8 +253,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "client";
   if (hasAttribute(Attribute::Server))
     return "server";
-  if (hasAttribute(Attribute::IsCast))
-    return "iscast";
+  if (hasAttribute(Attribute::TypedIntrinsic))
+    return "typed_intrinsic";
 
   // FIXME: These should be output like this:
   //
@@ -434,6 +434,7 @@ uint64_t AttributeImpl::getAttrMask(Attribute::AttrKind Val) {
   case Attribute::JumpTable:       return 1ULL << 45;
   case Attribute::Client:          return 1ULL << 46;
   case Attribute::Server:          return 1ULL << 47;
+  case Attribute::TypedIntrinsic:  return 1ULL << 48;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");
   }
