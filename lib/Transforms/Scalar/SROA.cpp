@@ -447,7 +447,7 @@ private:
     // alloca partitions into a single partition suitable for integer widening.
     // Or we should skip the merge step and rely on GVN and other passes to
     // merge adjacent loads and stores that survive mem2reg.
-    bool IsSplittable =
+    bool IsSplittable = DL.isByteAddressable() &&
         Ty->isIntegerTy() && !IsVolatile && Offset == 0 && Size >= AllocSize;
 
     insertUse(I, Offset, Size, IsSplittable);
@@ -1517,7 +1517,12 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
 
   // On the off chance we were targeting i8*, guard the bitcast here.
   if (Ptr->getType() != PointerTy)
+  {
+    // Duetto: We don't accept a unsafe cast
+    if(!DL.isByteAddressable())
+      return NULL;
     Ptr = IRB.CreateBitCast(Ptr, PointerTy, NamePrefix + "sroa_cast");
+  }
 
   return Ptr;
 }
@@ -2080,7 +2085,7 @@ public:
     SliceSize = NewEndOffset - NewBeginOffset;
 
     OldUse = I->getUse();
-    OldPtr = cast<Instruction>(OldUse->get());
+    OldPtr = cast<Instruction>(OldUse->get()->stripPointerCastsSafe());
 
     Instruction *OldUserI = cast<Instruction>(OldUse->getUser());
     IRB.SetInsertPoint(OldUserI);
@@ -2140,6 +2145,25 @@ private:
                           );
   }
 
+  Value *getAllocaCompatiblePtr(IRBuilderTy &IRB, Value* BasePtr, const APInt& BaseOffset, Type *TargetTy) {
+    assert(NewBeginOffset==NewAllocaBeginOffset);
+    while(1)
+    {
+      Value *RetPtr = getAdjustedPtr(IRB, DL, BasePtr, BaseOffset, TargetTy->getPointerTo(),
+                                BasePtr->getName() + ".");
+      if (RetPtr)
+        return RetPtr;
+
+      if(TargetTy->isStructTy())
+        TargetTy = TargetTy->getContainedType(0);
+      else if(TargetTy->isArrayTy())
+        TargetTy = TargetTy->getSequentialElementType();
+      else
+        assert(false && "Unsupported SROA for memcpy");
+     }
+     return NULL;
+  }
+
   /// \brief Compute suitable alignment to access this slice of the *new* alloca.
   ///
   /// You can optionally pass a type to this routine and if that type's ABI
@@ -2193,7 +2217,7 @@ private:
 
   bool visitLoadInst(LoadInst &LI) {
     DEBUG(dbgs() << "    original: " << LI << "\n");
-    Value *OldOp = LI.getOperand(0);
+    Value *OldOp = LI.getOperand(0)->stripPointerCastsSafe();
     assert(OldOp == OldPtr);
 
     Type *TargetTy = IsSplit ? Type::getIntNTy(LI.getContext(), SliceSize * 8)
@@ -2297,7 +2321,7 @@ private:
 
   bool visitStoreInst(StoreInst &SI) {
     DEBUG(dbgs() << "    original: " << SI << "\n");
-    Value *OldOp = SI.getOperand(1);
+    Value *OldOp = SI.getOperand(1)->stripPointerCastsSafe();
     assert(OldOp == OldPtr);
 
     Value *V = SI.getValueOperand();
@@ -2381,7 +2405,7 @@ private:
 
   bool visitMemSetInst(MemSetInst &II) {
     DEBUG(dbgs() << "    original: " << II << "\n");
-    assert(II.getRawDest() == OldPtr);
+    assert(II.getDest(false) == OldPtr);
 
     // If the memset has a variable size, it cannot be split, just adjust the
     // pointer to the new alloca.
@@ -2412,8 +2436,11 @@ private:
          DL.getTypeSizeInBits(ScalarTy)%8 != 0)) {
       Type *SizeTy = II.getLength()->getType();
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
+      Value* OurPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      if (!OurPtr)
+        OurPtr = &NewAI;
       CallInst *New = IRB.CreateMemSet(
-          getNewAllocaSlicePtr(IRB, OldPtr->getType()), II.getValue(), Size,
+          OurPtr, II.getValue(), Size,
           getSliceAlign(), II.isVolatile());
       (void)New;
       DEBUG(dbgs() << "          to: " << *New << "\n");
@@ -2492,8 +2519,8 @@ private:
     DEBUG(dbgs() << "    original: " << II << "\n");
 
     bool IsDest = &II.getRawDestUse() == OldUse;
-    assert((IsDest && II.getRawDest() == OldPtr) ||
-           (!IsDest && II.getRawSource() == OldPtr));
+    assert((IsDest && II.getDest(false) == OldPtr) ||
+           (!IsDest && II.getSource(false) == OldPtr));
 
     unsigned SliceAlign = getSliceAlign();
 
@@ -2506,6 +2533,8 @@ private:
     // update both source and dest of a single call.
     if (!IsSplittable) {
       Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      if (AdjustedPtr->getType() != IRB.getInt8PtrTy(cast<PointerType>(AdjustedPtr->getType())->getAddressSpace()))
+        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, IRB.getInt8PtrTy());
       if (IsDest)
         II.setDest(AdjustedPtr);
       else
@@ -2552,7 +2581,7 @@ private:
 
     // Strip all inbounds GEPs and pointer casts to try to dig out any root
     // alloca that should be re-examined after rewriting this instruction.
-    Value *OtherPtr = IsDest ? II.getRawSource() : II.getRawDest();
+    Value *OtherPtr = IsDest ? II.getSource(DL.isByteAddressable()) : II.getDest(DL.isByteAddressable());
     if (AllocaInst *AI
           = dyn_cast<AllocaInst>(OtherPtr->stripInBoundsOffsets())) {
       assert(AI != &OldAI && AI != &NewAI &&
@@ -2572,10 +2601,18 @@ private:
     if (EmitMemCpy) {
       // Compute the other pointer, folding as much as possible to produce
       // a single, simple GEP in most cases.
-      OtherPtr = getAdjustedPtr(IRB, DL, OtherPtr, OtherOffset, OtherPtrTy,
-                                OtherPtr->getName() + ".");
 
       Value *OurPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      if (!OurPtr) {
+        // It's not possible to get the right type from the alloca.
+        // This means that we need to look the other way around.
+        OtherPtr = getAllocaCompatiblePtr(IRB, OtherPtr, OtherOffset, NewAI.getAllocatedType());
+        OurPtr = getNewAllocaSlicePtr(IRB, OtherPtr->getType());
+      } else {
+        OtherPtr = getAdjustedPtr(IRB, DL, OtherPtr, OtherOffset, OtherPtrTy,
+                                  OtherPtr->getName() + ".");
+      }
+
       Type *SizeTy = II.getLength()->getType();
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
 
@@ -2661,7 +2698,7 @@ private:
     assert(II.getIntrinsicID() == Intrinsic::lifetime_start ||
            II.getIntrinsicID() == Intrinsic::lifetime_end);
     DEBUG(dbgs() << "    original: " << II << "\n");
-    assert(II.getArgOperand(1) == OldPtr);
+    assert(II.getArgOperand(1)->stripPointerCastsSafe() == OldPtr);
 
     // Record this instruction for deletion.
     Pass.DeadInsts.insert(&II);
@@ -2669,7 +2706,8 @@ private:
     ConstantInt *Size
       = ConstantInt::get(cast<IntegerType>(II.getArgOperand(0)->getType()),
                          NewEndOffset - NewBeginOffset);
-    Value *Ptr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+    // A lifetime intrinsic works on the whole partition
+    Value *Ptr = &NewAI;
     Value *New;
     if (II.getIntrinsicID() == Intrinsic::lifetime_start)
       New = IRB.CreateLifetimeStart(Ptr, Size);
@@ -2710,7 +2748,7 @@ private:
 
   bool visitSelectInst(SelectInst &SI) {
     DEBUG(dbgs() << "    original: " << SI << "\n");
-    assert((SI.getTrueValue() == OldPtr || SI.getFalseValue() == OldPtr) &&
+    assert((SI.getTrueValue()->stripPointerCastsSafe() == OldPtr || SI.getFalseValue()->stripPointerCastsSafe() == OldPtr) &&
            "Pointer isn't an operand!");
     assert(BeginOffset >= NewAllocaBeginOffset && "Selects are unsplittable");
     assert(EndOffset <= NewAllocaEndOffset && "Selects are unsplittable");
@@ -3060,6 +3098,10 @@ static Type *getTypePartition(const DataLayout &DL, Type *Ty,
   if (Size == ElementSize)
     return stripAggregateTypeWrapping(DL, ElementTy);
 
+  // Duetto: Do not try to create subtypes.
+  // Memcpy/memsets works only on whole objects.
+  if (!DL.isByteAddressable())
+    return 0;
   StructType::element_iterator EI = STy->element_begin() + Index,
                                EE = STy->element_end();
   if (EndOffset < SL->getSizeInBytes()) {
@@ -3121,7 +3163,11 @@ bool SROA::rewritePartition(AllocaInst &AI, AllocaSlices &S,
       DL->isLegalInteger(SliceSize * 8))
     SliceTy = Type::getIntNTy(*C, SliceSize * 8);
   if (!SliceTy)
+  {
+    if (!DL->isByteAddressable())
+      return false;
     SliceTy = ArrayType::get(Type::getInt8Ty(*C), SliceSize);
+  }
   assert(DL->getTypeAllocSize(SliceTy) >= SliceSize);
 
   bool IsVectorPromotable = isVectorPromotionViable(
@@ -3613,8 +3659,6 @@ bool SROA::runOnFunction(Function &F) {
   DominatorTreeWrapperPass *DTWP =
       getAnalysisIfAvailable<DominatorTreeWrapperPass>();
   DT = DTWP ? &DTWP->getDomTree() : 0;
-  if (!DL->isByteAddressable())
-    return false;
 
   BasicBlock &EntryBB = F.getEntryBlock();
   for (BasicBlock::iterator I = EntryBB.begin(), E = std::prev(EntryBB.end());
