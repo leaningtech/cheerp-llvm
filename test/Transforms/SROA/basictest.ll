@@ -85,25 +85,25 @@ entry:
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %src, i32 42
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 42
 ; CHECK-NEXT: %[[test3_r1:.*]] = load i8* %[[gep]]
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 43
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [99 x i8]* %[[test3_a2]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 43
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 99
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 142
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [16 x i8]* %[[test3_a3]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 142
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 16
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 158
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [42 x i8]* %[[test3_a4]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 158
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 42
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 200
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 200
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 207
 ; CHECK-NEXT: %[[test3_r2:.*]] = load i8* %[[gep]]
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 208
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a6]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 208
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 215
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [85 x i8]* %[[test3_a7]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 215
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 85
 
   ; Clobber a single element of the array, this should be promotable.
@@ -247,8 +247,8 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %overlap2.prefix, i8* %src, i32 8, i32 1, i1 false)
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [42 x i8]* %[[test3_a4]], i64 0, i64 39
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %src, i32 3
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 3
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 3
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 5
 
   ; Bridge between the overlapping areas
@@ -268,8 +268,8 @@ entry:
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %overlap2.2.2.i8, i8* %src, i32 8, i32 1, i1 false)
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a6]], i64 0, i64 2
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep]], i8* %src, i32 5
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 5
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [85 x i8]* %[[test3_a7]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 5
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 3
 
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dst, i8* %b, i32 300, i32 1, i1 false)
@@ -277,25 +277,25 @@ entry:
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dst, i8* %[[gep]], i32 42
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 42
 ; CHECK-NEXT: store i8 0, i8* %[[gep]]
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 43
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [99 x i8]* %[[test3_a2]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 43
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 99
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 142
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [16 x i8]* %[[test3_a3]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 142
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 16
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 158
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [42 x i8]* %[[test3_a4]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 158
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 42
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 200
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 200
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 207
 ; CHECK-NEXT: store i8 42, i8* %[[gep]]
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 208
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test3_a6]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 208
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 215
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [85 x i8]* %[[test3_a7]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 215
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 85
 
   ret void
@@ -323,37 +323,37 @@ entry:
 ; CHECK-NEXT: %[[test4_r1:.*]] = load i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 22
 ; CHECK-NEXT: %[[test4_r2:.*]] = load i8* %[[gep]]
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 23
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a2]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 23
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 30
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [10 x i8]* %[[test4_a3]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 30
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 10
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 40
 ; CHECK-NEXT: %[[bitcast:.*]] = bitcast i8* %[[gep]] to i16*
 ; CHECK-NEXT: %[[test4_r3:.*]] = load i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 42
 ; CHECK-NEXT: %[[test4_r4:.*]] = load i8* %[[gep]]
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 43
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 43
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 50
 ; CHECK-NEXT: %[[bitcast:.*]] = bitcast i8* %[[gep]] to i16*
 ; CHECK-NEXT: %[[test4_r5:.*]] = load i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %src, i64 52
 ; CHECK-NEXT: %[[test4_r6:.*]] = load i8* %[[gep]]
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 53
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 53
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 60
 ; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [40 x i8]* %[[test4_a6]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds i8* %src, i64 60
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 40
 
   %a.src.1 = getelementptr [100 x i8]* %a, i64 0, i64 20
   %a.dst.1 = getelementptr [100 x i8]* %a, i64 0, i64 40
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %a.dst.1, i8* %a.src.1, i32 10, i32 1, i1 false)
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a2]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 
   ; Clobber a single element of the array, this should be promotable, and be deleted.
@@ -362,8 +362,8 @@ entry:
 
   %a.src.2 = getelementptr [100 x i8]* %a, i64 0, i64 50
   call void @llvm.memmove.p0i8.p0i8.i32(i8* %a.dst.1, i8* %a.src.2, i32 10, i32 1, i1 false)
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 
   call void @llvm.memcpy.p0i8.p0i8.i32(i8* %dst, i8* %b, i32 100, i32 1, i1 false)
@@ -374,30 +374,30 @@ entry:
 ; CHECK-NEXT: store i16 %[[test4_r1]], i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 22
 ; CHECK-NEXT: store i8 %[[test4_r2]], i8* %[[gep]]
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 23
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a2]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 23
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 30
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [10 x i8]* %[[test4_a3]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 30
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 10
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 40
 ; CHECK-NEXT: %[[bitcast:.*]] = bitcast i8* %[[gep]] to i16*
 ; CHECK-NEXT: store i16 %[[test4_r5]], i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 42
 ; CHECK-NEXT: store i8 %[[test4_r6]], i8* %[[gep]]
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 43
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a4]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 43
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 50
 ; CHECK-NEXT: %[[bitcast:.*]] = bitcast i8* %[[gep]] to i16*
 ; CHECK-NEXT: store i16 %[[test4_r5]], i16* %[[bitcast]]
 ; CHECK-NEXT: %[[gep:.*]] = getelementptr inbounds i8* %dst, i64 52
 ; CHECK-NEXT: store i8 %[[test4_r6]], i8* %[[gep]]
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 53
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [7 x i8]* %[[test4_a5]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 53
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 7
-; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 60
 ; CHECK-NEXT: %[[gep_src:.*]] = getelementptr inbounds [40 x i8]* %[[test4_a6]], i64 0, i64 0
+; CHECK-NEXT: %[[gep_dst:.*]] = getelementptr inbounds i8* %dst, i64 60
 ; CHECK-NEXT: call void @llvm.memcpy.p0i8.p0i8.i32(i8* %[[gep_dst]], i8* %[[gep_src]], i32 40
 
   ret void
@@ -1142,7 +1142,7 @@ entry:
 ; CHECK: alloca [16 x i8], align 8
 
   %gep = getelementptr inbounds { [16 x i8] }* %ptr, i64 -1
-; CHECK-NEXT: getelementptr inbounds { [16 x i8] }* %ptr, i64 -1, i32 0, i64 0
+; CHECK: getelementptr inbounds { [16 x i8] }* %ptr, i64 -1
 
   %cast1 = bitcast { [16 x i8 ] }* %gep to i8*
   %cast2 = bitcast { [16 x i8 ] }* %a to i8*
@@ -1160,7 +1160,7 @@ entry:
 ; CHECK: alloca [16 x i8], align 8
 
   %gep = getelementptr inbounds { [16 x i8] } addrspace(1)* %ptr, i64 -1
-; CHECK-NEXT: getelementptr inbounds { [16 x i8] } addrspace(1)* %ptr, i16 -1, i32 0, i16 0
+; CHECK: getelementptr inbounds { [16 x i8] } addrspace(1)* %ptr, i16 -1
 
   %cast1 = bitcast { [16 x i8 ] } addrspace(1)* %gep to i8 addrspace(1)*
   %cast2 = bitcast { [16 x i8 ] }* %a to i8*
