@@ -2359,7 +2359,7 @@ public:
     SliceSize = NewEndOffset - NewBeginOffset;
 
     OldUse = I->getUse();
-    OldPtr = cast<Instruction>(OldUse->get()->stripPointerCastsSafe());
+    OldPtr = cast<Instruction>(OldUse->get());
 
     Instruction *OldUserI = cast<Instruction>(OldUse->getUser());
     IRB.SetInsertPoint(OldUserI);
@@ -2504,7 +2504,7 @@ private:
 
   bool visitLoadInst(LoadInst &LI) {
     LLVM_DEBUG(dbgs() << "    original: " << LI << "\n");
-    Value *OldOp = LI.getOperand(0)->stripPointerCastsSafe();
+    Value *OldOp = LI.getOperand(0);
     assert(OldOp == OldPtr);
 
     AAMDNodes AATags;
@@ -2659,7 +2659,7 @@ private:
 
   bool visitStoreInst(StoreInst &SI) {
     LLVM_DEBUG(dbgs() << "    original: " << SI << "\n");
-    Value *OldOp = SI.getOperand(1)->stripPointerCastsSafe();
+    Value *OldOp = SI.getOperand(1);
     assert(OldOp == OldPtr);
 
     AAMDNodes AATags;
@@ -2766,7 +2766,8 @@ private:
 
   bool visitMemSetInst(MemSetInst &II) {
     LLVM_DEBUG(dbgs() << "    original: " << II << "\n");
-    assert(II.getDest(false) == OldPtr);
+    assert(II.getRawDest() == OldPtr);
+    Type *RealPtrTy = OldPtr->stripPointerCastsSafe()->getType();
 
     AAMDNodes AATags;
     II.getAAMetadata(AATags);
@@ -2776,7 +2777,10 @@ private:
     if (!isa<Constant>(II.getLength())) {
       assert(!IsSplit);
       assert(NewBeginOffset == BeginOffset);
-      II.setDest(getNewAllocaSlicePtr(IRB, OldPtr->getType()));
+      Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
+      if (AdjustedPtr->getType() != IRB.getInt8PtrTy(cast<PointerType>(AdjustedPtr->getType())->getAddressSpace()))
+        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, IRB.getInt8PtrTy());
+      II.setDest(AdjustedPtr);
       II.setDestAlignment(getSliceAlign());
 
       deleteIfTriviallyDead(OldPtr);
@@ -2810,7 +2814,7 @@ private:
     if (!CanContinue) {
       Type *SizeTy = II.getLength()->getType();
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
-      Value* OurPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      Value* OurPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
       if (!OurPtr)
         OurPtr = &NewAI;
       CallInst *New = IRB.CreateMemSet(
@@ -2898,8 +2902,9 @@ private:
     II.getAAMetadata(AATags);
 
     bool IsDest = &II.getRawDestUse() == OldUse;
-    assert((IsDest && II.getDest(false) == OldPtr) ||
-           (!IsDest && II.getSource(false) == OldPtr));
+    assert((IsDest && II.getRawDest() == OldPtr) ||
+           (!IsDest && II.getRawSource() == OldPtr));
+    Type *RealPtrTy = OldPtr->stripPointerCastsSafe()->getType();
 
     unsigned SliceAlign = getSliceAlign();
 
@@ -2911,7 +2916,7 @@ private:
     // memcpy, and so simply updating the pointers is the necessary for us to
     // update both source and dest of a single call.
     if (!IsSplittable) {
-      Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
       if (AdjustedPtr->getType() != IRB.getInt8PtrTy(cast<PointerType>(AdjustedPtr->getType())->getAddressSpace()))
         AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, IRB.getInt8PtrTy());
       if (IsDest) {
@@ -2982,7 +2987,7 @@ private:
       // Compute the other pointer, folding as much as possible to produce
       // a single, simple GEP in most cases.
 
-      Value *OurPtr = getNewAllocaSlicePtr(IRB, OldPtr->getType());
+      Value *OurPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
       if (!OurPtr) {
         // It's not possible to get the right type from the alloca.
         // This means that we need to look the other way around.
@@ -3095,7 +3100,7 @@ private:
   bool visitIntrinsicInst(IntrinsicInst &II) {
     assert(II.isLifetimeStartOrEnd());
     LLVM_DEBUG(dbgs() << "    original: " << II << "\n");
-    assert(II.getArgOperand(1)->stripPointerCastsSafe() == OldPtr);
+    assert(II.getArgOperand(1) == OldPtr);
 
     // Record this instruction for deletion.
     Pass.DeadInsts.insert(&II);
@@ -3200,7 +3205,7 @@ private:
 
   bool visitSelectInst(SelectInst &SI) {
     LLVM_DEBUG(dbgs() << "    original: " << SI << "\n");
-    assert((SI.getTrueValue()->stripPointerCastsSafe() == OldPtr || SI.getFalseValue()->stripPointerCastsSafe() == OldPtr) &&
+    assert((SI.getTrueValue() == OldPtr || SI.getFalseValue() == OldPtr) &&
            "Pointer isn't an operand!");
     assert(BeginOffset >= NewAllocaBeginOffset && "Selects are unsplittable");
     assert(EndOffset <= NewAllocaEndOffset && "Selects are unsplittable");
