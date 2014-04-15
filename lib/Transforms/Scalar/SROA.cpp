@@ -341,10 +341,11 @@ class AllocaSlices::SliceBuilder : public PtrUseVisitor<SliceBuilder> {
   /// \brief Set to de-duplicate dead instructions found in the use walk.
   SmallPtrSet<Instruction *, 4> VisitedDeadInsts;
 
+  Type* CastDestTy;
 public:
   SliceBuilder(const DataLayout &DL, AllocaInst &AI, AllocaSlices &S)
       : PtrUseVisitor<SliceBuilder>(DL),
-        AllocSize(DL.getTypeAllocSize(AI.getAllocatedType())), S(S) {}
+        AllocSize(DL.getTypeAllocSize(AI.getAllocatedType())), S(S), CastDestTy(NULL) {}
 
 private:
   void markAsDead(Instruction &I) {
@@ -390,6 +391,10 @@ private:
     if (BC.use_empty())
       return markAsDead(BC);
 
+    if (!CastDestTy)
+      CastDestTy = BC.getType();
+    else if (CastDestTy != BC.getType() && !DL.isByteAddressable())
+      PI.setAborted(&BC);
     return Base::visitBitCastInst(BC);
   }
 
@@ -635,6 +640,13 @@ private:
       } else if (!isa<BitCastInst>(I) && !isa<PHINode>(I) &&
                  !isa<SelectInst>(I)) {
         return I;
+      }
+
+      if (BitCastInst* BC = dyn_cast<BitCastInst>(I)) {
+        if (!CastDestTy)
+          CastDestTy = BC->getType();
+        else if (CastDestTy != BC->getType() && !DL.isByteAddressable())
+          return BC;
       }
 
       for (User *U : I->users())
