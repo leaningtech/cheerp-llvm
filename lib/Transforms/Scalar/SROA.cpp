@@ -1756,6 +1756,8 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
       APInt GEPOffset(Offset.getBitWidth(), 0);
       if (!GEP->accumulateConstantOffset(DL, GEPOffset))
         break;
+      if (GEPOffset.isNegative())
+        break;
       Offset += GEPOffset;
       Ptr = GEP->getPointerOperand();
       if (!Visited.insert(Ptr).second)
