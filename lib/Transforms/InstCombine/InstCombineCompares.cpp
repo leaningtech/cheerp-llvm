@@ -1981,7 +1981,9 @@ static Instruction *ProcessUGT_ADDCST_ADD(ICmpInst &I, Value *A, Value *B,
 }
 
 static Instruction *ProcessUAddIdiom(Instruction &I, Value *OrigAddV,
-                                     InstCombiner &IC) {
+                                     InstCombiner &IC, const DataLayout* DL) {
+  if (!DL || !DL->isByteAddressable()) return 0;
+
   // Don't bother doing this transformation for pointers, don't do it for
   // vectors.
   if (!isa<IntegerType>(OrigAddV->getType())) return 0;
@@ -2868,7 +2870,7 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
     if (I.getPredicate() == ICmpInst::ICMP_ULT &&
         match(Op0, m_Add(m_Value(A), m_Value(B))) &&
         (Op1 == A || Op1 == B))
-      if (Instruction *R = ProcessUAddIdiom(I, Op0, *this))
+      if (Instruction *R = ProcessUAddIdiom(I, Op0, *this, DL))
         return R;
 
     // a >u (a+b)  --> llvm.uadd.with.overflow.
@@ -2876,7 +2878,7 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
     if (I.getPredicate() == ICmpInst::ICMP_UGT &&
         match(Op1, m_Add(m_Value(A), m_Value(B))) &&
         (Op0 == A || Op0 == B))
-      if (Instruction *R = ProcessUAddIdiom(I, Op1, *this))
+      if (Instruction *R = ProcessUAddIdiom(I, Op1, *this, DL))
         return R;
   }
 
