@@ -114,6 +114,7 @@ public:
     ZExt,                  ///< Zero extended before/after call
     Client,                ///< Client side method for duetto
     Server,                ///< Server side method for duetto
+    Static,                ///< Static method, needed for static client methods
     TypedIntrinsic,        ///< An intrinsic which uses fully typed pointers
 
     EndAttrKinds           ///< Sentinal value useful for loops

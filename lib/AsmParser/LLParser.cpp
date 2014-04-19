@@ -974,6 +974,7 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_client:            B.addAttribute(Attribute::Client); break;
     case lltok::kw_server:            B.addAttribute(Attribute::Server); break;
     case lltok::kw_typed_intrinsic:   B.addAttribute(Attribute::TypedIntrinsic); break;
+    case lltok::kw_static:            B.addAttribute(Attribute::Static); break;
 
     // Error handling.
     case lltok::kw_inreg:

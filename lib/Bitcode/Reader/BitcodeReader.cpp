@@ -763,6 +763,8 @@ static Attribute::AttrKind GetAttrFromCode(uint64_t Code) {
     return Attribute::Client;
   case bitc::ATTR_KIND_SERVER:
     return Attribute::Server;
+  case bitc::ATTR_KIND_STATIC:
+    return Attribute::Static;
   case bitc::ATTR_KIND_TYPED_INTRINSIC:
     return Attribute::TypedIntrinsic;
   }

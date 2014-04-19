@@ -841,6 +841,7 @@ void Verifier::VerifyAttributeTypes(AttributeSet Attrs, unsigned Idx,
         I->getKindAsEnum() == Attribute::JumpTable ||
         I->getKindAsEnum() == Attribute::Client ||
         I->getKindAsEnum() == Attribute::Server ||
+        I->getKindAsEnum() == Attribute::Static ||
         I->getKindAsEnum() == Attribute::TypedIntrinsic) {
       if (!isFunction) {
         CheckFailed("Attribute '" + I->getAsString() +
