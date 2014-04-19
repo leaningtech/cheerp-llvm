@@ -729,6 +729,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_SANITIZE_MEMTAG;
   case Attribute::TypedIntrinsic:
     return bitc::ATTR_KIND_TYPED_INTRINSIC;
+  case Attribute::Static:
+    return bitc::ATTR_KIND_STATIC;
   case Attribute::EndAttrKinds:
     llvm_unreachable("Can not encode end-attribute kinds marker.");
   case Attribute::None:

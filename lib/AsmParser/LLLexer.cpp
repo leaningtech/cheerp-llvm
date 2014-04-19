@@ -691,6 +691,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(zeroext);
   KEYWORD(immarg);
   KEYWORD(typed_intrinsic);
+  KEYWORD(static);
 
   KEYWORD(type);
   KEYWORD(opaque);

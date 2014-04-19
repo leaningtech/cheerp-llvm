@@ -1280,6 +1280,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
     return 1ULL << 62;
   case Attribute::NoFree:
     return 1ULL << 63;
+  case Attribute::Static:          return 1ULL << 64;
   case Attribute::NoSync:
     llvm_unreachable("nosync attribute not supported in raw format");
     break;
@@ -1540,8 +1541,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::ImmArg;
   case bitc::ATTR_KIND_SANITIZE_MEMTAG:
     return Attribute::SanitizeMemTag;
-  case bitc::ATTR_KIND_TYPED_INTRINSIC:
-    return Attribute::TypedIntrinsic;
+  case bitc::ATTR_KIND_STATIC:
+    return Attribute::Static;
   }
 }
 
