@@ -1128,6 +1128,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::SwiftError:      return 1ULL << 52;
   case Attribute::WriteOnly:       return 1ULL << 53;
   case Attribute::Speculatable:    return 1ULL << 54;
+  case Attribute::Static:          return 1ULL << 55;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");
     break;
@@ -1358,6 +1359,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Client;
   case bitc::ATTR_KIND_SERVER:
     return Attribute::Server;
+  case bitc::ATTR_KIND_STATIC:
+    return Attribute::Static;
   case bitc::ATTR_KIND_TYPED_INTRINSIC:
     return Attribute::TypedIntrinsic;
   }
