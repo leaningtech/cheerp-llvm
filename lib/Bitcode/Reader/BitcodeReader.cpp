@@ -1188,6 +1188,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::ShadowCallStack: return 1ULL << 59;
   case Attribute::SpeculativeLoadHardening:
     return 1ULL << 60;
+  case Attribute::Static:          return 1ULL << 61;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");
     break;
@@ -1428,6 +1429,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Client;
   case bitc::ATTR_KIND_SERVER:
     return Attribute::Server;
+  case bitc::ATTR_KIND_STATIC:
+    return Attribute::Static;
   case bitc::ATTR_KIND_TYPED_INTRINSIC:
     return Attribute::TypedIntrinsic;
   }
