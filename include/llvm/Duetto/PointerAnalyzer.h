@@ -85,7 +85,15 @@ enum POINTER_USAGE_FLAG {
 class DuettoPointerAnalyzer {
 public:
 	
-	DuettoPointerAnalyzer( NameGenerator & namegen ) : namegen(namegen) {}
+	DuettoPointerAnalyzer( NameGenerator & namegen ) : namegen(namegen),classesNeeded(NULL) {}
+
+	/**
+	 * Initialize the map of classes which requires a downcast array
+	 */
+	void setClassesNeeded(const std::set<llvm::StructType*>* c)
+	{
+		classesNeeded = c;
+	}
 	
 	POINTER_KIND getPointerKind(const llvm::Value* v) const;
 
@@ -125,6 +133,8 @@ private:
 	template<class ArgOrInvokeInst>
 	uint32_t usageFlagsForStoreAndInvoke(const llvm::Value * v, const ArgOrInvokeInst * I, std::set<const llvm::Value *> & openset) const;
 
+	// Find out the output pointer kind for casts operations (bitcast, duetto.cast.user, duetto.upcast.collapsed)
+	POINTER_KIND getCastPointerKind(const llvm::User* U) const;
 public:
 	// Detect if a no-self-pointer optimization is applicable to the pointer value
 	bool isNoSelfPointerOptimizable(const llvm::Value * v) const;
@@ -134,7 +144,6 @@ public:
 
 	// Detect if a function can possibly be called indirectly
 	bool canBeCalledIndirectly(const llvm::Function * f) const;
-
 private:
 	
 	bool computeCanBeCalledIndirectly(const llvm::Constant * c) const;
@@ -159,6 +168,7 @@ private:
 	
 	const NameGenerator & namegen;
 
+	const std::set<llvm::StructType*>* classesNeeded;
 };
 
 /** @} */

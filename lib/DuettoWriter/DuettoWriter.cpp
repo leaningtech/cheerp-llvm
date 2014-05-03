@@ -707,14 +707,11 @@ DuettoWriter::COMPILE_INSTRUCTION_FEEDBACK DuettoWriter::handleBuiltinCall(const
 		compileDowncast(*(it), getIntFromValue(*(it+1)));
 		return COMPILE_OK;
 	}
-	else if(instrinsicId==Intrinsic::duetto_upcast_collapsed)
+	else if(instrinsicId==Intrinsic::duetto_upcast_collapsed ||
+		instrinsicId==Intrinsic::duetto_cast_user)
 	{
-		compileOperand(*it);
-		return COMPILE_OK;
-	}
-	else if(instrinsicId==Intrinsic::duetto_cast_user)
-	{
-		compileOperand(*it);
+		POINTER_KIND toKind = analyzer.getPointerKind(callV.getInstruction());
+		compileOperand(*it, toKind);
 		return COMPILE_OK;
 	}
 	else if(instrinsicId==Intrinsic::duetto_pointer_base)
@@ -3004,6 +3001,7 @@ void DuettoWriter::makeJS()
 	}
 
 	computeGlobalsQueue();
+	analyzer.setClassesNeeded(&classesNeeded);
 
 	compileNullPtrs();
 

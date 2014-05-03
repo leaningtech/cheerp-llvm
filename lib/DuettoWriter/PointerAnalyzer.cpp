@@ -25,6 +25,38 @@ using namespace llvm;
 namespace duetto {
 
 /*
+ * There are two strategies to convert COMPLETE_OBJECT to REGULAR
+ * 1) Objects with the self pointer: { d: obj, o: 's' }
+ * 2) Objects with the downcast array: { d: obj.a, obj.o }
+ * We can only forward a COMPLETE_OBJECT if the destination type
+ * use the same strategy as the source type
+ */
+POINTER_KIND DuettoPointerAnalyzer::getCastPointerKind(const User* U) const
+{
+	POINTER_KIND kind = getPointerKind(U->getOperand(0));
+	if (kind != COMPLETE_OBJECT)
+		return kind;
+
+	assert(U->getOperand(0)->getType()->isPointerTy() && U->getType()->isPointerTy());
+	// If source or destination types are not structs, be on the safe side and convert to REGULAR
+	StructType* sourceStructType = dyn_cast<StructType>(U->getOperand(0)->getType()->getPointerElementType());
+	if (!sourceStructType)
+		return REGULAR;
+
+	StructType* destinationStructType = dyn_cast<StructType>(U->getType()->getPointerElementType());
+	if (!destinationStructType)
+		return REGULAR;
+
+	bool srcHasDowncastArray = classesNeeded->count(sourceStructType);
+	bool dstHasDowncastArray = classesNeeded->count(destinationStructType);
+
+	if (srcHasDowncastArray != dstHasDowncastArray)
+		return REGULAR;
+
+	return COMPLETE_OBJECT;
+}
+
+/*
  * The map is used to handle cyclic PHI nodes
  */
 POINTER_KIND DuettoPointerAnalyzer::getPointerKind(const Value* v) const
@@ -80,7 +112,7 @@ POINTER_KIND DuettoPointerAnalyzer::getPointerKind(const Value* v) const
 	if(isNopCast(v))
 	{
 		const User* bi=static_cast<const User*>(v);
-		return iter->second = getPointerKind(bi->getOperand(0));
+		return iter->second = getCastPointerKind(bi);
 	}
 	//Follow select
 	if(const SelectInst* s=dyn_cast<SelectInst>(v))
