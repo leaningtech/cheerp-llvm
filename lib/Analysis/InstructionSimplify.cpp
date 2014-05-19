@@ -715,7 +715,7 @@ static Constant *stripAndComputeConstantOffsets(const DataLayout *DL,
 static Constant *computePointerDifference(const DataLayout *DL,
                                           Value *LHS, Value *RHS) {
   // On NBA we do this optimization in a safe way inside InstCombine
-  if (!DL->isByteAddressable())
+  if (!DL || !DL->isByteAddressable())
     return 0;
 
   Constant *LHSOffset = stripAndComputeConstantOffsets(DL, LHS);
