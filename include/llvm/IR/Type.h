@@ -119,6 +119,7 @@ protected:
 
 public:
   void print(raw_ostream &O) const;
+  void mangle(raw_ostream &O) const;
   void dump() const;
 
   /// getContext - Return the LLVMContext in which this type was uniqued.

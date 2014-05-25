@@ -2170,6 +2170,67 @@ void Type::print(raw_ostream &OS) const {
     }
 }
 
+void Type::mangle(raw_ostream &OS) const {
+  // Itanium ABI inspired mangling of types
+  switch (getTypeID()) {
+  case Type::VoidTyID:      OS << 'v'; return;
+  case Type::HalfTyID:      OS << "Dh"; return;
+  case Type::FloatTyID:     OS << 'f'; return;
+  case Type::DoubleTyID:    OS << 'd'; return;
+  case Type::IntegerTyID:
+    if (cast<IntegerType>(this)->getBitWidth()==8)
+      OS << 'c';
+    else if (cast<IntegerType>(this)->getBitWidth()==16)
+      OS << 's';
+    else if (cast<IntegerType>(this)->getBitWidth()==32)
+      OS << 'i';
+    else if (cast<IntegerType>(this)->getBitWidth()==64)
+      OS << 'x';
+    else
+      OS << 'i' << cast<IntegerType>(this)->getBitWidth();
+    return;
+  case Type::FunctionTyID: {
+    const FunctionType *FTy = cast<FunctionType>(this);
+    OS << 'F';
+    FTy->getReturnType()->mangle(OS);
+    for (FunctionType::param_iterator I = FTy->param_begin(),
+         E = FTy->param_end(); I != E; ++I) {
+      (*I)->mangle(OS);
+    }
+    OS << 'E';
+    return;
+  }
+  case Type::StructTyID: {
+    const StructType *STy = cast<StructType>(this);
+    if (!STy->getName().empty())
+    {
+      OS << STy->getName().size();
+      OS << STy->getName();
+    }
+    else
+      OS << "AnonimousStruct";
+
+    return;
+  }
+  case Type::PointerTyID: {
+    const PointerType *PTy = cast<PointerType>(this);
+    OS << 'P';
+    PTy->getElementType()->mangle(OS);
+    return;
+  }
+  case Type::ArrayTyID: {
+    const ArrayType *ATy = cast<ArrayType>(this);
+    OS << 'A' << ATy->getNumElements() << "_";
+    ATy->getElementType()->mangle(OS);
+    return;
+  }
+  default:
+    break;
+  }
+  OS.flush();
+  llvm_unreachable("Invalid TypeID");
+}
+
 void Value::print(raw_ostream &ROS, AssemblyAnnotationWriter *AAW) const {
   if (this == 0) {
     ROS << "printing a <null> value\n";
