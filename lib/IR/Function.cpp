@@ -422,21 +422,16 @@ std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys, StringRef TySuffix) {
   };
   if (Tys.empty())
     return Table[id];
-  std::string Result(Table[id]);
-  if (!TySuffix.empty())
-  {
-    Result.append(TySuffix.data(), TySuffix.size());
-    return Result;
-  }
+
+  SmallString<256> MangledSuffix;
+  llvm::raw_svector_ostream OS(MangledSuffix);
+  OS << Table[id];
   for (unsigned i = 0; i < Tys.size(); ++i) {
-    if (PointerType* PTyp = dyn_cast<PointerType>(Tys[i])) {
-      Result += ".p" + llvm::utostr(PTyp->getAddressSpace()) +
-                EVT::getEVT(PTyp->getElementType()).getEVTString();
-    }
-    else if (Tys[i])
-      Result += "." + EVT::getEVT(Tys[i]).getEVTString();
+    OS << '.';
+    Tys[i]->mangle(OS);
   }
-  return Result;
+  OS.flush();
+  return std::string(MangledSuffix.data(), MangledSuffix.size());
 }
 
 
