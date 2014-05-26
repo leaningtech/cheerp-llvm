@@ -405,15 +405,17 @@ public:
   CallInst *CreateMemSet(Value *Ptr, Value *Val, uint64_t Size, unsigned Align,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *ScopeTag = nullptr,
-                         MDNode *NoAliasTag = nullptr) {
+                         MDNode *NoAliasTag = nullptr,
+                         bool byteLayout = true) {
     return CreateMemSet(Ptr, Val, getInt64(Size), Align, isVolatile,
-                        TBAATag, ScopeTag, NoAliasTag);
+                        TBAATag, ScopeTag, NoAliasTag, byteLayout);
   }
 
   CallInst *CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *ScopeTag = nullptr,
-                         MDNode *NoAliasTag = nullptr);
+                         MDNode *NoAliasTag = nullptr,
+                         bool byteLayout = true);
 
   /// \brief Create and insert a memcpy between the specified pointers.
   ///
@@ -424,16 +426,18 @@ public:
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *TBAAStructTag = nullptr,
                          MDNode *ScopeTag = nullptr,
-                         MDNode *NoAliasTag = nullptr) {
+                         MDNode *NoAliasTag = nullptr,
+                         bool byteLayout = true) {
     return CreateMemCpy(Dst, Src, getInt64(Size), Align, isVolatile, TBAATag,
-                        TBAAStructTag, ScopeTag, NoAliasTag);
+                        TBAAStructTag, ScopeTag, NoAliasTag, byteLayout);
   }
 
   CallInst *CreateMemCpy(Value *Dst, Value *Src, Value *Size, unsigned Align,
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *TBAAStructTag = nullptr,
                          MDNode *ScopeTag = nullptr,
-                         MDNode *NoAliasTag = nullptr);
+                         MDNode *NoAliasTag = nullptr,
+                         bool byteLayout = true);
 
   /// \brief Create and insert an element unordered-atomic memcpy between the
   /// specified pointers.
@@ -464,15 +468,17 @@ public:
   CallInst *CreateMemMove(Value *Dst, Value *Src, uint64_t Size, unsigned Align,
                           bool isVolatile = false, MDNode *TBAATag = nullptr,
                           MDNode *ScopeTag = nullptr,
-                          MDNode *NoAliasTag = nullptr) {
+                          MDNode *NoAliasTag = nullptr,
+                          bool byteLayout = true) {
     return CreateMemMove(Dst, Src, getInt64(Size), Align, isVolatile,
-                         TBAATag, ScopeTag, NoAliasTag);
+                         TBAATag, ScopeTag, NoAliasTag, byteLayout);
   }
 
   CallInst *CreateMemMove(Value *Dst, Value *Src, Value *Size, unsigned Align,
                           bool isVolatile = false, MDNode *TBAATag = nullptr,
                           MDNode *ScopeTag = nullptr,
-                          MDNode *NoAliasTag = nullptr);
+                          MDNode *NoAliasTag = nullptr,
+                          bool byteLayout = true);
 
   /// \brief Create a vector fadd reduction intrinsic of the source vector.
   /// The first parameter is a scalar accumulator value for ordered reductions.

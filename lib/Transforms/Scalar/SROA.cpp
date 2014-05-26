@@ -2698,7 +2698,7 @@ private:
         OurPtr = &NewAI;
       CallInst *New = IRB.CreateMemSet(
           OurPtr, II.getValue(), Size,
-          getSliceAlign(), II.isVolatile());
+          getSliceAlign(), II.isVolatile(), NULL, NULL, NULL, DL.isByteAddressable());
       (void)New;
       DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;
@@ -2791,8 +2791,8 @@ private:
     // update both source and dest of a single call.
     if (!IsSplittable) {
       Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
-      if (AdjustedPtr->getType() != IRB.getInt8PtrTy(cast<PointerType>(AdjustedPtr->getType())->getAddressSpace()))
-        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, IRB.getInt8PtrTy());
+      if (AdjustedPtr->getType() != OldPtr->getType())
+        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, OldPtr->getType());
       if (IsDest)
         II.setDest(AdjustedPtr);
       else
@@ -2874,10 +2874,9 @@ private:
 
       Type *SizeTy = II.getLength()->getType();
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
-
       CallInst *New = IRB.CreateMemCpy(
           IsDest ? OurPtr : OtherPtr, IsDest ? OtherPtr : OurPtr, Size,
-          MinAlign(SliceAlign, OtherAlign), II.isVolatile());
+          MinAlign(SliceAlign, OtherAlign), II.isVolatile(), NULL, NULL, NULL, NULL, DL.isByteAddressable());
       (void)New;
       DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;

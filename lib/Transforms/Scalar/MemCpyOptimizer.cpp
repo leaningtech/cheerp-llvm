@@ -1049,12 +1049,13 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
   unsigned Align = std::min(MDep->getAlignment(), M->getAlignment());
 
   IRBuilder<> Builder(M);
+  const DataLayout &DL = M->getModule()->getDataLayout();
   if (UseMemMove)
     Builder.CreateMemMove(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                          Align, M->isVolatile());
+                          Align, M->isVolatile(), NULL, NULL, NULL, DL.isByteAddressable());
   else
     Builder.CreateMemCpy(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                         Align, M->isVolatile());
+                         Align, M->isVolatile(), NULL, NULL, NULL, NULL, DL.isByteAddressable());
 
   // Remove the instruction we're replacing.
   MD->removeInstruction(M);
@@ -1181,12 +1182,13 @@ bool MemCpyOptPass::processMemCpy(MemCpyInst *M) {
   }
 
   // If copying from a constant, try to turn the memcpy into a memset.
+  const DataLayout &DL = M->getModule()->getDataLayout();
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(M->getSource()))
     if (GV->isConstant() && GV->hasDefinitiveInitializer())
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
         Builder.CreateMemSet(M->getRawDest(), ByteVal, M->getLength(),
-                             M->getAlignment(), false);
+                             M->getAlignment(), false, NULL, NULL, NULL, DL.isByteAddressable());
         MD->removeInstruction(M);
         M->eraseFromParent();
         ++NumCpyToSet;
