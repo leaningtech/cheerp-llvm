@@ -345,8 +345,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "server";
   if (hasAttribute(Attribute::Static))
     return "static";
-  if (hasAttribute(Attribute::TypedIntrinsic))
-    return "typed_intrinsic";
 
   // FIXME: These should be output like this:
   //
