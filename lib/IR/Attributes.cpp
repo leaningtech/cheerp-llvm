@@ -397,8 +397,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "immarg";
   if (hasAttribute(Attribute::Static))
     return "static";
-  if (hasAttribute(Attribute::TypedIntrinsic))
-    return "typed_intrinsic";
 
   if (hasAttribute(Attribute::ByVal)) {
     std::string Result;
