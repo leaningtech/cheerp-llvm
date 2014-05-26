@@ -18,6 +18,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Duetto/Writer.h"
 #include "llvm/Duetto/AllocaMerging.h"
+#include "llvm/Duetto/ResolveAliases.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
 
@@ -89,6 +90,7 @@ bool DuettoTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
   if (FileType != TargetMachine::CGFT_AssemblyFile) return true;
+  PM.add(createResolveAliasesPass());
   PM.add(createAllocaMergingPass());
   PM.add(new DuettoWritePass(o));
   return false;
