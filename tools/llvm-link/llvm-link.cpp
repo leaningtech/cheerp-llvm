@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (verifyModule(*Composite)) {
+  if (verifyModule(*Composite, &llvm::errs())) {
     errs() << argv[0] << ": linked module is broken!\n";
     return 1;
   }
