@@ -64,8 +64,9 @@ static CallInst *createCallHelper(Value *Callee, ArrayRef<Value *> Ops,
 CallInst *IRBuilderBase::
 CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
              bool isVolatile, MDNode *TBAATag, MDNode *ScopeTag,
-             MDNode *NoAliasTag) {
-  Ptr = getCastedInt8PtrValue(Ptr);
+             MDNode *NoAliasTag, bool byteLayout) {
+  if (byteLayout)
+    Ptr = getCastedInt8PtrValue(Ptr);
   Value *Ops[] = { Ptr, Val, Size, getInt32(Align), getInt1(isVolatile) };
   Type *Tys[] = { Ptr->getType(), Size->getType() };
   Module *M = BB->getParent()->getParent();
@@ -89,9 +90,12 @@ CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
 CallInst *IRBuilderBase::
 CreateMemCpy(Value *Dst, Value *Src, Value *Size, unsigned Align,
              bool isVolatile, MDNode *TBAATag, MDNode *TBAAStructTag,
-             MDNode *ScopeTag, MDNode *NoAliasTag) {
-  Dst = getCastedInt8PtrValue(Dst);
-  Src = getCastedInt8PtrValue(Src);
+             MDNode *ScopeTag, MDNode *NoAliasTag, bool byteLayout) {
+  if (byteLayout)
+  {
+    Dst = getCastedInt8PtrValue(Dst);
+    Src = getCastedInt8PtrValue(Src);
+  }
 
   Value *Ops[] = { Dst, Src, Size, getInt32(Align), getInt1(isVolatile) };
   Type *Tys[] = { Dst->getType(), Src->getType(), Size->getType() };
@@ -120,9 +124,12 @@ CreateMemCpy(Value *Dst, Value *Src, Value *Size, unsigned Align,
 CallInst *IRBuilderBase::
 CreateMemMove(Value *Dst, Value *Src, Value *Size, unsigned Align,
               bool isVolatile, MDNode *TBAATag, MDNode *ScopeTag,
-              MDNode *NoAliasTag) {
-  Dst = getCastedInt8PtrValue(Dst);
-  Src = getCastedInt8PtrValue(Src);
+              MDNode *NoAliasTag, bool byteLayout) {
+  if (byteLayout)
+  {
+    Dst = getCastedInt8PtrValue(Dst);
+    Src = getCastedInt8PtrValue(Src);
+  }
   
   Value *Ops[] = { Dst, Src, Size, getInt32(Align), getInt1(isVolatile) };
   Type *Tys[] = { Dst->getType(), Src->getType(), Size->getType() };

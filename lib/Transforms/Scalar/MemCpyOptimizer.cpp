@@ -823,10 +823,10 @@ bool MemCpyOpt::processMemCpyMemCpyDependence(MemCpyInst *M, MemCpyInst *MDep,
   IRBuilder<> Builder(M);
   if (UseMemMove)
     Builder.CreateMemMove(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                          Align, M->isVolatile());
+                          Align, M->isVolatile(), NULL, NULL, NULL, !DL || DL->isByteAddressable());
   else
     Builder.CreateMemCpy(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                         Align, M->isVolatile());
+                         Align, M->isVolatile(), NULL, NULL, NULL, NULL, !DL || DL->isByteAddressable());
 
   // Remove the instruction we're replacing.
   MD->removeInstruction(M);
@@ -858,7 +858,7 @@ bool MemCpyOpt::processMemCpy(MemCpyInst *M) {
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
         Builder.CreateMemSet(M->getRawDest(), ByteVal, M->getLength(),
-                             M->getAlignment(), false);
+                             M->getAlignment(), false, NULL, NULL, NULL, !DL || DL->isByteAddressable());
         MD->removeInstruction(M);
         M->eraseFromParent();
         ++NumCpyToSet;
