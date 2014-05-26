@@ -373,7 +373,7 @@ INITIALIZE_PASS_END(MemCpyOpt, "memcpyopt", "MemCpy Optimization",
 /// attempts to merge them together into a memcpy/memset.
 Instruction *MemCpyOpt::tryMergingIntoMemset(Instruction *StartInst,
                                              Value *StartPtr, Value *ByteVal) {
-  if (DL == 0 || !DL->isByteAddressable()) return 0;
+  if (!DL->isByteAddressable()) return 0;
 
   // Okay, so we now have a single store that can be splatable.  Scan to find
   // all subsequent stores of the same value to offset from the same pointer.
@@ -803,10 +803,10 @@ bool MemCpyOpt::processMemCpyMemCpyDependence(MemCpyInst *M, MemCpyInst *MDep,
   IRBuilder<> Builder(M);
   if (UseMemMove)
     Builder.CreateMemMove(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                          Align, M->isVolatile());
+                          Align, M->isVolatile(), NULL, !DL || DL->isByteAddressable());
   else
     Builder.CreateMemCpy(M->getRawDest(), MDep->getRawSource(), M->getLength(),
-                         Align, M->isVolatile());
+                         Align, M->isVolatile(), NULL, NULL, !DL || DL->isByteAddressable());
 
   // Remove the instruction we're replacing.
   MD->removeInstruction(M);
@@ -838,7 +838,7 @@ bool MemCpyOpt::processMemCpy(MemCpyInst *M) {
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
         Builder.CreateMemSet(M->getRawDest(), ByteVal, M->getLength(),
-                             M->getAlignment(), false);
+                             M->getAlignment(), false, NULL, !DL || DL->isByteAddressable());
         MD->removeInstruction(M);
         M->eraseFromParent();
         ++NumCpyToSet;

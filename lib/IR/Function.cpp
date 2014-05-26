@@ -412,7 +412,7 @@ unsigned Function::lookupIntrinsicID() const {
   return 0;
 }
 
-std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys, StringRef TySuffix) {
+std::string Intrinsic::getName(ID id, ArrayRef<Type*> Tys) {
   assert(id < num_intrinsics && "Invalid intrinsic ID!");
   static const char * const Table[] = {
     "not_intrinsic",
@@ -695,11 +695,11 @@ bool Intrinsic::isOverloaded(ID id) {
 #include "llvm/IR/Intrinsics.gen"
 #undef GET_INTRINSIC_ATTRIBUTES
 
-Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys, StringRef TySuffix) {
+Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys) {
   // There can never be multiple globals with the same name of different types,
   // because intrinsics must be a specific type.
   return
-    cast<Function>(M->getOrInsertFunction(getName(id, Tys, TySuffix),
+    cast<Function>(M->getOrInsertFunction(getName(id, Tys),
                                           getType(M->getContext(), id, Tys)));
 }
 

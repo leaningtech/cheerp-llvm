@@ -362,12 +362,12 @@ public:
   /// If the pointer isn't an i8*, it will be converted.  If a TBAA tag is
   /// specified, it will be added to the instruction.
   CallInst *CreateMemSet(Value *Ptr, Value *Val, uint64_t Size, unsigned Align,
-                         bool isVolatile = false, MDNode *TBAATag = 0) {
-    return CreateMemSet(Ptr, Val, getInt64(Size), Align, isVolatile, TBAATag);
+                         bool isVolatile = false, MDNode *TBAATag = 0, bool byteLayout = true) {
+    return CreateMemSet(Ptr, Val, getInt64(Size), Align, isVolatile, TBAATag, byteLayout);
   }
 
   CallInst *CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
-                         bool isVolatile = false, MDNode *TBAATag = 0);
+                         bool isVolatile = false, MDNode *TBAATag = 0, bool byteLayout = true);
 
   /// \brief Create and insert a memcpy between the specified pointers.
   ///
@@ -375,14 +375,14 @@ public:
   /// specified, it will be added to the instruction.
   CallInst *CreateMemCpy(Value *Dst, Value *Src, uint64_t Size, unsigned Align,
                          bool isVolatile = false, MDNode *TBAATag = 0,
-                         MDNode *TBAAStructTag = 0) {
+                         MDNode *TBAAStructTag = 0, bool byteLayout = true) {
     return CreateMemCpy(Dst, Src, getInt64(Size), Align, isVolatile, TBAATag,
-                        TBAAStructTag);
+                        TBAAStructTag, byteLayout);
   }
 
   CallInst *CreateMemCpy(Value *Dst, Value *Src, Value *Size, unsigned Align,
                          bool isVolatile = false, MDNode *TBAATag = 0,
-                         MDNode *TBAAStructTag = 0);
+                         MDNode *TBAAStructTag = 0, bool byteLayout = true);
 
   /// \brief Create and insert a memmove between the specified
   /// pointers.
@@ -390,12 +390,12 @@ public:
   /// If the pointers aren't i8*, they will be converted.  If a TBAA tag is
   /// specified, it will be added to the instruction.
   CallInst *CreateMemMove(Value *Dst, Value *Src, uint64_t Size, unsigned Align,
-                          bool isVolatile = false, MDNode *TBAATag = 0) {
-    return CreateMemMove(Dst, Src, getInt64(Size), Align, isVolatile, TBAATag);
+                          bool isVolatile = false, MDNode *TBAATag = 0, bool byteLayout = true) {
+    return CreateMemMove(Dst, Src, getInt64(Size), Align, isVolatile, TBAATag, byteLayout);
   }
 
   CallInst *CreateMemMove(Value *Dst, Value *Src, Value *Size, unsigned Align,
-                          bool isVolatile = false, MDNode *TBAATag = 0);
+                          bool isVolatile = false, MDNode *TBAATag = 0, bool byteLayout = true);
 
   /// \brief Create a lifetime.start intrinsic.
   ///
