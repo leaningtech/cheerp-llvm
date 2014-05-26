@@ -99,8 +99,9 @@ static InvokeInst *createInvokeHelper(Function *Invokee, BasicBlock *NormalDest,
 CallInst *IRBuilderBase::
 CreateMemSet(Value *Ptr, Value *Val, Value *Size, unsigned Align,
              bool isVolatile, MDNode *TBAATag, MDNode *ScopeTag,
-             MDNode *NoAliasTag) {
-  Ptr = getCastedInt8PtrValue(Ptr);
+             MDNode *NoAliasTag, bool byteLayout) {
+  if (byteLayout)
+    Ptr = getCastedInt8PtrValue(Ptr);
   Value *Ops[] = {Ptr, Val, Size, getInt1(isVolatile)};
   Type *Tys[] = { Ptr->getType(), Size->getType() };
   Module *M = BB->getParent()->getParent();
@@ -157,11 +158,14 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemSet(
 CallInst *IRBuilderBase::
 CreateMemCpy(Value *Dst, unsigned DstAlign, Value *Src, unsigned SrcAlign,
              Value *Size, bool isVolatile, MDNode *TBAATag,
-             MDNode *TBAAStructTag, MDNode *ScopeTag, MDNode *NoAliasTag) {
+             MDNode *TBAAStructTag, MDNode *ScopeTag, MDNode *NoAliasTag, bool byteLayout) {
   assert((DstAlign == 0 || isPowerOf2_32(DstAlign)) && "Must be 0 or a power of 2");
   assert((SrcAlign == 0 || isPowerOf2_32(SrcAlign)) && "Must be 0 or a power of 2");
-  Dst = getCastedInt8PtrValue(Dst);
-  Src = getCastedInt8PtrValue(Src);
+  if (byteLayout)
+  {
+    Dst = getCastedInt8PtrValue(Dst);
+    Src = getCastedInt8PtrValue(Src);
+  }
 
   Value *Ops[] = {Dst, Src, Size, getInt1(isVolatile)};
   Type *Tys[] = { Dst->getType(), Src->getType(), Size->getType() };
@@ -237,11 +241,14 @@ CallInst *IRBuilderBase::CreateElementUnorderedAtomicMemCpy(
 CallInst *IRBuilderBase::
 CreateMemMove(Value *Dst, unsigned DstAlign, Value *Src, unsigned SrcAlign,
               Value *Size, bool isVolatile, MDNode *TBAATag, MDNode *ScopeTag,
-              MDNode *NoAliasTag) {
+              MDNode *NoAliasTag, bool byteLayout) {
   assert((DstAlign == 0 || isPowerOf2_32(DstAlign)) && "Must be 0 or a power of 2");
   assert((SrcAlign == 0 || isPowerOf2_32(SrcAlign)) && "Must be 0 or a power of 2");
-  Dst = getCastedInt8PtrValue(Dst);
-  Src = getCastedInt8PtrValue(Src);
+  if (byteLayout)
+  {
+    Dst = getCastedInt8PtrValue(Dst);
+    Src = getCastedInt8PtrValue(Src);
+  }
 
   Value *Ops[] = {Dst, Src, Size, getInt1(isVolatile)};
   Type *Tys[] = { Dst->getType(), Src->getType(), Size->getType() };

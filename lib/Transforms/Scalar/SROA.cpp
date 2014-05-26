@@ -2833,7 +2833,7 @@ private:
         OurPtr = &NewAI;
       CallInst *New = IRB.CreateMemSet(
           OurPtr, II.getValue(), Size,
-          getSliceAlign(), II.isVolatile());
+          getSliceAlign(), II.isVolatile(), NULL, NULL, NULL, DL.isByteAddressable());
       if (AATags)
         New->setAAMetadata(AATags);
       LLVM_DEBUG(dbgs() << "          to: " << *New << "\n");
@@ -2931,8 +2931,8 @@ private:
     // update both source and dest of a single call.
     if (!IsSplittable) {
       Value *AdjustedPtr = getNewAllocaSlicePtr(IRB, RealPtrTy);
-      if (AdjustedPtr->getType() != IRB.getInt8PtrTy(cast<PointerType>(AdjustedPtr->getType())->getAddressSpace()))
-        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, IRB.getInt8PtrTy());
+      if (AdjustedPtr->getType() != OldPtr->getType())
+        AdjustedPtr = IRB.CreateBitCast(AdjustedPtr, OldPtr->getType());
       if (IsDest) {
         II.setDest(AdjustedPtr);
         II.setDestAlignment(SliceAlign);
@@ -3030,7 +3030,7 @@ private:
         SrcAlign = SliceAlign;
       }
       CallInst *New = IRB.CreateMemCpy(DestPtr, DestAlign, SrcPtr, SrcAlign,
-                                       Size, II.isVolatile());
+                                       Size, II.isVolatile(), NULL, NULL, NULL, NULL, DL.isByteAddressable()););
       if (AATags)
         New->setAAMetadata(AATags);
       LLVM_DEBUG(dbgs() << "          to: " << *New << "\n");
