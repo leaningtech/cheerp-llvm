@@ -76,9 +76,6 @@ namespace llvm {
     /// isNoReturn - True if the intrinsic is no-return.
     bool isNoReturn;
 
-    /// isCast - True if the intrinsics is fully typed
-    bool isFullyTyped;
-
     enum ArgAttribute {
       NoCapture,
       ReadOnly,

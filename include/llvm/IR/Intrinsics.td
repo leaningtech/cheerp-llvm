@@ -69,9 +69,6 @@ class ReadNone<int argNo> : IntrinsicProperty {
 
 def IntrNoReturn : IntrinsicProperty;
 
-// IntrFullyTyped - The intrinsic uses fully typed pointers
-def IntrFullyTyped : IntrinsicProperty;
-
 //===----------------------------------------------------------------------===//
 // Types used by intrinsics.
 //===----------------------------------------------------------------------===//

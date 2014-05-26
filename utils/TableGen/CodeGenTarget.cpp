@@ -446,7 +446,6 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
   isCommutative = false;
   canThrow = false;
   isNoReturn = false;
-  isFullyTyped = false;
 
   if (DefName.size() <= 4 ||
       std::string(DefName.begin(), DefName.begin() + 4) != "int_")
@@ -573,8 +572,6 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
       canThrow = true;
     else if (Property->getName() == "IntrNoReturn")
       isNoReturn = true;
-    else if (Property->getName() == "IntrFullyTyped")
-      isFullyTyped = true;
     else if (Property->isSubClassOf("NoCapture")) {
       unsigned ArgNo = Property->getValueAsInt("ArgNo");
       ArgumentAttributes.push_back(std::make_pair(ArgNo, NoCapture));
