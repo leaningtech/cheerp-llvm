@@ -608,7 +608,6 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(zeroext);
   KEYWORD(client);
   KEYWORD(server);
-  KEYWORD(typed_intrinsic);
   KEYWORD(static);
 
   KEYWORD(type);

@@ -615,8 +615,9 @@ static Attribute::AttrKind GetAttrFromCode(uint64_t Code) {
     return Attribute::Server;
   case bitc::ATTR_KIND_STATIC:
     return Attribute::Static;
-  case bitc::ATTR_KIND_TYPED_INTRINSIC:
-    return Attribute::TypedIntrinsic;
+  case bitc::ATTR_KIND_RESERVED:
+    llvm::errs() << "error: deprecated attribute found in LLVM IR, please rebuild using an updated version of Duetto\n";
+    return Attribute::None;
   }
 }
 

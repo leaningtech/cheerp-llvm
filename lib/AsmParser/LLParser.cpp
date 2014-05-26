@@ -944,7 +944,6 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_uwtable:           B.addAttribute(Attribute::UWTable); break;
     case lltok::kw_client:            B.addAttribute(Attribute::Client); break;
     case lltok::kw_server:            B.addAttribute(Attribute::Server); break;
-    case lltok::kw_typed_intrinsic:   B.addAttribute(Attribute::TypedIntrinsic); break;
     case lltok::kw_static:            B.addAttribute(Attribute::Static); break;
 
     // Error handling.
@@ -1207,7 +1206,6 @@ bool LLParser::ParseOptionalParamAttrs(AttrBuilder &B) {
     case lltok::kw_uwtable:
     case lltok::kw_client:
     case lltok::kw_server:
-    case lltok::kw_typed_intrinsic:
       HaveError |= Error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
     }
@@ -1270,7 +1268,6 @@ bool LLParser::ParseOptionalReturnAttrs(AttrBuilder &B) {
     case lltok::kw_uwtable:
     case lltok::kw_client:
     case lltok::kw_server:
-    case lltok::kw_typed_intrinsic:
       HaveError |= Error(Lex.getLoc(), "invalid use of function-only attribute");
       break;
 
