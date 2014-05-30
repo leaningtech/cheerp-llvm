@@ -485,13 +485,10 @@ const llvm::NamedMDNode* TypeSupport::getBasesMetadata(const llvm::StructType * 
 bool TypeSupport::safeCallForNewedMemory(const CallInst* ci)
 {
 	//We allow the unsafe cast to i8* only
-	//if the usage is memcpy, memset, free or delete
+	//if the usage is free or delete
 	//or one of the lifetime/invariant intrinsics
 	return (ci && ci->getCalledFunction() &&
-		(ci->getCalledFunction()->getIntrinsicID()==Intrinsic::memcpy ||
-		ci->getCalledFunction()->getIntrinsicID()==Intrinsic::memset ||
-		ci->getCalledFunction()->getIntrinsicID()==Intrinsic::memmove ||
-		ci->getCalledFunction()->getName()=="free" ||
+		(ci->getCalledFunction()->getName()=="free" ||
 		ci->getCalledFunction()->getName()=="_ZdaPv" ||
 		ci->getCalledFunction()->getName()=="_ZdlPv" ||
 		ci->getCalledFunction()->getIntrinsicID()==Intrinsic::lifetime_start ||
