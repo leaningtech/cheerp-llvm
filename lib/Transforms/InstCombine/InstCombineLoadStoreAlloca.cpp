@@ -512,6 +512,7 @@ static Instruction *InstCombineStoreToCast(InstCombiner &IC, StoreInst &SI) {
   // If the pointers point into different address spaces or if they point to
   // values with different sizes, we can't do the transformation.
   if (!IC.getDataLayout() ||
+      !IC.getDataLayout()->isByteAddressable() ||
       SrcTy->getAddressSpace() !=
         cast<PointerType>(CI->getType())->getAddressSpace() ||
       IC.getDataLayout()->getTypeSizeInBits(SrcPTy) !=
