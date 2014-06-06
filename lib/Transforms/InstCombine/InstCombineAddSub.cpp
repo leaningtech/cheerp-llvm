@@ -1352,7 +1352,7 @@ Value *InstCombiner::OptimizePointerDifference(Value *LHS, Value *RHS,
   {
     if (GEP2)
     {
-      // Duetto: the two geps must have equal indexes up to the last.
+      // Cheerp: the two geps must have equal indexes up to the last.
       // The index difference is the result.
       if (GEP1->getNumIndices() != GEP2->getNumIndices())
         return 0;

@@ -73,7 +73,7 @@ public:
     amdil,      // amdil: amd IL
     spir,       // SPIR: standard portable IR for OpenCL 32-bit version
     spir64,     // SPIR: standard portable IR for OpenCL 64-bit version
-    duetto      // Duetto: JS and object addressable architectures
+    cheerp      // Cheerp: JS and object addressable architectures
   };
   enum VendorType {
     UnknownVendor,

@@ -187,8 +187,8 @@ namespace llvm {
       cosl,
       /// char *ctermid(char *s);
       ctermid,
-      /// Duetto: allocation intrinsic
-      duetto_allocate,
+      /// Cheerp: allocation intrinsic
+      cheerp_allocate,
       /// double exp(double x);
       exp,
       /// double exp10(double x);
