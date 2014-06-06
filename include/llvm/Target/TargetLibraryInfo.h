@@ -159,6 +159,8 @@ namespace llvm {
       ceilf,
       /// long double ceill(long double x);
       ceill,
+      /// Cheerp: allocation intrinsic
+      cheerp_allocate,
       /// int chmod(const char *path, mode_t mode);
       chmod,
       /// int chown(const char *path, uid_t owner, gid_t group);
@@ -187,8 +189,6 @@ namespace llvm {
       cosl,
       /// char *ctermid(char *s);
       ctermid,
-      /// Duetto: allocation intrinsic
-      duetto_allocate,
       /// double exp(double x);
       exp,
       /// double exp10(double x);

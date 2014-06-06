@@ -1046,7 +1046,7 @@ struct LoopVectorize : public FunctionPass {
       return false;
     }
 
-    //Duetto: currently JS does not support vector instructions,
+    //Cheerp: currently JS does not support vector instructions,
     //they might be supported in the future though.
     if (!DL->isByteAddressable()) {
       DEBUG(dbgs() << "LV: Not vectorizing on NBA target");

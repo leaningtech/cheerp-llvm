@@ -5357,7 +5357,7 @@ _ACEOF
 
 fi
 
-ALL_TARGETS="X86 Sparc PowerPC AArch64 ARM Mips XCore MSP430 CppBackend DuettoBackend NVPTX Hexagon SystemZ R600"
+ALL_TARGETS="X86 Sparc PowerPC AArch64 ARM Mips XCore MSP430 CppBackend CheerpBackend NVPTX Hexagon SystemZ R600"
 ALL_TARGETS=$ALL_TARGETS
 
 

@@ -3252,7 +3252,7 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
   // Be conservative is data layout is not available
   if (!DL || !DL->isByteAddressable())
   {
-	  // Duetto: On client side GEPs are not optimizable
+	  // Cheerp: On client side GEPs are not optimizable
 	  return getUnknown(GEP);
   }
 

@@ -2079,7 +2079,7 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
       if (isa<ArrayType>(Ty) || isa<VectorType>(Ty))
         if (CI->getSExtValue() > 0 &&
             !isIndexInRangeOfSequentialType(cast<SequentialType>(Ty), CI)) {
-  // Duetto: disables this optimization, it not allowed on NBA platforms
+  // Cheerp: disables this optimization, it not allowed on NBA platforms
   // and it is anyway duplicated in lib/Analysis/ConstantFolding.cpp
   // where it can be enabled depending on the isByteAddressable flag
 #if 0

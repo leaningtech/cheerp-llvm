@@ -128,7 +128,7 @@ set(LLVM_ALL_TARGETS
   AArch64
   ARM
   CppBackend
-  DuettoBackend
+  CheerpBackend
   Hexagon
   Mips
   MSP430

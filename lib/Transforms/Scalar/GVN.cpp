@@ -1878,7 +1878,7 @@ bool GVN::processLoad(LoadInst *L) {
 
   // If we have a clobber and target data is around, see if this is a clobber
   // that we can fix up through code synthesis.
-  // TODO: Duetto: Verify if we can relax the byte addressable requirement
+  // TODO: Cheerp: Verify if we can relax the byte addressable requirement
   if (Dep.isClobber() && DL && DL->isByteAddressable()) {
     // Check to see if we have something like this:
     //   store i32 123, i32* %P

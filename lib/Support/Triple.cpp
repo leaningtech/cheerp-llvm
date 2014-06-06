@@ -46,7 +46,7 @@ const char *Triple::getArchTypeName(ArchType Kind) {
   case amdil:       return "amdil";
   case spir:        return "spir";
   case spir64:      return "spir64";
-  case duetto:      return "duetto";
+  case cheerp:      return "cheerp";
   }
 
   llvm_unreachable("Invalid ArchType!");
@@ -92,7 +92,7 @@ const char *Triple::getArchTypePrefix(ArchType Kind) {
   case amdil:       return "amdil";
   case spir:        return "spir";
   case spir64:      return "spir";
-  case duetto:      return "duetto";
+  case cheerp:      return "cheerp";
   }
 }
 
@@ -193,7 +193,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("amdil", amdil)
     .Case("spir", spir)
     .Case("spir64", spir64)
-    .Case("duetto", duetto)
+    .Case("cheerp", cheerp)
     .Default(UnknownArch);
 }
 
@@ -220,7 +220,7 @@ const char *Triple::getArchNameForAssembler() {
     .Case("amdil", "amdil")
     .Case("spir", "spir")
     .Case("spir64", "spir64")
-    .Case("duetto", "duetto")
+    .Case("cheerp", "cheerp")
     .Default(NULL);
 }
 
@@ -259,7 +259,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("amdil", Triple::amdil)
     .Case("spir", Triple::spir)
     .Case("spir64", Triple::spir64)
-    .Case("duetto", Triple::duetto)
+    .Case("cheerp", Triple::cheerp)
     .Default(Triple::UnknownArch);
 }
 
@@ -741,7 +741,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::x86:
   case llvm::Triple::xcore:
   case llvm::Triple::spir:
-  case llvm::Triple::duetto:
+  case llvm::Triple::cheerp:
     return 32;
 
   case llvm::Triple::aarch64:
@@ -799,7 +799,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::thumb:
   case Triple::x86:
   case Triple::xcore:
-  case Triple::duetto:
+  case Triple::cheerp:
     // Already 32-bit.
     break;
 
@@ -827,7 +827,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::tce:
   case Triple::thumb:
   case Triple::xcore:
-  case Triple::duetto:
+  case Triple::cheerp:
     T.setArch(UnknownArch);
     break;
 
