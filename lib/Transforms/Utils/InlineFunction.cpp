@@ -369,13 +369,6 @@ static Value *HandleByValArgument(Value *Arg, Instruction *TheCall,
   Value *NewAlloca = new AllocaInst(AggTy, 0, Align, Arg->getName(), 
                                     &*Caller->begin()->begin());
   // Emit a memcpy.
-  Type *Tys[3] = {VoidPtrTy, VoidPtrTy, Type::getInt64Ty(Context)};
-  Function *MemCpyFn = Intrinsic::getDeclaration(Caller->getParent(),
-                                                 Intrinsic::memcpy, 
-                                                 Tys);
-  Value *DestCast = new BitCastInst(NewAlloca, VoidPtrTy, "tmp", TheCall);
-  Value *SrcCast = new BitCastInst(Arg, VoidPtrTy, "tmp", TheCall);
-  
   Value *Size;
   if (IFI.DL == 0)
     Size = ConstantExpr::getSizeOf(AggTy);
@@ -386,12 +379,7 @@ static Value *HandleByValArgument(Value *Arg, Instruction *TheCall,
   // Always generate a memcpy of alignment 1 here because we don't know
   // the alignment of the src pointer.  Other optimizations can infer
   // better alignment.
-  Value *CallArgs[] = {
-    DestCast, SrcCast, Size,
-    ConstantInt::get(Type::getInt32Ty(Context), 1),
-    ConstantInt::getFalse(Context) // isVolatile
-  };
-  IRBuilder<>(TheCall).CreateCall(MemCpyFn, CallArgs);
+  IRBuilder<>(TheCall).CreateMemCpy(NewAlloca, Arg, Size, 1, false, NULL, NULL, IFI.DL && IFI.DL->isByteAddressable());
   
   // Uses of the argument in the function should use our new alloca
   // instead.
