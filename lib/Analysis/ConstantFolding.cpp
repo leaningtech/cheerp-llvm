@@ -729,7 +729,7 @@ static Constant *SymbolicallyEvaluateGEP(ArrayRef<Constant *> Ops,
   // If this is a constant expr gep that is effectively computing an
   // "offsetof", fold it into 'cast int Size to T*' instead of 'gep 0, 0, 12'
   for (unsigned i = 1, e = Ops.size(); i != e; ++i)
-    if (!isa<ConstantInt>(Ops[i])) {
+    if (!isa<ConstantInt>(Ops[i]) && TD->isByteAddressable()) {
 
       // If this is "gep i8* Ptr, (sub 0, V)", fold this as:
       // "inttoptr (sub (ptrtoint Ptr), V)"
@@ -777,6 +777,10 @@ static Constant *SymbolicallyEvaluateGEP(ArrayRef<Constant *> Ops,
                     TD->getIndexedOffset(Ptr->getType(), NestedOps));
     Ptr = StripPtrCastKeepAS(Ptr, TD->isByteAddressable());
   }
+
+  // The transformation below are not safe on NBA
+  if (!TD->isByteAddressable())
+    return 0;
 
   // If the base value for this address is a literal integer value, fold the
   // getelementptr to the resulting integer value casted to the pointer type.
@@ -854,7 +858,7 @@ static Constant *SymbolicallyEvaluateGEP(ArrayRef<Constant *> Ops,
   // If we haven't used up the entire offset by descending the static
   // type, then the offset is pointing into the middle of an indivisible
   // member, so we can't simplify it.
-  if (Offset != 0 || !TD || !TD->isByteAddressable())
+  if (Offset != 0)
     return 0;
 
   // Create a GEP.
