@@ -1055,6 +1055,7 @@ void CheerpWriter::compileConstantExpr(const ConstantExpr* ce)
 			break;
 		}
 		default:
+			stream << "undefined";
 			llvm::errs() << "warning: Unsupported constant expr " << ce->getOpcodeName() << '\n';
 	}
 }
