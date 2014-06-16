@@ -662,6 +662,9 @@ private:
       return markAsDead(PN);
     if (!IsOffsetKnown)
       return PI.setAborted(&PN);
+    // PHIs are complicated to handle on NBA targets
+    if (!DL.isByteAddressable())
+      return PI.setAborted(&PN);
 
     // See if we already have computed info on this node.
     uint64_t &PHISize = PHIOrSelectSizes[&PN];
@@ -701,6 +704,9 @@ private:
       return;
     }
     if (!IsOffsetKnown)
+      return PI.setAborted(&SI);
+    // Select are complicated to handle on NBA targets
+    if (!DL.isByteAddressable())
       return PI.setAborted(&SI);
 
     // See if we already have computed info on this node.
