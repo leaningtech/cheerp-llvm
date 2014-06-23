@@ -134,7 +134,12 @@ public:
 		return false;
 	}
 
-	bool getBasesInfo(llvm::StructType* t, uint32_t& firstBase, uint32_t& baseCount) const;
+	// Bridge to the static version
+	bool getBasesInfo(llvm::StructType* t, uint32_t& firstBase, uint32_t& baseCount) const
+	{
+		return getBasesInfo(module, t, firstBase, baseCount);
+	}
+	static bool getBasesInfo(const llvm::Module& module, llvm::StructType* t, uint32_t& firstBase, uint32_t& baseCount);
 
 private:
 	static const llvm::NamedMDNode* getBasesMetadata(llvm::StructType * t, const llvm::Module & m)
