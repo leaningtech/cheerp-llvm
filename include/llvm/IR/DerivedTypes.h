@@ -194,7 +194,8 @@ class StructType : public CompositeType {
     SCDB_HasBody = 1,
     SCDB_Packed = 2,
     SCDB_IsLiteral = 4,
-    SCDB_IsSized = 8
+    SCDB_IsSized = 8,
+    SCDB_ByteLayout = 16
   };
 
   /// SymbolTableEntry - For a named struct that actually has a name, this is a
@@ -251,6 +252,11 @@ public:
   /// isSized - Return true if this is a sized type.
   bool isSized(SmallPtrSet<const Type*, 4> *Visited = 0) const;
   
+  /// hasByteLayout - Return true if this type should be handled mapped to bytes
+  //// instead of objects on NBA
+  bool hasByteLayout() const { return (getSubclassData() & SCDB_ByteLayout) == 0; }
+  void setByteLayout() { setSubclassData(getSubclassData() | SCDB_ByteLayout); }
+
   /// hasName - Return true if this is a named struct that has a non-empty name.
   bool hasName() const { return SymbolTableEntry != 0; }
   
