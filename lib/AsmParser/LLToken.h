@@ -213,6 +213,7 @@ enum Kind {
   kw_writeonly,
   kw_zeroext,
   kw_static,
+  kw_bytelayout,
 
   kw_type,
   kw_opaque,
