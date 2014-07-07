@@ -191,7 +191,8 @@ bool TypeMapTy::areTypesIsomorphic(Type *DstTy, Type *SrcTy) {
   } else if (StructType *DSTy = dyn_cast<StructType>(DstTy)) {
     StructType *SSTy = cast<StructType>(SrcTy);
     if (DSTy->isLiteral() != SSTy->isLiteral() ||
-        DSTy->isPacked() != SSTy->isPacked())
+        DSTy->isPacked() != SSTy->isPacked() ||
+        DSTy->hasByteLayout() != SSTy->hasByteLayout())
       return false;
   } else if (ArrayType *DATy = dyn_cast<ArrayType>(DstTy)) {
     if (DATy->getNumElements() != cast<ArrayType>(SrcTy)->getNumElements())
@@ -227,6 +228,8 @@ void TypeMapTy::linkDefinedTypeBodies() {
       Elements[I] = get(SrcSTy->getElementType(I));
 
     DstSTy->setBody(Elements, SrcSTy->isPacked());
+    if(SrcSTy->hasByteLayout())
+      DstSTy->setByteLayout();
   }
   SrcDefinitionsToResolve.clear();
   DstResolvedOpaqueTypes.clear();
