@@ -254,7 +254,7 @@ public:
   
   /// hasByteLayout - Return true if this type should be handled mapped to bytes
   //// instead of objects on NBA
-  bool hasByteLayout() const { return (getSubclassData() & SCDB_ByteLayout) == 0; }
+  bool hasByteLayout() const { return getSubclassData() & SCDB_ByteLayout; }
   void setByteLayout() { setSubclassData(getSubclassData() | SCDB_ByteLayout); }
 
   /// hasName - Return true if this is a named struct that has a non-empty name.

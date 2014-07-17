@@ -179,7 +179,8 @@ bool TypeMapTy::areTypesIsomorphic(Type *DstTy, Type *SrcTy) {
   } else if (StructType *DSTy = dyn_cast<StructType>(DstTy)) {
     StructType *SSTy = cast<StructType>(SrcTy);
     if (DSTy->isLiteral() != SSTy->isLiteral() ||
-        DSTy->isPacked() != SSTy->isPacked())
+        DSTy->isPacked() != SSTy->isPacked() ||
+        DSTy->hasByteLayout() != SSTy->hasByteLayout())
       return false;
   } else if (ArrayType *DATy = dyn_cast<ArrayType>(DstTy)) {
     if (DATy->getNumElements() != cast<ArrayType>(SrcTy)->getNumElements())
@@ -227,6 +228,8 @@ void TypeMapTy::linkDefinedTypeBodies() {
       Elements[i] = getImpl(SrcSTy->getElementType(i));
     
     DstSTy->setBody(Elements, SrcSTy->isPacked());
+    if( SrcSTy->hasByteLayout())
+      DstSTy->setByteLayout();
     
     // If DstSTy has no name or has a longer name than STy, then viciously steal
     // STy's name.
@@ -305,8 +308,11 @@ Type *TypeMapTy::getImpl(Type *Ty) {
                                         cast<FunctionType>(Ty)->isVarArg());
     case Type::StructTyID:
       // Note that this is only reached for anonymous structs.
-      return *Entry = StructType::get(Ty->getContext(), ElementTypes,
+      StructType* Res = StructType::get(Ty->getContext(), ElementTypes,
                                       cast<StructType>(Ty)->isPacked());
+      if (cast<StructType>(Ty)->hasByteLayout())
+        Res->setByteLayout();
+      return *Entry = Res;
     }
   }
 
