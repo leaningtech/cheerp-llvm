@@ -19,6 +19,7 @@
 #include "llvm/Cheerp/Writer.h"
 #include "llvm/Cheerp/AllocaMerging.h"
 #include "llvm/Cheerp/PointerPasses.h"
+#include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/ResolveAliases.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -29,6 +30,8 @@ static cl::opt<std::string> SourceMap("cheerp-sourcemap", cl::Optional,
   cl::desc("If specified, the file name of the source map"), cl::value_desc("filename"));
 
 static cl::opt<bool> PrettyCode("cheerp-pretty-code", cl::desc("Generate human-readable JS") );
+
+static cl::opt<bool> NoRegisterize("cheerp-no-registerize", cl::desc("Disable registerize pass") );
 
 extern "C" void LLVMInitializeCheerpBackendTarget() {
   // Register the target.
@@ -51,6 +54,7 @@ namespace {
 bool CheerpWritePass::runOnModule(Module& M)
 {
   cheerp::PointerAnalyzer &PA = getAnalysis<cheerp::PointerAnalyzer>();
+  cheerp::Registerize &registerize = getAnalysis<cheerp::Registerize>();
   if (!SourceMap.empty())
   {
     std::string ErrorString;
@@ -61,13 +65,13 @@ bool CheerpWritePass::runOnModule(Module& M)
        llvm::report_fatal_error(ErrorString.c_str(), false);
        return false;
     }
-    cheerp::CheerpWriter writer(M, Out, PA, SourceMap, &sourceMap.os(), PrettyCode);
+    cheerp::CheerpWriter writer(M, Out, PA, registerize, SourceMap, &sourceMap.os(), PrettyCode, NoRegisterize);
     sourceMap.keep();
     writer.makeJS();
   }
   else
   {
-    cheerp::CheerpWriter writer(M, Out, PA, SourceMap, NULL, PrettyCode);
+    cheerp::CheerpWriter writer(M, Out, PA, registerize, SourceMap, NULL, PrettyCode, NoRegisterize);
     writer.makeJS();
   }
 
@@ -77,6 +81,7 @@ bool CheerpWritePass::runOnModule(Module& M)
 void CheerpWritePass::getAnalysisUsage(AnalysisUsage& AU) const
 {
   AU.addRequired<cheerp::PointerAnalyzer>();
+  AU.addRequired<cheerp::Registerize>();
 }
 
 char CheerpWritePass::ID = 0;
@@ -97,6 +102,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
   PM.add(createIndirectCallOptimizerPass());
   PM.add(createAllocaArraysPass());
   PM.add(createAllocaMergingPass());
+  PM.add(cheerp::createRegisterizePass(NoRegisterize));
   PM.add(new CheerpWritePass(o));
   return false;
 }
