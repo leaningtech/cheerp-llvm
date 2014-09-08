@@ -2177,21 +2177,21 @@ void Type::mangle(raw_ostream &OS) const {
   // Itanium ABI inspired mangling of types
   switch (getTypeID()) {
   case Type::VoidTyID:      OS << 'v'; return;
-  case Type::HalfTyID:      OS << "Dh"; return;
-  case Type::FloatTyID:     OS << 'f'; return;
-  case Type::DoubleTyID:    OS << 'd'; return;
+  case Type::HalfTyID:      OS << "f16"; return;
+  case Type::FloatTyID:     OS << "f32"; return;
+  case Type::DoubleTyID:    OS << "f64"; return;
+  case Type::X86_FP80TyID:  OS << "f80"; return;
+  case Type::FP128TyID:     OS << "f128"; return;
+  case Type::PPC_FP128TyID:     OS << "ppcf128"; return;
   case Type::IntegerTyID:
-    if (cast<IntegerType>(this)->getBitWidth()==8)
-      OS << 'c';
-    else if (cast<IntegerType>(this)->getBitWidth()==16)
-      OS << 's';
-    else if (cast<IntegerType>(this)->getBitWidth()==32)
-      OS << 'i';
-    else if (cast<IntegerType>(this)->getBitWidth()==64)
-      OS << 'x';
-    else
-      OS << 'i' << cast<IntegerType>(this)->getBitWidth();
+    OS << 'i' << cast<IntegerType>(this)->getBitWidth();
     return;
+  case Type::VectorTyID: {
+    const VectorType* VTy = cast<VectorType>(this);
+    OS << 'v' << VTy->getNumElements();
+    VTy->getElementType()->mangle(OS);
+    return;
+  }
   case Type::FunctionTyID: {
     const FunctionType *FTy = cast<FunctionType>(this);
     OS << 'F';
@@ -2217,7 +2217,7 @@ void Type::mangle(raw_ostream &OS) const {
   }
   case Type::PointerTyID: {
     const PointerType *PTy = cast<PointerType>(this);
-    OS << 'P';
+    OS << 'p' << PTy->getAddressSpace();
     PTy->getElementType()->mangle(OS);
     return;
   }
