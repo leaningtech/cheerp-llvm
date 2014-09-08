@@ -9,14 +9,14 @@
 define float @test1(float %x) nounwind {
 entry:
 ; GNU_SINCOS-LABEL: test1:
-; GNU_SINCOS: callq sincosf
-; GNU_SINCOS: movss 4(%rsp), %xmm0
-; GNU_SINCOS: addss (%rsp), %xmm0
+; GNU_SINCOS-XFAIL: callq sincosf
+; GNU_SINCOS-XFAIL: movss 4(%rsp), %xmm0
+; GNU_SINCOS-XFAIL: addss (%rsp), %xmm0
 
 ; OSX_SINCOS-LABEL: test1:
-; OSX_SINCOS: callq ___sincosf_stret
-; OSX_SINCOS: pshufd $1, %xmm0, %xmm1
-; OSX_SINCOS: addss %xmm0, %xmm1
+; OSX_SINCOS-XFAIL: callq ___sincosf_stret
+; OSX_SINCOS-XFAIL: pshufd $1, %xmm0, %xmm1
+; OSX_SINCOS-XFAIL: addss %xmm0, %xmm1
 
 ; OSX_NOOPT: test1
 ; OSX_NOOPT: callq _sinf

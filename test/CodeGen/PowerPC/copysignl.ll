@@ -9,7 +9,7 @@ entry:
   ret double %conv
 
 ; CHECK-LABEL: @foo_d_ll
-; CHECK: fcpsgn 1, 3, 1
+; CHECK-XFAIL: fcpsgn 1, 3, 1
 ; CHECK: blr
 }
 

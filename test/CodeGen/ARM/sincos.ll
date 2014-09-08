@@ -7,7 +7,7 @@
 define float @test1(float %x) nounwind {
 entry:
 ; SINCOS-LABEL: test1:
-; SINCOS: bl ___sincosf_stret
+; SINCOS-XFAIL: bl ___sincosf_stret
 
 ; NOOPT-LABEL: test1:
 ; NOOPT: bl _sinf

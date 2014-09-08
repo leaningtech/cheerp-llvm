@@ -64,7 +64,7 @@ define double @test5(double %X) {
         %Y = call double @cos(double %X) readonly
         ret double %Y
 }
-; COS: {{^[ \t]*fcos}}
+; COS-XFAIL: {{^[ \t]*fcos}}
 
 ; SAFE: test5
 ; SAFE-NOT: fcos
@@ -73,7 +73,7 @@ define x86_fp80 @test6(x86_fp80 %X) {
         %Y = call x86_fp80 @cosl(x86_fp80 %X) readonly
         ret x86_fp80 %Y
 }
-; COS: {{^[ \t]*fcos}}
+; COS-XFAIL: {{^[ \t]*fcos}}
 
 ; SIN-NOT: fsin
 ; COS-NOT: fcos

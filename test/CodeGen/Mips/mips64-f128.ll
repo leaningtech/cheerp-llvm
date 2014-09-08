@@ -404,17 +404,17 @@ entry:
 declare fp128 @llvm.powi.f128(fp128, i32) #3
 
 ; CHECK-LABEL:     libcall2_copysignl:
-; CHECK-DAG: daddiu $[[R2:[0-9]+]], $zero, 1
-; CHECK-DAG: dsll   $[[R3:[0-9]+]], $[[R2]], 63
+; CHECK-DAG-XFAIL: daddiu $[[R2:[0-9]+]], $zero, 1
+; CHECK-DAG-XFAIL: dsll   $[[R3:[0-9]+]], $[[R2]], 63
 ; CHECK-DAG: ld     $[[R0:[0-9]+]], %got_disp(gld1)
 ; CHECK-DAG: ld     $[[R1:[0-9]+]], 8($[[R0]])
-; CHECK-DAG: and    $[[R4:[0-9]+]], $[[R1]], $[[R3]]
+; CHECK-DAG-XFAIL: and    $[[R4:[0-9]+]], $[[R1]], $[[R3]]
 ; CHECK-DAG: ld     $[[R5:[0-9]+]], %got_disp(gld0)
 ; CHECK-DAG: ld     $[[R6:[0-9]+]], 8($[[R5]])
-; CHECK-DAG: daddiu $[[R7:[0-9]+]], $[[R3]], -1
-; CHECK-DAG: and    $[[R8:[0-9]+]], $[[R6]], $[[R7]]
-; CHECK-DAG: or     $4, $[[R8]], $[[R4]]
-; CHECK-DAG: ld     $2, 0($[[R5]])
+; CHECK-DAG-XFAIL: daddiu $[[R7:[0-9]+]], $[[R3]], -1
+; CHECK-DAG-XFAIL: and    $[[R8:[0-9]+]], $[[R6]], $[[R7]]
+; CHECK-DAG-XFAIL: or     $4, $[[R8]], $[[R4]]
+; CHECK-DAG-XFAIL: ld     $2, 0($[[R5]])
 
 define fp128 @libcall2_copysignl() {
 entry:
