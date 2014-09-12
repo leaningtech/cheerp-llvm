@@ -604,6 +604,7 @@ bool StructType::isLayoutIdentical(StructType *Other) const {
   if (this == Other) return true;
   
   if (isPacked() != Other->isPacked() ||
+      hasByteLayout() != Other->hasByteLayout() ||
       getNumElements() != Other->getNumElements())
     return false;
   
