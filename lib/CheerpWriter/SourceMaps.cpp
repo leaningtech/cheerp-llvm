@@ -17,9 +17,9 @@ using namespace llvm;
 namespace cheerp
 {
 
-SourceMapGenerator::SourceMapGenerator(const std::string& sourceMapName, llvm::LLVMContext& C, std::string& ErrorString):
-	sourceMap(sourceMapName.c_str(), ErrorString, sys::fs::F_None), sourceMapName(sourceMapName), Ctx(C), lastFile(0),
-	lastLine(0), lastColoumn(0), validInfo(false), lineStart(true)
+SourceMapGenerator::SourceMapGenerator(const std::string& sourceMapName, const std::string& sourceMapPrefix, llvm::LLVMContext& C, std::string& ErrorString):
+	sourceMap(sourceMapName.c_str(), ErrorString, sys::fs::F_None), sourceMapName(sourceMapName), sourceMapPrefix(sourceMapPrefix),
+	Ctx(C), lastFile(0), lastLine(0), lastColoumn(0), validInfo(false), lineStart(true)
 {
 }
 
@@ -114,8 +114,11 @@ void SourceMapGenerator::endFile()
 		// Fix slashes in the file path
 		std::string tmp;
 		StringRef string=files[i]->getString();
+		unsigned start=0;
+		if(string.startswith(sourceMapPrefix))
+			start=sourceMapPrefix.size();
 		tmp.reserve(string.size());
-		for(unsigned i=0;i<string.size();i++)
+		for(unsigned i=start;i<string.size();i++)
 		{
 			char c=string[i];
 			if(c=='\\')
