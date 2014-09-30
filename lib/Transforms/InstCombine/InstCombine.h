@@ -238,8 +238,7 @@ private:
   bool transformConstExprCastCall(CallSite CS);
   Instruction *transformCallThroughTrampoline(CallSite CS,
                                               IntrinsicInst *Tramp);
-  Instruction *transformZExtICmp(ICmpInst *ICI, Instruction &CI,
-                                 bool DoXform = true);
+  Value *transformZExtICmp(ICmpInst *ICI, Instruction &CI);
   Instruction *transformSExtICmp(ICmpInst *ICI, Instruction &CI);
   bool WillNotOverflowSignedAdd(Value *LHS, Value *RHS);
   Value *EmitGEPOffset(User *GEP);
