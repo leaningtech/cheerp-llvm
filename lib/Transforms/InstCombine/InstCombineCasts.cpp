@@ -511,8 +511,7 @@ Instruction *InstCombiner::visitTrunc(TruncInst &CI) {
 
 /// transformZExtICmp - Transform (zext icmp) to bitwise / integer operations
 /// in order to eliminate the icmp.
-Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
-                                             bool DoXform) {
+Value *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI) {
   // If we are just checking for a icmp eq of a single bit and zext'ing it
   // to an integer, then shift the bit to the appropriate place and then
   // cast to integer to avoid the comparison.
@@ -523,7 +522,6 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
     // zext (x >s -1) to i32 --> (x>>u31)^1  true if signbit clear.
     if ((ICI->getPredicate() == ICmpInst::ICMP_SLT && Op1CV == 0) ||
         (ICI->getPredicate() == ICmpInst::ICMP_SGT &&Op1CV.isAllOnesValue())) {
-      if (!DoXform) return ICI;
 
       Value *In = ICI->getOperand(0);
       Value *Sh = ConstantInt::get(In->getType(),
@@ -537,7 +535,7 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
         In = Builder->CreateXor(In, One, In->getName()+".not");
       }
 
-      return ReplaceInstUsesWith(CI, In);
+      return In;
     }
 
     // zext (X == 0) to i32 --> X^1      iff X has only the low bit set.
@@ -558,7 +556,6 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
 
       APInt KnownZeroMask(~KnownZero);
       if (KnownZeroMask.isPowerOf2()) { // Exactly 1 possible 1?
-        if (!DoXform) return ICI;
 
         bool isNE = ICI->getPredicate() == ICmpInst::ICMP_NE;
         if (Op1CV != 0 && (Op1CV != KnownZeroMask)) {
@@ -567,7 +564,7 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
           Constant *Res = ConstantInt::get(Type::getInt1Ty(CI.getContext()),
                                            isNE);
           Res = ConstantExpr::getZExt(Res, CI.getType());
-          return ReplaceInstUsesWith(CI, Res);
+          return Res;
         }
 
         uint32_t ShiftAmt = KnownZeroMask.logBase2();
@@ -584,9 +581,10 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
           In = Builder->CreateXor(In, One);
         }
 
-        if (CI.getType() == In->getType())
-          return ReplaceInstUsesWith(CI, In);
-        return CastInst::CreateIntegerCast(In, CI.getType(), false/*ZExt*/);
+        if (CI.getType() == In->getType()) {
+          return In;
+        }
+        return Builder->CreateIntCast(In, CI.getType(), false/*ZExt*/);
       }
     }
   }
@@ -609,7 +607,6 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
         APInt KnownBits = KnownZeroLHS | KnownOneLHS;
         APInt UnknownBit = ~KnownBits;
         if (UnknownBit.countPopulation() == 1) {
-          if (!DoXform) return ICI;
 
           Value *Result = Builder->CreateXor(LHS, RHS);
 
@@ -625,7 +622,7 @@ Instruction *InstCombiner::transformZExtICmp(ICmpInst *ICI, Instruction &CI,
           if (ICI->getPredicate() == ICmpInst::ICMP_EQ)
             Result = Builder->CreateXor(Result, ConstantInt::get(ITy, 1));
           Result->takeName(ICI);
-          return ReplaceInstUsesWith(CI, Result);
+          return Result;
         }
       }
     }
@@ -849,7 +846,12 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
   }
 
   if (ICmpInst *ICI = dyn_cast<ICmpInst>(Src))
-    return transformZExtICmp(ICI, CI);
+  {
+    Value* Res = transformZExtICmp(ICI, CI);
+    if (!Res)
+      return 0;
+    return ReplaceInstUsesWith(CI, Res);
+  }
 
   BinaryOperator *SrcI = dyn_cast<BinaryOperator>(Src);
   if (SrcI && SrcI->getOpcode() == Instruction::Or) {
@@ -857,12 +859,16 @@ Instruction *InstCombiner::visitZExt(ZExtInst &CI) {
     // of the (zext icmp) will be transformed.
     ICmpInst *LHS = dyn_cast<ICmpInst>(SrcI->getOperand(0));
     ICmpInst *RHS = dyn_cast<ICmpInst>(SrcI->getOperand(1));
-    if (LHS && RHS && LHS->hasOneUse() && RHS->hasOneUse() &&
-        (transformZExtICmp(LHS, CI, false) ||
-         transformZExtICmp(RHS, CI, false))) {
-      Value *LCast = Builder->CreateZExt(LHS, CI.getType(), LHS->getName());
-      Value *RCast = Builder->CreateZExt(RHS, CI.getType(), RHS->getName());
-      return BinaryOperator::Create(Instruction::Or, LCast, RCast);
+    if (LHS && RHS && LHS->hasOneUse() && RHS->hasOneUse()) {
+      Value *LCast = transformZExtICmp(LHS, CI);
+      Value *RCast = transformZExtICmp(RHS, CI);
+      if (LCast || RCast) {
+        if (!LCast)
+          LCast = Builder->CreateZExt(LHS, CI.getType(), "HACK1");
+        if (!RCast)
+          RCast = Builder->CreateZExt(RHS, CI.getType(), "HACK2");
+        return BinaryOperator::Create(Instruction::Or, LCast, RCast);
+      }
     }
   }
 
