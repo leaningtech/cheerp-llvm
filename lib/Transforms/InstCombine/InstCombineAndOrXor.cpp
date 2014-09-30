@@ -2171,7 +2171,21 @@ Instruction *InstCombiner::visitOr(BinaryOperator &I) {
           SrcTy->isIntOrIntVectorTy()) {
         Value *Op0COp = Op0C->getOperand(0), *Op1COp = Op1C->getOperand(0);
 
-        if ((!isa<ICmpInst>(Op0COp) || !isa<ICmpInst>(Op1COp)) &&
+        // There is specific logic to simplify casts of icmp, see if it applies here
+	if (isa<ICmpInst>(Op0COp)) {
+          if (Instruction* NewOp0 = visitInstruction(*Op0C)) {
+            Builder->Insert(NewOp0);
+            return BinaryOperator::CreateOr(NewOp0, Op1);
+          }
+        }
+	if (isa<ICmpInst>(Op1COp)) {
+          if (Instruction* NewOp1 = visitInstruction(*Op1C)) {
+            Builder->Insert(NewOp1);
+            return BinaryOperator::CreateOr(Op0, NewOp1);
+          }
+        }
+
+        if (
             // Only do this if the casts both really cause code to be
             // generated.
             ShouldOptimizeCast(Op0C->getOpcode(), Op0COp, I.getType()) &&
