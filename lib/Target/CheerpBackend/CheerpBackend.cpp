@@ -97,6 +97,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            AnalysisID StopAfter) {
   if (FileType != TargetMachine::CGFT_AssemblyFile) return true;
   PM.add(createResolveAliasesPass());
+  PM.add(createPointerArithmeticToArrayIndexingPass());
   PM.add(cheerp::createPointerAnalyzerPass());
   PM.add(createIndirectCallOptimizerPass());
   PM.add(cheerp::createRegisterizePass(NoRegisterize));
