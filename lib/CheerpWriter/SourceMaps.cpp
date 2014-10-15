@@ -11,6 +11,7 @@
 
 #include "llvm/Cheerp/SourceMaps.h"
 #include "llvm/IR/Metadata.h"
+#include "llvm/Support/Path.h"
 
 using namespace llvm;
 
@@ -130,6 +131,11 @@ void SourceMapGenerator::endFile()
 	sourceMap.os() << "]\n";
 	sourceMap.os() << "}\n";
 	sourceMap.keep();
+}
+
+std::string SourceMapGenerator::getSourceMapName() const
+{
+	return llvm::sys::path::filename(sourceMapName);
 }
 
 }
