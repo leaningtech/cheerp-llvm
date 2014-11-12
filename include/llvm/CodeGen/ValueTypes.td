@@ -161,6 +161,7 @@ def FlagVT : ValueType<0  , 126>;   // Pre-RA sched glue
 def isVoid : ValueType<0  , 127>;   // Produces no value
 def untyped: ValueType<8  , 128>;   // Produces an untyped value
 def exnref: ValueType<0, 129>;      // WebAssembly's exnref type
+def varArg:  ValueType<0  , 130>;   // Variable arguments marker
 def token  : ValueType<0  , 248>;   // TokenTy
 def MetadataVT: ValueType<0, 249>;  // Metadata
 

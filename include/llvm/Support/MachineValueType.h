@@ -205,6 +205,7 @@ namespace llvm {
       Untyped        =  128,   // This value takes a register, but has
                                // unspecified type.  The register class
                                // will be determined by the opcode.
+      varArg         =  130,   // This is used to mark the first variable argument
 
       exnref         =  129,   // WebAssembly's exnref type
 
