@@ -145,6 +145,7 @@ def FlagVT : ValueType<0  , 109>;   // Pre-RA sched glue
 def isVoid : ValueType<0  , 110>;   // Produces no value
 def untyped: ValueType<8  , 111>;   // Produces an untyped value
 def token  : ValueType<0  , 248>;   // TokenTy
+def varArg:  ValueType<0  , 112>;   // Variable arguments marker
 def MetadataVT: ValueType<0, 249>;  // Metadata
 
 // Pseudo valuetype mapped to the current pointer size to any address space.

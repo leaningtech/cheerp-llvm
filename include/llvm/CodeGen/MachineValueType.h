@@ -189,9 +189,10 @@ namespace llvm {
       Untyped        =  111,   // This value takes a register, but has
                                // unspecified type.  The register class
                                // will be determined by the opcode.
+      varArg         =  112,   // This is used to mark the first variable argument
 
       FIRST_VALUETYPE = 1,     // This is always the beginning of the list.
-      LAST_VALUETYPE =  112,   // This always remains at the end of the list.
+      LAST_VALUETYPE =  113,   // This always remains at the end of the list.
 
       // This is the current maximum for LAST_VALUETYPE.
       // MVT::MAX_ALLOWED_VALUETYPE is used for asserts and to size bit vectors

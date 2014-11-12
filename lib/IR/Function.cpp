@@ -649,7 +649,8 @@ enum IIT_Info {
   IIT_VEC_OF_ANYPTRS_TO_ELT = 34,
   IIT_I128 = 35,
   IIT_V512 = 36,
-  IIT_V1024 = 37
+  IIT_V1024 = 37,
+  IIT_VOID = 38
 };
 
 static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
@@ -661,6 +662,7 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
 
   switch (Info) {
   case IIT_Done:
+  case IIT_VOID:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Void, 0));
     return;
   case IIT_VARARG:
