@@ -146,6 +146,7 @@ def isVoid : ValueType<0  , 111>;   // Produces no value
 def untyped: ValueType<8  , 112>;   // Produces an untyped value
 def ExceptRef: ValueType<0, 113>;   // WebAssembly's except_ref type
 def token  : ValueType<0  , 248>;   // TokenTy
+def varArg:  ValueType<0  , 112>;   // Variable arguments marker
 def MetadataVT: ValueType<0, 249>;  // Metadata
 
 // Pseudo valuetype mapped to the current pointer size to any address space.

@@ -189,6 +189,7 @@ namespace llvm {
       Untyped        =  112,   // This value takes a register, but has
                                // unspecified type.  The register class
                                // will be determined by the opcode.
+      varArg         =  112,   // This is used to mark the first variable argument
 
       ExceptRef      = 113,    // WebAssembly's except_ref type
 
