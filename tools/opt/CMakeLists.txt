@@ -13,6 +13,7 @@ set(LLVM_LINK_COMPONENTS
   IRReader
   InstCombine
   Instrumentation
+  CheerpUtils
   MC
   ObjCARCOpts
   Remarks
