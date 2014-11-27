@@ -23,6 +23,7 @@ required_libraries =
  AsmParser
  BitReader
  BitWriter
+ CheerpUtils
  CodeGen
  IRReader
  IPO
