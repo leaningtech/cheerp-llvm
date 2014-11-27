@@ -340,6 +340,7 @@ int main(int argc, char **argv) {
   initializeInstCombine(Registry);
   initializeInstrumentation(Registry);
   initializeTarget(Registry);
+  initializeCheerpOpts(Registry);
   // For codegen passes, only passes that do IR to IR transformation are
   // supported. For now, just add CodeGenPrepare.
   initializeCodeGenPreparePass(Registry);
