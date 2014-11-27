@@ -62,6 +62,9 @@ void initializeCodeGen(PassRegistry&);
 /// initializeCodeGen - Initialize all passes linked into the CodeGen library.
 void initializeTarget(PassRegistry&);
 
+/// initializeCheerpOpts - Initialize all passes specific for Cheerp
+void initializeCheerpOpts(PassRegistry&);
+
 void initializeAAEvalPass(PassRegistry&);
 void initializeAddDiscriminatorsPass(PassRegistry&);
 void initializeADCEPass(PassRegistry&);
@@ -287,6 +290,8 @@ void initializeStackMapLivenessPass(PassRegistry&);
 void initializeMachineCombinerPass(PassRegistry &);
 void initializeLoadCombinePass(PassRegistry&);
 void initializeRewriteSymbolsPass(PassRegistry&);
+void initializeStructMemFuncLoweringPass(PassRegistry&);
+void initializeAllocaMergingPass(PassRegistry&);
 }
 
 #endif
