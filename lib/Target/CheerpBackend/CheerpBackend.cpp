@@ -51,6 +51,9 @@ namespace {
     explicit CheerpWritePass(formatted_raw_ostream &o) :
       ModulePass(ID), Out(o) { }
     bool runOnModule(Module &M);
+    const char *getPassName() const {
+	return "CheerpWritePass";
+    }
   };
 } // end anonymous namespace.
 
