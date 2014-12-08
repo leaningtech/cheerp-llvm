@@ -274,6 +274,7 @@ void initializeMachineFunctionPrinterPassPass(PassRegistry&);
 void initializeStackMapLivenessPass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeAllocaMergingPass(PassRegistry&);
+void initializeGlobalDepsAnalyzerPass(PassRegistry&);
 }
 
 #endif
