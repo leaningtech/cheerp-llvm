@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "CheerpRegisterize"
+#include "llvm/Cheerp/GlobalDepsAnalyzer.h"
 #include "llvm/Cheerp/PointerAnalyzer.h"
 #include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/Utility.h"
@@ -29,6 +30,7 @@ void Registerize::getAnalysisUsage(AnalysisUsage & AU) const
 {
 	AU.addPreserved<cheerp::PointerAnalyzer>();
 	AU.addRequired<cheerp::PointerAnalyzer>();
+	AU.addPreserved<cheerp::GlobalDepsAnalyzer>();
 	llvm::Pass::getAnalysisUsage(AU);
 }
 

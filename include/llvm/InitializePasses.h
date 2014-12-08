@@ -292,6 +292,7 @@ void initializeLoadCombinePass(PassRegistry&);
 void initializeRewriteSymbolsPass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeAllocaMergingPass(PassRegistry&);
+void initializeGlobalDepsAnalyzerPass(PassRegistry&);
 }
 
 #endif
