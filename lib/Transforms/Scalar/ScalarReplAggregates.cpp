@@ -1301,6 +1301,14 @@ static bool tryToMakeAllocaBePromotable(AllocaInst *AI, const DataLayout *DL) {
       }
     }
 
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
+      if (II->getIntrinsicID() == Intrinsic::lifetime_start ||
+          II->getIntrinsicID() == Intrinsic::lifetime_end) {
+        InstsToRewrite.insert(II);
+        continue;
+      }
+    }
+
     return false;
   }
 
@@ -1351,6 +1359,12 @@ static bool tryToMakeAllocaBePromotable(AllocaInst *AI, const DataLayout *DL) {
       SI->eraseFromParent();
       continue;
     }
+
+    // Remove lifetime intrinsics
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(InstsToRewrite[i])) {
+        II->eraseFromParent();
+        continue;
+      }
 
     // Otherwise, we have a PHI node which allows us to push the loads into the
     // predecessors.
