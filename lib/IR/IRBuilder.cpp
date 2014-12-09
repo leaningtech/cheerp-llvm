@@ -290,7 +290,6 @@ CallInst *IRBuilderBase::CreateFPMinReduce(Value *Src, bool NoNaN) {
 CallInst *IRBuilderBase::CreateLifetimeStart(Value *Ptr, ConstantInt *Size) {
   assert(isa<PointerType>(Ptr->getType()) &&
          "lifetime.start only applies to pointers.");
-  Ptr = getCastedInt8PtrValue(Ptr);
   if (!Size)
     Size = getInt64(-1);
   else
@@ -306,7 +305,6 @@ CallInst *IRBuilderBase::CreateLifetimeStart(Value *Ptr, ConstantInt *Size) {
 CallInst *IRBuilderBase::CreateLifetimeEnd(Value *Ptr, ConstantInt *Size) {
   assert(isa<PointerType>(Ptr->getType()) &&
          "lifetime.end only applies to pointers.");
-  Ptr = getCastedInt8PtrValue(Ptr);
   if (!Size)
     Size = getInt64(-1);
   else
