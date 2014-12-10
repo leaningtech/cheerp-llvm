@@ -3143,7 +3143,7 @@ static Type *getTypePartition(const DataLayout &DL, Type *Ty,
   }
 
   // Try to build up a sub-structure.
-  StructType *SubTy = StructType::get(STy->getContext(), makeArrayRef(EI, EE),
+  StructType *SubTy = StructType::create(makeArrayRef(EI, EE), (STy->getName() + ".sroa" + Twine(Offset)).str(),
                                       STy->isPacked());
   const StructLayout *SubSL = DL.getStructLayout(SubTy);
   if (Size != SubSL->getSizeInBytes())
