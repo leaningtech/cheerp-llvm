@@ -2208,7 +2208,7 @@ void Type::mangle(raw_ostream &OS) const {
   }
   case Type::StructTyID: {
     const StructType *STy = cast<StructType>(this);
-    if (!STy->getName().empty())
+    if (STy->hasName())
     {
       OS << STy->getName().size();
       OS << STy->getName();
