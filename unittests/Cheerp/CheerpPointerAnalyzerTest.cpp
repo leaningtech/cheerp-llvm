@@ -134,7 +134,7 @@ TEST(CheerpTest, PointerAnalyzerTest) {
 		EXPECT_EQ( COMPLETE_OBJECT, PA.getPointerKind(a3) );
 		EXPECT_EQ( COMPLETE_OBJECT, PA.getPointerKind(b1) );
 		EXPECT_EQ( REGULAR, PA.getPointerKind(c) );
-		//EXPECT_EQ( COMPLETE_OBJECT, PA.getPointerKind(d1) );
+		EXPECT_EQ( COMPLETE_OBJECT, PA.getPointerKind(d1) );
 	}
 	
 #ifndef NDEBUG
