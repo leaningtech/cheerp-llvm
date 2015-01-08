@@ -272,9 +272,12 @@ void initializeSLPVectorizerPass(PassRegistry&);
 void initializeBBVectorizePass(PassRegistry&);
 void initializeMachineFunctionPrinterPassPass(PassRegistry&);
 void initializeStackMapLivenessPass(PassRegistry&);
-void initializeStructMemFuncLoweringPass(PassRegistry&);
+void initializeAllocaArraysPass(PassRegistry&);
 void initializeAllocaMergingPass(PassRegistry&);
 void initializeGlobalDepsAnalyzerPass(PassRegistry&);
+void initializePointerAnalyzerPass(PassRegistry&);
+void initializeRegisterizePass(PassRegistry&);
+void initializeStructMemFuncLoweringPass(PassRegistry&);
 }
 
 #endif
