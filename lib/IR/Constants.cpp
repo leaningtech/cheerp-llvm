@@ -842,21 +842,23 @@ Constant *ConstantArray::get(ArrayType *Ty, ArrayRef<Constant*> V) {
 /// with the specified set of elements.  The list must not be empty.
 StructType *ConstantStruct::getTypeForElements(LLVMContext &Context,
                                                ArrayRef<Constant*> V,
-                                               bool Packed) {
+                                               bool Packed,
+                                               StructType* DirectBase) {
   unsigned VecSize = V.size();
   SmallVector<Type*, 16> EltTypes(VecSize);
   for (unsigned i = 0; i != VecSize; ++i)
     EltTypes[i] = V[i]->getType();
 
-  return StructType::get(Context, EltTypes, Packed);
+  return StructType::get(Context, EltTypes, Packed, DirectBase);
 }
 
 
 StructType *ConstantStruct::getTypeForElements(ArrayRef<Constant*> V,
-                                               bool Packed) {
+                                               bool Packed,
+                                               StructType* DirectBase) {
   assert(!V.empty() &&
          "ConstantStruct::getTypeForElements cannot be called on empty list");
-  return getTypeForElements(V[0]->getContext(), V, Packed);
+  return getTypeForElements(V[0]->getContext(), V, Packed, DirectBase);
 }
 
 

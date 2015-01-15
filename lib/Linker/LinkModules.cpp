@@ -226,8 +226,11 @@ void TypeMapTy::linkDefinedTypeBodies() {
     Elements.resize(SrcSTy->getNumElements());
     for (unsigned i = 0, e = Elements.size(); i != e; ++i)
       Elements[i] = getImpl(SrcSTy->getElementType(i));
+    StructType* DirectBase = SrcSTy->getDirectBase();
+    if (DirectBase)
+      DirectBase = cast<StructType>(getImpl(DirectBase));
     
-    DstSTy->setBody(Elements, SrcSTy->isPacked());
+    DstSTy->setBody(Elements, SrcSTy->isPacked(), DirectBase);
     if( SrcSTy->hasByteLayout())
       DstSTy->setByteLayout();
     
@@ -309,7 +312,8 @@ Type *TypeMapTy::getImpl(Type *Ty) {
     case Type::StructTyID:
       // Note that this is only reached for anonymous structs.
       StructType* Res = StructType::get(Ty->getContext(), ElementTypes,
-                                      cast<StructType>(Ty)->isPacked());
+                                      cast<StructType>(Ty)->isPacked(),
+                                      cast<StructType>(Ty)->getDirectBase());
       if (cast<StructType>(Ty)->hasByteLayout())
         Res->setByteLayout();
       return *Entry = Res;

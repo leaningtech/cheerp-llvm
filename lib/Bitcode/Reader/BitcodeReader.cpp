@@ -871,10 +871,11 @@ error_code BitcodeReader::ParseTypeTableBody() {
       continue;
 
     case bitc::TYPE_CODE_STRUCT_NAMED: { // STRUCT: [ispacked, bytelayout, eltty x N]
-      if (Record.size() < 2)
+      if (Record.size() < 3)
         return Error(InvalidRecord);
       bool isPacked = Record[0];
       bool hasByteLayout = Record[1];
+      bool hasDirectBase = Record[2];
 
       if (NumRecords >= TypeList.size())
         return Error(InvalidTYPETable);
@@ -889,15 +890,16 @@ error_code BitcodeReader::ParseTypeTableBody() {
       TypeName.clear();
 
       SmallVector<Type*, 8> EltTys;
-      for (unsigned i = 2, e = Record.size(); i != e; ++i) {
+      for (unsigned i = 3, e = (hasDirectBase ? Record.size()-1 : Record.size()); i != e; ++i) {
         if (Type *T = getTypeByID(Record[i]))
           EltTys.push_back(T);
         else
           break;
       }
-      if (EltTys.size() != Record.size()-2)
+      StructType* directBase = hasDirectBase ? cast<StructType>(getTypeByID(Record.back())) : NULL;
+      if (EltTys.size() != (hasDirectBase ? Record.size()-4 : Record.size()-3))
         return Error(InvalidRecord);
-      Res->setBody(EltTys, isPacked);
+      Res->setBody(EltTys, isPacked, directBase);
       if (hasByteLayout)
         Res->setByteLayout();
       ResultTy = Res;

@@ -397,7 +397,7 @@ bool FunctionType::isValidArgumentType(Type *ArgTy) {
 // Primitive Constructors.
 
 StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes, 
-                            bool isPacked) {
+                            bool isPacked, StructType* directBase) {
   LLVMContextImpl *pImpl = Context.pImpl;
   AnonStructTypeKeyInfo::KeyTy Key(ETypes, isPacked);
   LLVMContextImpl::StructTypeMap::iterator I =
@@ -408,7 +408,7 @@ StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes,
     // Value not found.  Create a new type!
     ST = new (Context.pImpl->TypeAllocator) StructType(Context);
     ST->setSubclassData(SCDB_IsLiteral);  // Literal struct.
-    ST->setBody(ETypes, isPacked);
+    ST->setBody(ETypes, isPacked, directBase);
     Context.pImpl->AnonStructTypes[ST] = true;
   } else {
     ST = I->first;
@@ -417,19 +417,24 @@ StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes,
   return ST;
 }
 
-void StructType::setBody(ArrayRef<Type*> Elements, bool isPacked) {
+void StructType::setBody(ArrayRef<Type*> Elements, bool isPacked, StructType* directBase) {
   assert(isOpaque() && "Struct body already set!");
   
   setSubclassData(getSubclassData() | SCDB_HasBody);
   if (isPacked)
     setSubclassData(getSubclassData() | SCDB_Packed);
+  if (directBase)
+    setSubclassData(getSubclassData() | SCDB_DirectBase);
 
   unsigned NumElements = Elements.size();
-  Type **Elts = getContext().pImpl->TypeAllocator.Allocate<Type*>(NumElements);
+
+  Type **Elts = getContext().pImpl->TypeAllocator.Allocate<Type*>(directBase?NumElements+1:NumElements);
   memcpy(Elts, Elements.data(), sizeof(Elements[0]) * NumElements);
+  if(directBase)
+    Elts[NumElements] = directBase;
   
   ContainedTys = Elts;
-  NumContainedTys = NumElements;
+  NumContainedTys = directBase?NumElements+1:NumElements;
 }
 
 void StructType::setName(StringRef Name) {
@@ -492,8 +497,8 @@ StructType *StructType::create(LLVMContext &Context, StringRef Name) {
   return ST;
 }
 
-StructType *StructType::get(LLVMContext &Context, bool isPacked) {
-  return get(Context, None, isPacked);
+StructType *StructType::get(LLVMContext &Context, bool isPacked, StructType* directBase) {
+  return get(Context, None, isPacked, directBase);
 }
 
 StructType *StructType::get(Type *type, ...) {
@@ -510,9 +515,9 @@ StructType *StructType::get(Type *type, ...) {
 }
 
 StructType *StructType::create(LLVMContext &Context, ArrayRef<Type*> Elements,
-                               StringRef Name, bool isPacked) {
+                               StringRef Name, bool isPacked, StructType* directBase) {
   StructType *ST = create(Context, Name);
-  ST->setBody(Elements, isPacked);
+  ST->setBody(Elements, isPacked, directBase);
   return ST;
 }
 
@@ -525,10 +530,10 @@ StructType *StructType::create(LLVMContext &Context) {
 }
 
 StructType *StructType::create(ArrayRef<Type*> Elements, StringRef Name,
-                               bool isPacked) {
+                               bool isPacked, StructType* directBase) {
   assert(!Elements.empty() &&
          "This method may not be invoked with an empty list");
-  return create(Elements[0]->getContext(), Elements, Name, isPacked);
+  return create(Elements[0]->getContext(), Elements, Name, isPacked, directBase);
 }
 
 StructType *StructType::create(ArrayRef<Type*> Elements) {
@@ -605,7 +610,8 @@ bool StructType::isLayoutIdentical(StructType *Other) const {
   
   if (isPacked() != Other->isPacked() ||
       hasByteLayout() != Other->hasByteLayout() ||
-      getNumElements() != Other->getNumElements())
+      getNumElements() != Other->getNumElements() ||
+      getDirectBase() != Other->getDirectBase())
     return false;
   
   element_iterator it=element_begin();

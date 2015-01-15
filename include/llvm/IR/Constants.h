@@ -399,11 +399,13 @@ public:
   /// getTypeForElements - Return an anonymous struct type to use for a constant
   /// with the specified set of elements.  The list must not be empty.
   static StructType *getTypeForElements(ArrayRef<Constant*> V,
-                                        bool Packed = false);
+                                        bool Packed = false,
+                                        StructType* DirectBase = NULL);
   /// getTypeForElements - This version of the method allows an empty list.
   static StructType *getTypeForElements(LLVMContext &Ctx,
                                         ArrayRef<Constant*> V,
-                                        bool Packed = false);
+                                        bool Packed = false,
+                                        StructType* DirectBase = NULL);
 
   /// Transparently provide more efficient getOperand methods.
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Constant);
