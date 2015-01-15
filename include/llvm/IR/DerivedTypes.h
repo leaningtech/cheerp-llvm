@@ -239,7 +239,8 @@ class StructType : public CompositeType {
     SCDB_Packed = 2,
     SCDB_IsLiteral = 4,
     SCDB_IsSized = 8,
-    SCDB_ByteLayout = 16
+    SCDB_ByteLayout = 16,
+    SCDB_DirectBase = 32
   };
 
   /// For a named struct that actually has a name, this is a pointer to the
@@ -257,10 +258,10 @@ public:
   static StructType *create(LLVMContext &Context);
 
   static StructType *create(ArrayRef<Type *> Elements, StringRef Name,
-                            bool isPacked = false);
+                            bool isPacked = false, StructType* directBase = NULL);
   static StructType *create(ArrayRef<Type *> Elements);
   static StructType *create(LLVMContext &Context, ArrayRef<Type *> Elements,
-                            StringRef Name, bool isPacked = false);
+                            StringRef Name, bool isPacked = false, StructType* directBase = NULL);
   static StructType *create(LLVMContext &Context, ArrayRef<Type *> Elements);
   template <class... Tys>
   static typename std::enable_if<are_base_of<Type, Tys...>::value,
@@ -273,10 +274,10 @@ public:
 
   /// This static method is the primary way to create a literal StructType.
   static StructType *get(LLVMContext &Context, ArrayRef<Type*> Elements,
-                         bool isPacked = false);
+                         bool isPacked = false, StructType* directBase = NULL);
 
   /// Create an empty structure type.
-  static StructType *get(LLVMContext &Context, bool isPacked = false);
+  static StructType *get(LLVMContext &Context, bool isPacked = false, StructType* directBase = NULL);
 
   /// This static method is a convenience method for creating structure types by
   /// specifying the elements as arguments. Note that this method always returns
@@ -309,6 +310,9 @@ public:
   bool hasByteLayout() const { return getSubclassData() & SCDB_ByteLayout; }
   void setByteLayout() { setSubclassData(getSubclassData() | SCDB_ByteLayout); }
 
+  bool hasDirectBase() const { return getSubclassData() & SCDB_DirectBase; }
+  StructType* getDirectBase() const { return hasDirectBase()?cast<StructType>(ContainedTys[NumContainedTys-1]):NULL; }
+
   /// Return true if this is a named struct that has a non-empty name.
   bool hasName() const { return SymbolTableEntry != nullptr; }
 
@@ -322,7 +326,7 @@ public:
   void setName(StringRef Name);
 
   /// Specify a body for an opaque identified type.
-  void setBody(ArrayRef<Type*> Elements, bool isPacked = false);
+  void setBody(ArrayRef<Type*> Elements, bool isPacked = false, StructType* directBase=NULL);
 
   template <typename... Tys>
   typename std::enable_if<are_base_of<Type, Tys...>::value, void>::type
@@ -339,7 +343,7 @@ public:
   using element_iterator = Type::subtype_iterator;
 
   element_iterator element_begin() const { return ContainedTys; }
-  element_iterator element_end() const { return &ContainedTys[NumContainedTys];}
+  element_iterator element_end() const { return &ContainedTys[hasDirectBase()?NumContainedTys-1:NumContainedTys];}
   ArrayRef<Type *> const elements() const {
     return makeArrayRef(element_begin(), element_end());
   }
@@ -348,9 +352,9 @@ public:
   bool isLayoutIdentical(StructType *Other) const;
 
   /// Random access to the elements
-  unsigned getNumElements() const { return NumContainedTys; }
+  unsigned getNumElements() const { return hasDirectBase()?NumContainedTys-1:NumContainedTys; }
   Type *getElementType(unsigned N) const {
-    assert(N < NumContainedTys && "Element number out of range!");
+    assert(N < (hasDirectBase()?NumContainedTys-1:NumContainedTys) && "Element number out of range!");
     return ContainedTys[N];
   }
 
