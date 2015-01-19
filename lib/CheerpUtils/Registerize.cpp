@@ -12,7 +12,6 @@
 #define DEBUG_TYPE "CheerpRegisterize"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Cheerp/GlobalDepsAnalyzer.h"
-#include "llvm/Cheerp/PointerAnalyzer.h"
 #include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/Utility.h"
 #include "llvm/IR/CFG.h"
@@ -34,8 +33,6 @@ char Registerize::ID = 0;
 
 void Registerize::getAnalysisUsage(AnalysisUsage & AU) const
 {
-	AU.addPreserved<cheerp::PointerAnalyzer>();
-	AU.addRequired<cheerp::PointerAnalyzer>();
 	AU.addPreserved<cheerp::GlobalDepsAnalyzer>();
 	llvm::Pass::getAnalysisUsage(AU);
 }
@@ -47,11 +44,11 @@ bool Registerize::runOnModule(Module & M)
 	return false;
 }
 
-void Registerize::assignRegisters(Module & M)
+void Registerize::assignRegisters(Module & M, cheerp::PointerAnalyzer& PA)
 {
 	assert(!RegistersAssigned);
 	for (Function& F: M)
-		assignRegistersToInstructions(F);
+		assignRegistersToInstructions(F, PA);
 #ifndef NDEBUG
 	RegistersAssigned = true;
 #endif
@@ -83,11 +80,10 @@ void Registerize::InstructionLiveRange::addUse(uint32_t curCodePath, uint32_t th
 	assert(!range.back().empty());
 }
 
-void Registerize::assignRegistersToInstructions(Function& F)
+void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnalyzer & PA)
 {
 	if (F.empty())
 		return;
-	cheerp::PointerAnalyzer & PA = getAnalysis<cheerp::PointerAnalyzer>();
 	if (NoRegisterize)
 	{
 		// Do a fake run and assign every instruction to a different register
@@ -111,7 +107,7 @@ void Registerize::assignRegistersToInstructions(Function& F)
 		assignInstructionsIds(instIdMap, F, allocaSet);
 #endif
 		// First, build live ranges for all instructions
-		LiveRangesTy liveRanges=computeLiveRanges(F, instIdMap);
+		LiveRangesTy liveRanges=computeLiveRanges(F, instIdMap, PA);
 		// Assign each instruction to a virtual register
 		uint32_t registersCount = assignToRegisters(liveRanges);
 		// Now compute live ranges for alloca memory which is not in SSA form
@@ -174,7 +170,7 @@ void Registerize::computeLiveRangeForAllocas(Function& F)
 	}
 }
 
-Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const InstIdMapTy& instIdMap)
+Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const InstIdMapTy& instIdMap, cheerp::PointerAnalyzer & PA)
 {
 	BlocksState blocksState;
 	for(BasicBlock& BB: F)
@@ -210,7 +206,7 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 #endif
 	// Depth first analysis of blocks, starting from the entry block
 	LiveRangesTy liveRanges;
-	dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, F.getEntryBlock(), 1, 1);
+	dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, F.getEntryBlock(), PA, 1, 1);
 	return liveRanges;
 }
 
@@ -273,9 +269,8 @@ void Registerize::assignInstructionsIds(InstIdMapTy& instIdMap, const Function& 
 }
 
 uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy& liveRanges, const InstIdMapTy& instIdMap,
-					BasicBlock& BB, uint32_t nextIndex, uint32_t codePathId)
+					BasicBlock& BB, cheerp::PointerAnalyzer & PA, uint32_t nextIndex, uint32_t codePathId)
 {
-	cheerp::PointerAnalyzer & PA = getAnalysis<cheerp::PointerAnalyzer>();
 	BlockState& blockState=blocksState[&BB];
 	if(blockState.completed)
 		return nextIndex;
@@ -303,7 +298,7 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 		// This is handled below.
 		if (isa<PHINode>(I))
 			continue;
-		extendRangeForUsedOperands(I, liveRanges, thisIndex, codePathId);
+		extendRangeForUsedOperands(I, liveRanges, PA, thisIndex, codePathId);
 	}
 	// Extend the live range of live-out instrution to the end of the block
 	uint32_t endOfBlockIndex=nextIndex;
@@ -312,7 +307,7 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 	{
 		// If inlineable we need to extend the life of the not-inlineable operands
 		if (isInlineable(*outLiveInst, PA))
-			extendRangeForUsedOperands(*outLiveInst, liveRanges, endOfBlockIndex, codePathId);
+			extendRangeForUsedOperands(*outLiveInst, liveRanges, PA, endOfBlockIndex, codePathId);
 		else
 		{
 			InstructionLiveRange& range=liveRanges.find(outLiveInst)->second;
@@ -324,7 +319,7 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 	for(uint32_t i=0;i<term->getNumSuccessors();i++)
 	{
 		BasicBlock* succ=term->getSuccessor(i);
-		uint32_t newNextIndex=dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, *succ, nextIndex, codePathId);
+		uint32_t newNextIndex=dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, *succ, PA, nextIndex, codePathId);
 		// If any new instruction has ben added (i.e. nextIndex if changed) update codePathId
 		if(newNextIndex!=nextIndex)
 			codePathId = newNextIndex;
@@ -333,10 +328,9 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 	return nextIndex;
 }
 
-void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveRanges,
+void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveRanges, cheerp::PointerAnalyzer& PA,
 						uint32_t thisIndex, uint32_t codePathId)
 {
-	cheerp::PointerAnalyzer & PA = getAnalysis<cheerp::PointerAnalyzer>();
 	for(Value* op: I.operands())
 	{
 		Instruction* usedI = dyn_cast<Instruction>(op);
@@ -345,7 +339,7 @@ void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveR
 			continue;
 		// Recursively traverse inlineable operands
 		if(isInlineable(*usedI, PA))
-			extendRangeForUsedOperands(*usedI, liveRanges, thisIndex, codePathId);
+			extendRangeForUsedOperands(*usedI, liveRanges, PA, thisIndex, codePathId);
 		else
 		{
 			assert(liveRanges.count(usedI));
