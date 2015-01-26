@@ -2576,6 +2576,17 @@ bool GVN::performPRE(Function &F) {
       if (isa<CmpInst>(CurInst))
         continue;
 
+      // Avoid moving pointer which will be heavy on Cheerp
+      if (DL && !DL->isByteAddressable() && CurInst->getType()->isPointerTy())
+      {
+        Type *elementType = CurInst->getType()->getPointerElementType();
+        if(elementType->isPointerTy() || elementType->isIntegerTy() || elementType->isFloatTy() || elementType->isDoubleTy())
+          continue;
+        StructType *st = dyn_cast<StructType>(elementType);
+        if (st && st->hasByteLayout())
+          continue;
+      }
+
       // We don't currently value number ANY inline asm calls.
       if (CallInst *CallI = dyn_cast<CallInst>(CurInst))
         if (CallI->isInlineAsm())
