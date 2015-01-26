@@ -2578,6 +2578,16 @@ bool GVN::performScalarPRE(Instruction *CurInst) {
   if (NumWithout != 1 || NumWith == 0)
     return false;
 
+  // Avoid moving pointer which will be heavy on Cheerp
+  if (DL && !DL->isByteAddressable() && CurInst->getType()->isPointerTy()) {
+    Type *elementType = CurInst->getType()->getPointerElementType();
+    if(elementType->isPointerTy() || elementType->isIntegerTy() || elementType->isFloatTy() || elementType->isDoubleTy())
+      return false;
+    StructType *st = dyn_cast<StructType>(elementType);
+    if (st && st->hasByteLayout())
+      return false;
+  }
+
   // Don't do PRE across indirect branch.
   if (isa<IndirectBrInst>(PREPred->getTerminator()))
     return false;
