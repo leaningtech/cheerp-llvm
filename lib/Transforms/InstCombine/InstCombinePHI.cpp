@@ -246,7 +246,7 @@ Instruction *InstCombiner::FoldPHIArgGEPIntoPHI(PHINode &PN) {
 /// Finally, it is safe, but not profitable, to sink a load targeting a
 /// non-address-taken alloca.  Doing so will cause us to not promote the alloca
 /// to a register.
-static bool isSafeAndProfitableToSinkLoad(LoadInst *L) {
+static bool isSafeAndProfitableToSinkLoad(LoadInst *L, const DataLayout* DL) {
   BasicBlock::iterator BBI = L, E = L->getParent()->end();
 
   for (++BBI; BBI != E; ++BBI)
@@ -281,6 +281,12 @@ static bool isSafeAndProfitableToSinkLoad(LoadInst *L) {
       if (AI->isStaticAlloca() && GEP->hasAllConstantIndices())
         return false;
 
+  if (DL && !DL->isByteAddressable() &&
+	(L->getType()->isIntegerTy() || L->getType()->isFloatTy() || L->getType()->isDoubleTy() || L->getType()->isPointerTy()))
+  {
+    return false;
+  }
+
   return true;
 }
 
@@ -304,7 +310,7 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
   // We can't sink the load if the loaded value could be modified between the
   // load and the PHI.
   if (FirstLI->getParent() != PN.getIncomingBlock(0) ||
-      !isSafeAndProfitableToSinkLoad(FirstLI))
+      !isSafeAndProfitableToSinkLoad(FirstLI, DL))
     return nullptr;
 
   // If the PHI is of volatile loads and the load block has multiple
@@ -325,7 +331,7 @@ Instruction *InstCombiner::FoldPHIArgLoadIntoPHI(PHINode &PN) {
     if (LI->isVolatile() != isVolatile ||
         LI->getParent() != PN.getIncomingBlock(i) ||
         LI->getPointerAddressSpace() != LoadAddrSpace ||
-        !isSafeAndProfitableToSinkLoad(LI))
+        !isSafeAndProfitableToSinkLoad(LI, DL))
       return nullptr;
 
     // If some of the loads have an alignment specified but not all of them,
