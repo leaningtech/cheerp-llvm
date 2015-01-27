@@ -457,9 +457,6 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 	if ( (isa<StoreInst>(p) && U->getOperandNo() == 0 ))
 		return visitValue(ret, p, /*first*/ false);
 
-	if ( isa<PtrToIntInst>(p) || ( isa<ConstantExpr>(p) && cast<ConstantExpr>(p)->getOpcode() == Instruction::PtrToInt) )
-		return ret |= REGULAR;
-
 	if ( const CmpInst * I = dyn_cast<CmpInst>(p) )
 	{
 		if ( !I->isEquality() )
