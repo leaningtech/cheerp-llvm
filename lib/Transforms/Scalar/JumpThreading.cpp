@@ -224,7 +224,8 @@ bool JumpThreading::runOnFunction(Function &F) {
 /// getJumpThreadDuplicationCost - Return the cost of duplicating this block to
 /// thread across it. Stop scanning the block when passing the threshold.
 static unsigned getJumpThreadDuplicationCost(const BasicBlock *BB,
-                                             unsigned Threshold) {
+                                             unsigned Threshold,
+                                             const DataLayout* DL) {
   /// Ignore PHI nodes, these will be flattened when duplication happens.
   BasicBlock::const_iterator I = BB->getFirstNonPHI();
 
@@ -242,6 +243,19 @@ static unsigned getJumpThreadDuplicationCost(const BasicBlock *BB,
 
     // Debugger intrinsics don't incur code size.
     if (isa<DbgInfoIntrinsic>(I)) continue;
+
+    // On Cheerp do not ever duplicate a block which contains a pointer to an immutable type used outside of the block
+    if (DL && !DL->isByteAddressable())
+    {
+      if (I->getType()->isPointerTy() && I->getType()->getPointerElementType()->isSingleValueType())
+      {
+        for (const User* U: I->users())
+        {
+          if (cast<Instruction>(U)->getParent() != BB)
+            return ~0U;
+        }
+      }
+    }
 
     // If this is a pointer->pointer bitcast, it is free.
     if (isa<BitCastInst>(I) && I->getType()->isPointerTy())
@@ -839,6 +853,9 @@ bool JumpThreading::SimplifyPartiallyRedundantLoad(LoadInst *LI) {
   // Don't hack volatile/atomic loads.
   if (!LI->isSimple()) return false;
 
+  if (DL && !DL->isByteAddressable() && LI->getType()->isSingleValueType())
+    return false;
+
   // If the load is defined in a block with exactly one predecessor, it can't be
   // partially redundant.
   BasicBlock *LoadBB = LI->getParent();
@@ -1361,7 +1378,7 @@ bool JumpThreading::ThreadEdge(BasicBlock *BB,
     return false;
   }
 
-  unsigned JumpThreadCost = getJumpThreadDuplicationCost(BB, Threshold);
+  unsigned JumpThreadCost = getJumpThreadDuplicationCost(BB, Threshold, DL);
   if (JumpThreadCost > Threshold) {
     DEBUG(dbgs() << "  Not threading BB '" << BB->getName()
           << "' - Cost is too high: " << JumpThreadCost << "\n");
@@ -1504,7 +1521,7 @@ bool JumpThreading::DuplicateCondBranchOnPHIIntoPred(BasicBlock *BB,
     return false;
   }
 
-  unsigned DuplicationCost = getJumpThreadDuplicationCost(BB, Threshold);
+  unsigned DuplicationCost = getJumpThreadDuplicationCost(BB, Threshold, DL);
   if (DuplicationCost > Threshold) {
     DEBUG(dbgs() << "  Not duplicating BB '" << BB->getName()
           << "' - Cost is too high: " << DuplicationCost << "\n");
