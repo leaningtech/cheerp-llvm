@@ -1255,12 +1255,20 @@ void PointerAnalyzer::fullResolve()
 		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR);
 		it.second=k;
 	}
+	for(auto& it: pointerKindData.argsMap)
+	{
+		if(it.second!=INDIRECT)
+			continue;
+		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR);
+		it.second=k;
+	}
 	for(auto& it: pointerKindData.storedTypeMap)
 	{
 		if(it.second!=INDIRECT)
 			continue;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second);
-		assert(k==COMPLETE_OBJECT || k==REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR);
 		it.second=k;
 	}
 	for(auto& it: pointerKindData.baseStructAndIndexMapForPointers)
@@ -1268,7 +1276,7 @@ void PointerAnalyzer::fullResolve()
 		if(it.second!=INDIRECT)
 			continue;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second);
-		assert(k==COMPLETE_OBJECT || k==REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR);
 		it.second=k;
 	}
 	for(auto& it: pointerKindData.baseStructAndIndexMapForMembers)
@@ -1276,6 +1284,7 @@ void PointerAnalyzer::fullResolve()
 		if(it.second!=INDIRECT)
 			continue;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second);
+		// BYTE_LAYOUT is not expected for the kind of pointers to member
 		assert(k==COMPLETE_OBJECT || k==REGULAR);
 		it.second=k;
 	}
@@ -1284,7 +1293,7 @@ void PointerAnalyzer::fullResolve()
 		if(it.second!=INDIRECT)
 			continue;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second);
-		assert(k==COMPLETE_OBJECT || k==REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR);
 		it.second=k;
 	}
 #ifndef NDEBUG
