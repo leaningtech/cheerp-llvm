@@ -1005,7 +1005,7 @@ void PointerAnalyzer::prefetchFunc(const Function& F) const
 			}
 		}
 	}
-	if(F.getReturnType()->isPointerTy())
+	if(F.getReturnType()->isPointerTy() && !F.getIntrinsicID())
 		getFinalPointerKindWrapperForReturn(&F);
 }
 
