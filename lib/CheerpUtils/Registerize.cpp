@@ -101,11 +101,9 @@ void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnal
 	else
 	{
 		InstIdMapTy instIdMap;
-#ifndef NDEBUG
 		AllocaSetTy allocaSet;
 		// Assign sequential identifiers to all instructions
 		assignInstructionsIds(instIdMap, F, allocaSet);
-#endif
 		// First, build live ranges for all instructions
 		LiveRangesTy liveRanges=computeLiveRanges(F, instIdMap, PA);
 		// Assign each instruction to a virtual register
@@ -205,7 +203,7 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 	}
 #endif
 	// Depth first analysis of blocks, starting from the entry block
-	LiveRangesTy liveRanges;
+	LiveRangesTy liveRanges(instIdMap);
 	dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, F.getEntryBlock(), PA, 1, 1);
 	return liveRanges;
 }
