@@ -107,7 +107,7 @@ void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnal
 		// First, build live ranges for all instructions
 		LiveRangesTy liveRanges=computeLiveRanges(F, instIdMap, PA);
 		// Assign each instruction to a virtual register
-		uint32_t registersCount = assignToRegisters(liveRanges);
+		uint32_t registersCount = assignToRegisters(liveRanges, PA);
 		// Now compute live ranges for alloca memory which is not in SSA form
 		NumRegisters += registersCount;
 		// To debug we need to know the ranges for each instructions and the assigned register
@@ -348,7 +348,7 @@ void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveR
 	}
 }
 
-uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges)
+uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges, const PointerAnalyzer& PA)
 {
 	llvm::SmallVector<RegisterRange, 4> registers;
 	// First try to assign all PHI operands to the same register as the PHI itself
@@ -357,7 +357,7 @@ uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges)
 		Instruction* I=it.first;
 		if(!isa<PHINode>(I))
 			continue;
-		handlePHI(*I, liveRanges, registers);
+		handlePHI(*I, liveRanges, registers, PA);
 	}
 	// Assign a register to the remaining instructions
 	for(auto it: liveRanges)
@@ -375,7 +375,7 @@ uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges)
 	return registers.size();
 }
 
-void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm::SmallVector<RegisterRange, 4>& registers)
+void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm::SmallVector<RegisterRange, 4>& registers, const PointerAnalyzer& PA)
 {
 	uint32_t chosenRegister=0xffffffff;
 	const InstructionLiveRange& PHIrange=liveRanges.find(&I)->second;
@@ -388,7 +388,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 		for(Value* op: I.operands())
 		{
 			Instruction* usedI=dyn_cast<Instruction>(op);
-			if(!usedI)
+			if(!usedI || isInlineable(*usedI, PA))
 				continue;
 			assert(liveRanges.count(usedI));
 			if(registersMap.count(usedI)==0)
@@ -410,7 +410,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 	for(Value* op: I.operands())
 	{
 		Instruction* usedI=dyn_cast<Instruction>(op);
-		if(!usedI)
+		if(!usedI || isInlineable(*usedI, PA))
 			continue;
 		assert(liveRanges.count(usedI));
 		// Skip already assigned operands
