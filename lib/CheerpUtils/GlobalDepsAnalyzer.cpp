@@ -61,6 +61,9 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 		   !name.startswith("class._Z") )
 			continue;
 
+		StructType * t = TypeSupport::getJSExportedTypeFromMetadata(name, module).first;
+		visitStruct(t);
+
 		for (const MDNode * node : namedNode.operands() )
 		{
 			assert( isa<Function>(node->getOperand(0) ) );
@@ -207,6 +210,11 @@ void GlobalDepsAnalyzer::visitGlobal( const GlobalValue * C, VisitedSet & visite
 				// in order to being able to get the global variable from the fixup map
 				SubExprVec Newsubexpr (1, &GV->getOperandUse(0));
 				visitConstant( GV->getInitializer(), visited, Newsubexpr);
+				Type* globalType = GV->getInitializer()->getType();
+				if( ArrayType* AT=dyn_cast<ArrayType>(globalType) )
+					globalType = AT->getElementType();
+				if( StructType* ST= dyn_cast<StructType>(globalType) )
+					visitStruct(ST);
 			}
 			
 			varsOrder.push_back(GV);
@@ -282,8 +290,16 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 					assert( NewvisitPath.empty() );
 				}
 			}
-			
-			if ( ImmutableCallSite(&I).isCall() || ImmutableCallSite(&I).isInvoke() )
+
+			if ( const AllocaInst* AI = dyn_cast<AllocaInst>(&I) )
+			{
+				Type* allocaType = AI->getAllocatedType();
+				if( ArrayType* AT=dyn_cast<ArrayType>(allocaType) )
+					allocaType = AT->getElementType();
+				if( StructType* ST= dyn_cast<StructType>(allocaType) )
+					visitStruct(ST);
+			}
+			else if ( ImmutableCallSite(&I).isCall() || ImmutableCallSite(&I).isInvoke() )
 			{
 				DynamicAllocInfo ai (&I);
 				if ( ai.isValidAlloc() )
@@ -295,6 +311,8 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 					}
 					if ( ai.useCreatePointerArrayFunc() )
 						hasPointerArrays = true;
+					if ( StructType* ST = dyn_cast<StructType>(ai.getCastedType()->getElementType()) )
+						visitStruct(ST);
 				}
 			}
 				
@@ -312,10 +330,28 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 		
 		// We only need metadata for non client objects and if there are bases
 		if (!TypeSupport::isClientType(retType) && TypeSupport::hasBasesInfoMetadata(st, *F->getParent()) )
+		{
+			classesWithBaseInfoNeeded.insert(st);
 			classesNeeded.insert(st);
+		}
 	}
 	else if (F->getIntrinsicID() == Intrinsic::cheerp_create_closure)
 		hasCreateClosureUsers = true;
+}
+
+void GlobalDepsAnalyzer::visitStruct( StructType* ST )
+{
+	if(ST->hasByteLayout())
+		return;
+	classesNeeded.insert(ST);
+	for(uint32_t i=0;i<ST->getNumElements();i++)
+	{
+		Type* elementType = ST->getElementType(i);
+		if( ArrayType* AT=dyn_cast<ArrayType>(elementType) )
+			elementType = AT->getElementType();
+		if( StructType* ST= dyn_cast<StructType>(elementType) )
+			visitStruct(ST);
+	}
 }
 
 int GlobalDepsAnalyzer::filterModule( llvm::Module & module )
