@@ -500,6 +500,10 @@ bool Inliner::runOnSCC(CallGraphSCC &SCC) {
       } else {
         // We can only inline direct calls to non-declarations.
         if (Callee == 0 || Callee->isDeclaration()) continue;
+
+        // Never inline function which may be optimized in better ways
+        LibFunc::Func Func;
+        if (TLI && TLI->getLibFunc(Callee->getName(), Func)) continue;
       
         // If this call site was obtained by inlining another function, verify
         // that the include path for the function did not include the callee
