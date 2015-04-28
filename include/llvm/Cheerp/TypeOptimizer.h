@@ -40,6 +40,7 @@ private:
 		}
 	};
 	const llvm::DataLayout* DL;
+	llvm::Module* module;
 	std::unordered_map<llvm::StructType*,std::set<llvm::StructType*>> downcastSourceToDestinationsMapping;
 	std::unordered_map<llvm::GlobalVariable*, llvm::Constant*> globalsMapping;
 	std::unordered_map<llvm::GlobalValue*, llvm::Type*> globalTypeMapping;
