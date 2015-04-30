@@ -386,6 +386,7 @@ void initializePointerAnalyzerPass(PassRegistry&);
 void initializeRegisterizePass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeAllocaArraysPass(PassRegistry&);
+void initializeReplaceNopCastsPass(PassRegistry&);
 }
 
 #endif
