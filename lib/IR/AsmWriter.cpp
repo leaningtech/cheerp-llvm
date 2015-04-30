@@ -2199,6 +2199,8 @@ void Type::mangle(raw_ostream &OS) const {
     const FunctionType *FTy = cast<FunctionType>(this);
     OS << 'F';
     FTy->getReturnType()->mangle(OS);
+    if (FTy->isVarArg())
+      OS << 'v';
     for (FunctionType::param_iterator I = FTy->param_begin(),
          E = FTy->param_end(); I != E; ++I) {
       (*I)->mangle(OS);
