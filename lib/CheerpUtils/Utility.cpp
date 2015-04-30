@@ -635,6 +635,7 @@ void initializeCheerpOpts(PassRegistry &Registry)
 	initializeRegisterizePass(Registry);
 	initializeStructMemFuncLoweringPass(Registry);
 	initializeReplaceNopCastsPass(Registry);
+	initializeTypeOptimizerPass(Registry);
 }
 
 }
