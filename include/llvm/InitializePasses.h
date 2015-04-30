@@ -278,6 +278,7 @@ void initializeGlobalDepsAnalyzerPass(PassRegistry&);
 void initializePointerAnalyzerPass(PassRegistry&);
 void initializeRegisterizePass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
+void initializeReplaceNopCastsPass(PassRegistry&);
 }
 
 #endif
