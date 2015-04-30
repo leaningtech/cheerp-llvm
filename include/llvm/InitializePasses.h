@@ -298,6 +298,7 @@ void initializeRegisterizePass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeAllocaArraysPass(PassRegistry&);
 void initializeReplaceNopCastsPass(PassRegistry&);
+void initializeTypeOptimizerPass(PassRegistry&);
 }
 
 #endif
