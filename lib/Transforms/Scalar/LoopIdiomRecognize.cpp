@@ -952,6 +952,9 @@ processLoopStridedStore(Value *DestPtr, unsigned StoreSize,
                         Instruction *TheStore, const SCEVAddRecExpr *Ev,
                         const SCEV *BECount) {
 
+  if (!DL->isByteAddressable())
+    return false;
+
   // If the stored value is a byte-wise value (like i32 -1), then it may be
   // turned into a memset of i8 -1, assuming that all the consecutive bytes
   // are stored.  A store of i32 0x01020304 can never be turned into a memset,
@@ -1074,6 +1077,9 @@ processLoopStoreOfLoopLoad(StoreInst *SI, unsigned StoreSize,
                            const SCEV *BECount) {
   // If we're not allowed to form memcpy, we fail.
   if (!TLI->has(LibFunc::memcpy))
+    return false;
+
+  if (!DL->isByteAddressable())
     return false;
 
   LoadInst *LI = cast<LoadInst>(SI->getValueOperand());
