@@ -25,7 +25,7 @@ class TypeOptimizer: public llvm::ModulePass
 private:
 	struct TypeMappingInfo
 	{
-		enum MAPPING_KIND { IDENTICAL, COLLAPSED, COLLAPSING, COLLAPSING_BUT_USED };
+		enum MAPPING_KIND { IDENTICAL, COLLAPSED, COLLAPSING, COLLAPSING_BUT_USED, BYTE_LAYOUT_TO_ARRAY };
 		llvm::Type* mappedType;
 		MAPPING_KIND elementMappingKind;
 		TypeMappingInfo():mappedType(NULL),elementMappingKind(IDENTICAL)
@@ -39,8 +39,10 @@ private:
 			return mappedType;
 		}
 	};
+	const llvm::DataLayout* DL;
 	std::unordered_map<llvm::StructType*,std::set<llvm::StructType*>> downcastSourceToDestinationsMapping;
 	std::unordered_map<llvm::GlobalValue*, llvm::Type*> globalTypeMapping;
+	std::unordered_map<llvm::StructType*, llvm::Type*> baseTypesForByteLayout;
 	std::unordered_map<llvm::Type*, TypeMappingInfo> typesMapping;
 	std::unordered_set<llvm::Function*> pendingFunctions;
 	std::unordered_set<llvm::Type*> pendingStructTypes;
@@ -54,9 +56,10 @@ private:
 	llvm::Constant* rewriteConstant(llvm::Constant* C);
 	void rewriteFunction(llvm::Function* F);
 	void rewriteIntrinsic(llvm::Function* F, llvm::FunctionType* FT);
-	void gatherAllDowncastSourceTypes(const llvm::Module& M);
-	void rewriteGEPIndexes(llvm::SmallVector<llvm::Value*, 4>& newIndexes, llvm::Type* ptrType, llvm::ArrayRef<llvm::Use> idxs);
+	void gatherAllTypesInfo(const llvm::Module& M);
+	void rewriteGEPIndexes(llvm::SmallVector<llvm::Value*, 4>& newIndexes, llvm::Type* ptrType, llvm::ArrayRef<llvm::Use> idxs, llvm::Type* targetType);
 	bool isUnsafeDowncastSource(llvm::StructType* st);
+	void addAllBaseTypesForByteLayout(llvm::StructType* st, llvm::Type* base);
 public:
 	static char ID;
 	explicit TypeOptimizer() : ModulePass(ID) { }
