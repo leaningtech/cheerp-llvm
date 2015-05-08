@@ -216,6 +216,10 @@ static cl::opt<unsigned>
                   cl::desc("Size of the expression which is considered huge"),
                   cl::init(4096));
 
+static cl::opt<bool>
+CheerpNoPointerSCEV("cheerp-no-pointer-scev",
+           cl::desc("Conditionally disable scalar evolution for pointers"));
+
 //===----------------------------------------------------------------------===//
 //                           SCEV class definitions
 //===----------------------------------------------------------------------===//
@@ -236,6 +240,12 @@ void SCEV::print(raw_ostream &OS) const {
   case scConstant:
     cast<SCEVConstant>(this)->getValue()->printAsOperand(OS, false);
     return;
+  case scNegPointer: {
+    const SCEVNegPointer *NegPtr = cast<SCEVNegPointer>(this);
+    const SCEV *Op = NegPtr->getOperand();
+    OS << "(negptr " << *Op << ")";
+    return;
+  }
   case scTruncate: {
     const SCEVTruncateExpr *Trunc = cast<SCEVTruncateExpr>(this);
     const SCEV *Op = Trunc->getOperand();
@@ -353,6 +363,8 @@ Type *SCEV::getType() const {
   switch (static_cast<SCEVTypes>(getSCEVType())) {
   case scConstant:
     return cast<SCEVConstant>(this)->getType();
+  case scNegPointer:
+    return cast<SCEVNegPointer>(this)->getType();
   case scTruncate:
   case scZeroExtend:
   case scSignExtend:
@@ -411,6 +423,29 @@ SCEVCouldNotCompute::SCEVCouldNotCompute() :
 
 bool SCEVCouldNotCompute::classof(const SCEV *S) {
   return S->getSCEVType() == scCouldNotCompute;
+}
+
+const SCEV *ScalarEvolution::getNegPointer(const SCEV *Op) {
+  // If the Op is an add we can negate integers and negpointer pointers
+  if(const SCEVAddExpr* Add = dyn_cast<SCEVAddExpr>(Op)) {
+    SmallVector<const SCEV *, 4> Operands;
+    for(unsigned i=0;i<Add->getNumOperands();i++) {
+      const SCEV* AddOp = Add->getOperand(i);
+      if (AddOp->getType()->isPointerTy())
+        Operands.push_back(getNegPointer(AddOp));
+      else
+        Operands.push_back(getNegativeSCEV(AddOp));
+    }
+    return getAddExpr(Operands);
+  }
+  FoldingSetNodeID ID;
+  ID.AddInteger(scNegPointer);
+  ID.AddPointer(Op);
+  void *IP = 0;
+  if (const SCEV *S = UniqueSCEVs.FindNodeOrInsertPos(ID, IP)) return S;
+  SCEV *S = new (SCEVAllocator) SCEVNegPointer(ID.Intern(SCEVAllocator), Op);
+  UniqueSCEVs.InsertNode(S, IP);
+  return S;
 }
 
 const SCEV *ScalarEvolution::getConstant(ConstantInt *V) {
@@ -765,6 +800,14 @@ static int CompareSCEVComplexity(
     return X;
   }
 
+  case scNegPointer: {
+    const SCEVNegPointer *LC = cast<SCEVNegPointer>(LHS);
+    const SCEVNegPointer *RC = cast<SCEVNegPointer>(RHS);
+
+     // Compare cast expressions by operand.
+    return CompareSCEVComplexity(EqCacheSCEV, LI, LC->getOperand(), RC->getOperand(), Depth + 1);
+  }
+
   case scTruncate:
   case scZeroExtend:
   case scSignExtend: {
@@ -941,6 +984,7 @@ public:
   void visitUMaxExpr(const SCEVUMaxExpr *Numerator) {}
   void visitSMinExpr(const SCEVSMinExpr *Numerator) {}
   void visitUMinExpr(const SCEVUMinExpr *Numerator) {}
+  void visitNegPointer(const SCEVNegPointer *Numerator) {}
   void visitUnknown(const SCEVUnknown *Numerator) {}
   void visitCouldNotCompute(const SCEVCouldNotCompute *Numerator) {}
 
@@ -2773,6 +2817,23 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
     // next one.
   }
 
+  // Iterate until we reach the first scNegPointer, we want to check it can be cancelled using another operand
+  while (Idx < Ops.size() && Ops[Idx]->getSCEVType() < scNegPointer)
+    ++Idx;
+
+  for (; Idx < Ops.size() && isa<SCEVNegPointer>(Ops[Idx]); ++Idx) {
+    const SCEVNegPointer* NegPtr = dyn_cast<SCEVNegPointer>(Ops[Idx]);
+    for (unsigned i = 0, e = Ops.size(); i != e; ++i) {
+      if (Ops[i] == NegPtr->getOperand()) {
+        // Cancel both operands and recurse
+        Ops.erase(Ops.begin()+Idx);
+        Ops.erase(Ops.begin()+i);
+        if(Ops.empty())
+          return getConstant(Ty, 0);
+        return getAddExpr(Ops);
+      }
+    }
+  }
   // Okay, it looks like we really DO need an add expr.  Check to see if we
   // already have one, otherwise create a new one.
   return getOrCreateAddExpr(Ops, Flags);
@@ -2785,6 +2846,8 @@ ScalarEvolution::getOrCreateAddExpr(ArrayRef<const SCEV *> Ops,
   ID.AddInteger(scAddExpr);
   for (const SCEV *Op : Ops)
     ID.AddPointer(Op);
+  if (ExprTy)
+    ID.AddPointer(ExprTy);
   void *IP = nullptr;
   SCEVAddExpr *S =
       static_cast<SCEVAddExpr *>(UniqueSCEVs.FindNodeOrInsertPos(ID, IP));
@@ -3527,7 +3590,7 @@ ScalarEvolution::getGEPExpr(GEPOperator *GEP,
   }
 
   // Add the total offset from all the GEP indices to the base.
-  return getAddExpr(BaseExpr, TotalOffset, Wrap);
+  return getAddExpr(BaseExpr, TotalOffset, Wrap, !DL.isByteAddressable() ? PointeeType->getPointerTo() : NULL);
 }
 
 std::tuple<const SCEV *, FoldingSetNodeID, void *>
@@ -3944,6 +4007,12 @@ const SCEV *ScalarEvolution::getNegativeSCEV(const SCEV *V,
   if (const SCEVConstant *VC = dyn_cast<SCEVConstant>(V))
     return getConstant(
                cast<ConstantInt>(ConstantExpr::getNeg(VC->getValue())));
+
+  if(DL && !DL->isByteAddressable() && V->getType()->isPointerTy())
+    return getNegPointer(V);
+
+  if(const SCEVNegPointer* NegPtr = dyn_cast<SCEVNegPointer>(V))
+    return NegPtr->getOperand();
 
   Type *Ty = V->getType();
   Ty = getEffectiveSCEVType(Ty);
@@ -8023,6 +8092,9 @@ static Constant *BuildConstantFromSCEV(const SCEV *V) {
         return ConstantExpr::getSExt(CastOp, SS->getType());
       break;
     }
+    case scNegPointer: {
+      return 0;
+    }
     case scZeroExtend: {
       const SCEVZeroExtendExpr *SZ = cast<SCEVZeroExtendExpr>(V);
       if (Constant *CastOp = BuildConstantFromSCEV(SZ->getOperand()))
@@ -8328,6 +8400,13 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
     if (Op == Cast->getOperand())
       return Cast;  // must be loop invariant
     return getTruncateExpr(Op, Cast->getType());
+  }
+
+  if (const SCEVNegPointer *NegPtr = dyn_cast<SCEVNegPointer>(V)) {
+    const SCEV *Op = getSCEVAtScope(NegPtr->getOperand(), L);
+    if (Op == NegPtr->getOperand())
+      return NegPtr;  // must be loop invariant
+    return getNegPointer(Op);
   }
 
   llvm_unreachable("Unknown SCEV type!");
@@ -8772,6 +8851,20 @@ ScalarEvolution::howFarToZero(const SCEV *V, const Loop *L, bool ControlsExit,
   // will have undefined behavior due to wrapping.
   if (ControlsExit && AddRec->hasNoSelfWrap() &&
       loopHasNoAbnormalExits(AddRec->getLoop())) {
+    // Cheerp safe code path for pointers: If the distance is a not a constant we need to
+    // divide the divisor by the element size.
+    if ((!DL || !DL->isByteAddressable()) && Distance->getType()->isPointerTy() && !isa<SCEVConstant>(Distance)) {
+      const SCEVConstant *SC = dyn_cast<SCEVConstant>(Step);
+      // If the step is not constant, we need to bail out
+      unsigned elementSize = DL->getTypeAllocSize(Distance->getType()->getPointerElementType());
+      if (!SC || SC->getValue()->getZExtValue() != (CountDown ? -elementSize : elementSize)) {
+        return getCouldNotCompute();
+      }
+      // The step is constant and equal to the element size, we can compute the BECount in a safer way
+      // In Cheerp the difference between pointers is computed in the number of elements, not in bytes
+      const SCEV *Exact = CountDown ? getNegativeSCEV(Distance) : Distance;
+      return ExitLimit(Exact, Exact);
+    }
     const SCEV *Exact =
         getUDivExpr(Distance, CountDown ? getNegativeSCEV(Step) : Step);
     const SCEV *Max =
@@ -10456,6 +10549,20 @@ bool ScalarEvolution::doesIVOverflowOnGT(const SCEV *RHS, const SCEV *Stride,
 const SCEV *ScalarEvolution::computeBECount(const SCEV *Delta, const SCEV *Step,
                                             bool Equality) {
   const SCEV *One = getOne(Step->getType());
+  // On Cheerp we need to be careful with pointers.
+  // Compute the value only if the step is equal to the pointed element size
+  // as in this case we can decrease the division count by 1 instead of adding step-1
+  if ((!DL || !DL->isByteAddressable()) && Delta->getType()->isPointerTy() && !isa<SCEVConstant>(Delta)) {
+    const SCEVConstant *SC = dyn_cast<SCEVConstant>(Step);
+    // If the step is not constant, we need to bail out
+    if (!SC || SC->getValue()->getZExtValue() != DL->getTypeAllocSize(Delta->getType()->getPointerElementType())) {
+        return getCouldNotCompute();
+    }
+    // The step is constant and equal to the element size, we can compute the BECount in a safer way
+    // In Cheerp the difference between pointers is computed in the number of elements, not in bytes
+    Delta = getAddExpr(Delta, Step);
+    return Equality ? Delta : getMinusSCEV(Delta, One);
+  }
   Delta = Equality ? getAddExpr(Delta, Step)
                    : getAddExpr(Delta, getMinusSCEV(Step, One));
   return getUDivExpr(Delta, Step);
@@ -11590,6 +11697,8 @@ ScalarEvolution::computeLoopDisposition(const SCEV *S, const Loop *L) {
   switch (static_cast<SCEVTypes>(S->getSCEVType())) {
   case scConstant:
     return LoopInvariant;
+  case scNegPointer:
+    return getLoopDisposition(cast<SCEVNegPointer>(S)->getOperand(), L);
   case scTruncate:
   case scZeroExtend:
   case scSignExtend:
@@ -11697,6 +11806,8 @@ ScalarEvolution::computeBlockDisposition(const SCEV *S, const BasicBlock *BB) {
   switch (static_cast<SCEVTypes>(S->getSCEVType())) {
   case scConstant:
     return ProperlyDominatesBlock;
+  case scNegPointer:
+    return getBlockDisposition(cast<SCEVNegPointer>(S)->getOperand(), BB);
   case scTruncate:
   case scZeroExtend:
   case scSignExtend:
