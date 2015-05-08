@@ -28,7 +28,7 @@ namespace llvm {
     // folders simpler.
     scConstant, scTruncate, scZeroExtend, scSignExtend, scAddExpr, scMulExpr,
     scUDivExpr, scAddRecExpr, scUMaxExpr, scSMaxExpr,
-    scUnknown, scCouldNotCompute
+    scUnknown, scNegPointer, scCouldNotCompute
   };
 
   //===--------------------------------------------------------------------===//
@@ -48,6 +48,25 @@ namespace llvm {
     /// Methods for support type inquiry through isa, cast, and dyn_cast:
     static inline bool classof(const SCEV *S) {
       return S->getSCEVType() == scConstant;
+    }
+  };
+
+  //===--------------------------------------------------------------------===//
+  /// SCEVNegPtr - Used to wrap negative pointers
+  ///
+  class SCEVNegPointer : public SCEV {
+    friend class ScalarEvolution;
+
+    const SCEV* Op;
+    SCEVNegPointer(const FoldingSetNodeIDRef ID, const SCEV *op) :
+      SCEV(ID, scNegPointer), Op(op) {}
+  public:
+    const SCEV *getOperand() const { return Op; }
+    Type *getType() const { return Op->getType(); }
+
+    /// Methods for support type inquiry through isa, cast, and dyn_cast:
+    static inline bool classof(const SCEV *S) {
+      return S->getSCEVType() == scNegPointer;
     }
   };
 
@@ -455,6 +474,8 @@ namespace llvm {
       switch (S->getSCEVType()) {
       case scConstant:
         return ((SC*)this)->visitConstant((const SCEVConstant*)S);
+      case scNegPointer:
+        return ((SC*)this)->visitNegPointer((const SCEVNegPointer*)S);
       case scTruncate:
         return ((SC*)this)->visitTruncateExpr((const SCEVTruncateExpr*)S);
       case scZeroExtend:
@@ -521,6 +542,9 @@ namespace llvm {
         case scSignExtend:
           push(cast<SCEVCastExpr>(S)->getOperand());
           break;
+        case scNegPointer:
+          push(cast<SCEVNegPointer>(S)->getOperand());
+          break;
         case scAddExpr:
         case scMulExpr:
         case scSMaxExpr:
@@ -574,6 +598,11 @@ namespace llvm {
 
     const SCEV *visitConstant(const SCEVConstant *Constant) {
       return Constant;
+    }
+
+    const SCEV *visitNegPointer(const SCEVNegPointer *Expr) {
+      const SCEV *Operand = visit(Expr->getOperand());
+      return SE.getNegPointer(Operand);
     }
 
     const SCEV *visitTruncateExpr(const SCEVTruncateExpr *Expr) {
@@ -670,6 +699,11 @@ namespace llvm {
 
     const SCEV *visitConstant(const SCEVConstant *Constant) {
       return Constant;
+    }
+
+    const SCEV *visitNegPointer(const SCEVNegPointer *Expr) {
+      const SCEV *Operand = visit(Expr->getOperand());
+      return SE.getNegPointer(Operand);
     }
 
     const SCEV *visitTruncateExpr(const SCEVTruncateExpr *Expr) {
