@@ -99,7 +99,7 @@ public:
 	static bool isTypedArrayType(llvm::Type* t)
 	{
 		return t->isIntegerTy(8) || t->isIntegerTy(16) || t->isIntegerTy(32) ||
-			t->isFloatTy() || t->isDoubleTy();
+			t->isFloatTy();// || t->isDoubleTy();
 	}
 
 	static bool isImmutableType(llvm::Type* t)
