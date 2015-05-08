@@ -82,7 +82,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 	//TODO: Find out a better heuristic for inlining, it seems that computing
 	//may be faster even on more than 1 use
 	bool hasMoreThan1Use = I.hasNUsesOrMore(2);
-	if(I.getOpcode()==Instruction::GetElementPtr)
+	if(I.getOpcode()==Instruction::GetElementPtr && PA.getPointerKind(&I)!=COMPLETE_OBJECT)
 	{
 		//Special case GEPs. They should always be inline since creating the object is really slow
 		return true;
@@ -160,6 +160,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			case Instruction::FPToUI:
 			case Instruction::PtrToInt:
 			case Instruction::IntToPtr:
+			case Instruction::GetElementPtr:
 				return true;
 			default:
 				llvm::report_fatal_error(Twine("Unsupported opcode: ",StringRef(I.getOpcodeName())), false);
@@ -641,6 +642,7 @@ void initializeCheerpOpts(PassRegistry &Registry)
 	initializeStructMemFuncLoweringPass(Registry);
 	initializeReplaceNopCastsPass(Registry);
 	initializeTypeOptimizerPass(Registry);
+	initializeGEPOptimizerPass(Registry);
 }
 
 }

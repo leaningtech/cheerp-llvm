@@ -964,7 +964,7 @@ void CheerpWriter::compileCompleteObject(const Value* p, const Value* offset)
 	 */
 	if(isOffsetConstantZero)
 	{
-		if(isGEP(p))
+		if(isGEP(p) && (!isa<Instruction>(p) || isInlineable(*cast<Instruction>(p), PA)))
 		{
 			compileGEP(cast<User>(p), COMPLETE_OBJECT);
 			return;

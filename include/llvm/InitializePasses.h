@@ -280,6 +280,7 @@ void initializeRegisterizePass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeReplaceNopCastsPass(PassRegistry&);
 void initializeTypeOptimizerPass(PassRegistry&);
+void initializeGEPOptimizerPass(PassRegistry&);
 }
 
 #endif

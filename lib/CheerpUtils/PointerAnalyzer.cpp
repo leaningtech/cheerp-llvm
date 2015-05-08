@@ -439,6 +439,8 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 			k.makeKnown();
 			// In general, keep track of the contraints on elements of structures
 			pointerKindData.baseStructAndIndexMapForMembers[baseAndIndex] |= k;
+			if(getKindForType(p->getType()->getPointerElementType()) != UNKNOWN)
+				return CacheAndReturn(ret |= getKindForType(p->getType()->getPointerElementType()));
 			return CacheAndReturn(k);
 		}
 	}
