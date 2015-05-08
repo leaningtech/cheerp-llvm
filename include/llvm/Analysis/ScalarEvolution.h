@@ -588,6 +588,7 @@ namespace llvm {
     /// specified expression.
     const SCEV *getSCEV(Value *V);
 
+    const SCEV *getNegPointer(const SCEV* Op);
     const SCEV *getConstant(ConstantInt *V);
     const SCEV *getConstant(const APInt& Val);
     const SCEV *getConstant(Type *Ty, uint64_t V, bool isSigned = false);
@@ -596,21 +597,21 @@ namespace llvm {
     const SCEV *getSignExtendExpr(const SCEV *Op, Type *Ty);
     const SCEV *getAnyExtendExpr(const SCEV *Op, Type *Ty);
     const SCEV *getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
-                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap);
+                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap, Type* Ty = NULL);
     const SCEV *getAddExpr(const SCEV *LHS, const SCEV *RHS,
-                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap) {
+                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap, Type* Ty = NULL) {
       SmallVector<const SCEV *, 2> Ops;
       Ops.push_back(LHS);
       Ops.push_back(RHS);
-      return getAddExpr(Ops, Flags);
+      return getAddExpr(Ops, Flags, Ty);
     }
     const SCEV *getAddExpr(const SCEV *Op0, const SCEV *Op1, const SCEV *Op2,
-                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap) {
+                           SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap, Type* Ty = NULL) {
       SmallVector<const SCEV *, 3> Ops;
       Ops.push_back(Op0);
       Ops.push_back(Op1);
       Ops.push_back(Op2);
-      return getAddExpr(Ops, Flags);
+      return getAddExpr(Ops, Flags, Ty);
     }
     const SCEV *getMulExpr(SmallVectorImpl<const SCEV *> &Ops,
                            SCEV::NoWrapFlags Flags = SCEV::FlagAnyWrap);

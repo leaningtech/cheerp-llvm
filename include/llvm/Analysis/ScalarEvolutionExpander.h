@@ -228,6 +228,8 @@ namespace llvm {
       return S->getValue();
     }
 
+    Value *visitNegPointer(const SCEVNegPointer *S);
+
     Value *visitTruncateExpr(const SCEVTruncateExpr *S);
 
     Value *visitZeroExtendExpr(const SCEVZeroExtendExpr *S);
