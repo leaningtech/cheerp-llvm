@@ -244,7 +244,12 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 	{
 		Type* elementType = pt->getElementType();
 		Type* newType = rewriteType(elementType);
-		if(newType == elementType)
+		if(newType->isArrayTy())
+		{
+			// It's never a good idea to use pointers to array, we may end up creating wrapper arrays for arrays
+			return CacheAndReturn(PointerType::get(newType->getArrayElementType(), 0), TypeMappingInfo::POINTER_FROM_ARRAY);
+		}
+		else if(newType == elementType)
 			return CacheAndReturn(pt, TypeMappingInfo::IDENTICAL);
 		else
 			return CacheAndReturn(PointerType::get(newType, 0), TypeMappingInfo::IDENTICAL);
@@ -254,7 +259,13 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 		Type* elementType = at->getElementType();
 		const TypeMappingInfo& newInfo = rewriteType(elementType);
 		Type* newType = newInfo.mappedType;
-		if(newType == elementType)
+		if(ArrayType* subArray=dyn_cast<ArrayType>(newType))
+		{
+			// Flatten arrays of array
+			return CacheAndReturn(ArrayType::get(newType->getArrayElementType(), at->getNumElements()*subArray->getNumElements()),
+				TypeMappingInfo::FLATTENED_ARRAY);
+		}
+		else if(newType == elementType)
 			return CacheAndReturn(at, TypeMappingInfo::IDENTICAL);
 		else
 			return CacheAndReturn(ArrayType::get(newType, at->getNumElements()), TypeMappingInfo::IDENTICAL);
@@ -264,8 +275,13 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 
 Constant* TypeOptimizer::rewriteConstant(Constant* C)
 {
-	// Immediately return for GlobalValue, we should never try to map their type as they are already rewritten
-	if(isa<GlobalValue>(C))
+	// Immediately return for globals, we should never try to map their type as they are already rewritten
+	if(GlobalVariable* GV=dyn_cast<GlobalVariable>(C))
+	{
+		assert(globalsMapping.count(GV));
+		return globalsMapping[GV];
+	}
+	else if(isa<GlobalValue>(C))
 		return C;
 	TypeMappingInfo newTypeInfo = rewriteType(C->getType());
 	if(ConstantExpr* CE=dyn_cast<ConstantExpr>(C))
@@ -290,7 +306,7 @@ Constant* TypeOptimizer::rewriteConstant(Constant* C)
 				ptrOperand = rewriteConstant(ptrOperand);
 				SmallVector<Value*, 4> newIndexes;
 				Type* targetType = rewriteType(CE->getType()->getPointerElementType());
-				rewriteGEPIndexes(newIndexes, ptrType->getPointerElementType(), ArrayRef<Use>(CE->op_begin()+1,CE->op_end()), targetType);
+				rewriteGEPIndexes(newIndexes, ptrType, ArrayRef<Use>(CE->op_begin()+1,CE->op_end()), targetType, NULL);
 				return ConstantExpr::getGetElementPtr(ptrOperand, newIndexes);
 			}
 			case Instruction::BitCast:
@@ -342,11 +358,19 @@ Constant* TypeOptimizer::rewriteConstant(Constant* C)
 	{
 		assert(newTypeInfo.mappedType->isArrayTy());
 		SmallVector<Constant*, 4> newElements;
-		for(uint32_t i=0;i<CA->getNumOperands();i++)
+		if(newTypeInfo.elementMappingKind == TypeMappingInfo::FLATTENED_ARRAY)
 		{
-			Constant* element = CA->getOperand(i);
-			Constant* newElement = rewriteConstant(element);
-			newElements.push_back(newElement);
+			//TODO: Implement this
+			return Constant::getNullValue(newTypeInfo.mappedType);
+		}
+		else
+		{
+			for(uint32_t i=0;i<CA->getNumOperands();i++)
+			{
+				Constant* element = CA->getOperand(i);
+				Constant* newElement = rewriteConstant(element);
+				newElements.push_back(newElement);
+			}
 		}
 		return ConstantArray::get(cast<ArrayType>(newTypeInfo.mappedType), newElements);
 	}
@@ -435,17 +459,55 @@ void TypeOptimizer::rewriteIntrinsic(Function* F, FunctionType* FT)
 	}
 }
 
-void TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Type* ptrType, ArrayRef<Use> idxs, Type* targetType)
+void TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Type* ptrType, ArrayRef<Use> idxs, Type* targetType, Instruction* insertionPoint)
 {
-	Type* curType = ptrType;
-	newIndexes.push_back(idxs[0]);
+	TypeMappingInfo ptrTypeMappingInfo = rewriteType(ptrType);
+	bool addToLastIndex = false;
+	auto AddIndex=[&](Value* V)
+	{
+		if(addToLastIndex)
+		{
+			if(insertionPoint)
+				newIndexes.back() = BinaryOperator::Create(Instruction::Add, newIndexes.back(), V, "", insertionPoint);
+			else
+			{
+				assert(isa<ConstantInt>(newIndexes.back()) && isa<ConstantInt>(V));
+				newIndexes.back() = ConstantExpr::getAdd(cast<Constant>(newIndexes.back()), cast<Constant>(V));
+			}
+		}
+		else
+			newIndexes.push_back(V);
+		addToLastIndex = false;
+	};
+	//TODO: Move in main loop below
+	// With POINTER_FROM_ARRAY we already have a pointer to the first element
+	if(ptrTypeMappingInfo.elementMappingKind == TypeMappingInfo::POINTER_FROM_ARRAY)
+	{
+		// We need to multiply the index by the right number of elements, corresponding to the size of the old type
+		uint32_t oldTypeSize = DL->getTypeAllocSize(ptrType->getPointerElementType());
+		uint32_t elementSize = DL->getTypeAllocSize(ptrTypeMappingInfo.mappedType->getPointerElementType());
+		assert(!(oldTypeSize % elementSize));
+		uint32_t numElements=oldTypeSize/elementSize;
+		Constant* numElementsC = ConstantInt::get(idxs[0]->getType(), numElements);
+		if(insertionPoint)
+			AddIndex(BinaryOperator::Create(Instruction::Mul, idxs[0], numElementsC, "", insertionPoint));
+		else
+		{
+			assert(isa<Constant>(idxs[0]));
+			AddIndex(ConstantExpr::getMul(cast<Constant>(idxs[0]), numElementsC));
+		}
+		addToLastIndex=true;
+	}
+	else
+		AddIndex(idxs[0]);
+	Type* curType = ptrType->getPointerElementType();
 	for(uint32_t i=1;i<idxs.size();i++)
 	{
 		TypeMappingInfo curTypeMappingInfo = rewriteType(curType);
 		switch(curTypeMappingInfo.elementMappingKind)
 		{
 			case TypeMappingInfo::IDENTICAL:
-				newIndexes.push_back(idxs[i]);
+				AddIndex(idxs[i]);
 				break;
 			case TypeMappingInfo::COLLAPSED:
 				break;
@@ -474,12 +536,31 @@ void TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Type* 
 				assert(baseTypeIt != baseTypesForByteLayout.end() && baseTypeIt->second);
 				uint32_t baseTypeSize = DL->getTypeAllocSize(baseTypeIt->second);
 				assert(!(byteOffset % baseTypeSize));
-				newIndexes.push_back(ConstantInt::get(Int32Ty, byteOffset / baseTypeSize));
+				AddIndex(ConstantInt::get(Int32Ty, byteOffset / baseTypeSize));
 				// All indexes have been consumed now, we can just return
 				return;
 			}
+			case TypeMappingInfo::FLATTENED_ARRAY:
+			{
+				// We had something like [ N x [ M x T ] ] which is now [ N*M x T ]
+				uint32_t oldTypeSize = DL->getTypeAllocSize(curType->getArrayElementType());
+				uint32_t elementSize = DL->getTypeAllocSize(curTypeMappingInfo.mappedType->getArrayElementType());
+				assert(!(oldTypeSize % elementSize));
+				uint32_t numElements=oldTypeSize/elementSize;
+				Constant* numElementsC = ConstantInt::get(idxs[i]->getType(), numElements);
+				if(insertionPoint)
+					AddIndex(BinaryOperator::Create(Instruction::Mul, idxs[i], numElementsC, "", insertionPoint));
+				else
+				{
+					assert(isa<Constant>(idxs[i]));
+					AddIndex(ConstantExpr::getMul(cast<Constant>(idxs[i]), numElementsC));
+				}
+				addToLastIndex = true;
+				break;
+			}
 			case TypeMappingInfo::COLLAPSING:
 			case TypeMappingInfo::COLLAPSING_BUT_USED:
+			case TypeMappingInfo::POINTER_FROM_ARRAY:
 				assert(false);
 				break;
 		}
@@ -489,6 +570,13 @@ void TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Type* 
 			curType = curType->getSequentialElementType();
 	}
 	assert(rewriteType(curType) == targetType);
+	if(targetType->isArrayTy())
+	{
+		// TODO: Fix this in a proper way. Right now only for POINTER_FROM_ARRAY.
+		Type* Int32 = IntegerType::get(curType->getContext(), 32);
+		Value* Zero = ConstantInt::get(Int32, 0);
+		AddIndex(Zero);
+	}
 }
 
 void TypeOptimizer::rewriteFunction(Function* F)
@@ -588,11 +676,22 @@ void TypeOptimizer::rewriteFunction(Function* F)
 					Type* ptrType = getOriginalOperandType(ptrOperand);
 					if(rewriteType(ptrType) != ptrType || rewriteType(I.getType()) != I.getType())
 					{
-						Type* curType = ptrType->getPointerElementType();
 						SmallVector<Value*, 4> newIndexes;
 						Type* targetType = rewriteType(I.getType()->getPointerElementType());
-						rewriteGEPIndexes(newIndexes, curType, ArrayRef<Use>(I.op_begin()+1,I.op_end()), targetType);
-						GetElementPtrInst* NewInst = GetElementPtrInst::Create(getMappedOperand(ptrOperand), newIndexes);
+						rewriteGEPIndexes(newIndexes, ptrType, ArrayRef<Use>(I.op_begin()+1,I.op_end()), targetType, &I);
+						Value* newPtrOperand = ptrOperand;
+						if(isa<Instruction>(ptrOperand))
+							newPtrOperand = getMappedOperand(ptrOperand);
+						else if(isa<GlobalVariable>(ptrOperand))
+							newPtrOperand = rewriteConstant(cast<Constant>(ptrOperand));
+						else if(isa<Constant>(ptrOperand) && !isa<Function>(ptrOperand))
+							newPtrOperand = rewriteConstant(cast<Constant>(ptrOperand));
+						GetElementPtrInst* NewInst = GetElementPtrInst::Create(newPtrOperand, newIndexes);
+						if(NewInst->getType()->getPointerElementType()->isArrayTy())
+						{
+							llvm::errs() << "FAIL FOR " << *NewInst << "\n";
+						}
+						assert(!NewInst->getType()->getPointerElementType()->isArrayTy());
 						NewInst->takeName(&I);
 						NewInst->setIsInBounds(cast<GetElementPtrInst>(I).isInBounds());
 						setMappedOperand(&I, NewInst);
@@ -601,6 +700,29 @@ void TypeOptimizer::rewriteFunction(Function* F)
 					// If the operand and the result types have not changed the indexes do not need any change as well
 					// but we still need to check if the type of the GEP itself needs to be updated,
 					// so fall through to the below cases. Please note that Call must check for IntrinsicInst for this to work.
+				}
+				case Instruction::Alloca:
+				{
+					TypeMappingInfo newInfo = rewriteType(I.getType());
+					if(newInfo.mappedType==I.getType())
+						break;
+					setOriginalOperandType(&I, I.getType());
+					if(newInfo.elementMappingKind == TypeMappingInfo::POINTER_FROM_ARRAY)
+					{
+						// In this case we need to rewrite the allocated type and use that directly
+						// Moreover, we need to generate a GEP that will be used instead of this alloca
+						Type* newAllocatedType = rewriteType(I.getType()->getPointerElementType());
+						Type* newPtrType = PointerType::get(newAllocatedType, 0);
+						I.mutateType(newPtrType);
+						Type* Int32 = IntegerType::get(I.getType()->getContext(), 32);
+						Value* Zero = ConstantInt::get(Int32, 0);
+						Value* Indexes[] = { Zero, Zero };
+						Instruction* newGEP = GetElementPtrInst::Create(&I, Indexes, "allocadecay");
+						setMappedOperand(&I, newGEP);
+					}
+					else
+						I.mutateType(newInfo.mappedType);
+					break;
 				}
 				case Instruction::Call:
 				{
@@ -630,7 +752,6 @@ void TypeOptimizer::rewriteFunction(Function* F)
 					}
 					// Fall through to next case
 				}
-				case Instruction::Alloca:
 				case Instruction::BitCast:
 				case Instruction::ExtractValue:
 				case Instruction::IntToPtr:
@@ -685,24 +806,42 @@ void TypeOptimizer::rewriteFunction(Function* F)
 	{
 		// Insert new instruction
 		cast<Instruction>(it.second)->insertAfter(cast<Instruction>(it.first));
+		//TODO: This is an hack for POINTER_FROM_ARRAY
+		if(isa<AllocaInst>(it.first))
+			continue;
 		// Delete old instructions
 		cast<Instruction>(it.first)->replaceAllUsesWith(UndefValue::get(it.first->getType()));
 		cast<Instruction>(it.first)->eraseFromParent();
 	}
 }
 
-void TypeOptimizer::rewriteGlobal(GlobalVariable* GV)
+Constant* TypeOptimizer::rewriteGlobal(GlobalVariable* GV)
 {
-	Type* rewrittenType = rewriteType(GV->getType());
+	TypeMappingInfo newInfo = rewriteType(GV->getType());
 	globalTypeMapping[GV] = GV->getType();
-	if(GV->getType()==rewrittenType)
-		return;
-	GV->mutateType(rewrittenType);
+	if(GV->getType()==newInfo.mappedType)
+	{
+		assert(!GV->getType()->getPointerElementType()->isArrayTy());
+		return GV;
+	}
+	if(newInfo.elementMappingKind == TypeMappingInfo::POINTER_FROM_ARRAY)
+	{
+		Type* newAllocatedType = rewriteType(GV->getType()->getPointerElementType());
+		Type* newPtrType = PointerType::get(newAllocatedType, 0);
+		GV->mutateType(newPtrType);
+		Type* Int32 = IntegerType::get(GV->getType()->getContext(), 32);
+		Value* Zero = ConstantInt::get(Int32, 0);
+		Value* Indexes[] = { Zero, Zero };
+		return ConstantExpr::getGetElementPtr(GV, Indexes);
+	}
+	else
+		GV->mutateType(newInfo.mappedType);
+	return GV;
 }
 
 void TypeOptimizer::rewriteGlobalInit(GlobalVariable* GV)
 {
-	if(!GV->hasInitializer())
+	if(!GV->hasInitializer() || isa<GlobalValue>(GV->getInitializer()))
 		return;
 	Type* GVType = globalTypeMapping[GV]->getPointerElementType();
 	Type* rewrittenType = rewriteType(GVType);
@@ -724,7 +863,10 @@ bool TypeOptimizer::runOnModule(Module& M)
 	gatherAllTypesInfo(M);
 	// Update the type for all global variables
 	for(GlobalVariable& GV: M.getGlobalList())
-		rewriteGlobal(&GV);
+	{
+		Constant* rewrittenGlobal=rewriteGlobal(&GV);
+		globalsMapping.insert(std::make_pair(&GV, rewrittenGlobal));
+	}
 	for(Function& F: M)
 		pendingFunctions.insert(&F);
 	// Rewrite all functions

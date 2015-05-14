@@ -25,7 +25,7 @@ class TypeOptimizer: public llvm::ModulePass
 private:
 	struct TypeMappingInfo
 	{
-		enum MAPPING_KIND { IDENTICAL, COLLAPSED, COLLAPSING, COLLAPSING_BUT_USED, BYTE_LAYOUT_TO_ARRAY };
+		enum MAPPING_KIND { IDENTICAL, COLLAPSED, COLLAPSING, COLLAPSING_BUT_USED, BYTE_LAYOUT_TO_ARRAY, POINTER_FROM_ARRAY, FLATTENED_ARRAY };
 		llvm::Type* mappedType;
 		MAPPING_KIND elementMappingKind;
 		TypeMappingInfo():mappedType(NULL),elementMappingKind(IDENTICAL)
@@ -41,6 +41,7 @@ private:
 	};
 	const llvm::DataLayout* DL;
 	std::unordered_map<llvm::StructType*,std::set<llvm::StructType*>> downcastSourceToDestinationsMapping;
+	std::unordered_map<llvm::GlobalVariable*, llvm::Constant*> globalsMapping;
 	std::unordered_map<llvm::GlobalValue*, llvm::Type*> globalTypeMapping;
 	std::unordered_map<llvm::StructType*, llvm::Type*> baseTypesForByteLayout;
 	std::unordered_map<llvm::Type*, TypeMappingInfo> typesMapping;
@@ -49,7 +50,7 @@ private:
 #ifndef NDEBUG
 	std::unordered_set<llvm::Type*> newStructTypes;
 #endif
-	void rewriteGlobal(llvm::GlobalVariable* GV);
+	llvm::Constant* rewriteGlobal(llvm::GlobalVariable* GV);
 	void rewriteGlobalInit(llvm::GlobalVariable* GV);
 	TypeMappingInfo rewriteType(llvm::Type* t);
 	void rewriteUses(llvm::Value* V, llvm::Value* NewV);
@@ -57,7 +58,8 @@ private:
 	void rewriteFunction(llvm::Function* F);
 	void rewriteIntrinsic(llvm::Function* F, llvm::FunctionType* FT);
 	void gatherAllTypesInfo(const llvm::Module& M);
-	void rewriteGEPIndexes(llvm::SmallVector<llvm::Value*, 4>& newIndexes, llvm::Type* ptrType, llvm::ArrayRef<llvm::Use> idxs, llvm::Type* targetType);
+	void rewriteGEPIndexes(llvm::SmallVector<llvm::Value*, 4>& newIndexes, llvm::Type* ptrType, llvm::ArrayRef<llvm::Use> idxs,
+				llvm::Type* targetType, llvm::Instruction* insertionPoint);
 	bool isUnsafeDowncastSource(llvm::StructType* st);
 	void addAllBaseTypesForByteLayout(llvm::StructType* st, llvm::Type* base);
 public:
