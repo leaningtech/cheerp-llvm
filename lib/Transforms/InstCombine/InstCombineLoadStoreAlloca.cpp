@@ -262,12 +262,44 @@ Instruction *InstCombiner::visitAllocaInst(AllocaInst &AI) {
     if (MemTransferInst *Copy = isOnlyCopiedFromConstantGlobal(&AI, ToDelete, DL && DL->isByteAddressable())) {
       unsigned SourceAlign = getOrEnforceKnownAlignment(Copy->getSource(DL && DL->isByteAddressable()),
                                                         AI.getAlignment(), DL);
-      if (AI.getAlignment() <= SourceAlign) {
+      Constant *TheSrc = cast<Constant>(Copy->getSource(DL && DL->isByteAddressable()));
+      // Cheerp: We need to find a subobject of the global which has exactly the same type as the allca
+      if (TheSrc->getType()!=AI.getType() && (!DL || !DL->isByteAddressable())) {
+        // Wee can only proceed if the source is a constant GEP
+        if(isa<ConstantExpr>(TheSrc) && cast<ConstantExpr>(TheSrc)->getOpcode()==Instruction::GetElementPtr) {
+          Type* curType = TheSrc->getOperand(0)->getType()->getPointerElementType();
+          unsigned lastIndex = 1;
+          // Find out how many indexes we need to get the same type as the alloca
+          for(unsigned i=2;i<TheSrc->getNumOperands() && curType!=AI.getAllocatedType();i++) {
+            if(StructType* ST=dyn_cast<StructType>(curType)) {
+              ConstantInt* op=cast<ConstantInt>(TheSrc->getOperand(i));
+              curType = ST->getElementType(op->getZExtValue());
+            } else {
+              curType = curType->getSequentialElementType();
+            }
+            lastIndex++;
+          }
+          if (curType==AI.getAllocatedType()) {
+            // Build a new constant GEP using only a subset of the indexes
+            SmallVector<Constant*, 4> newIndexes;
+            for(unsigned i=1;i<=lastIndex;i++)
+              newIndexes.push_back(cast<Constant>(TheSrc->getOperand(i)));
+            TheSrc = ConstantExpr::getGetElementPtr(cast<Constant>(TheSrc->getOperand(0)), newIndexes);
+          } else {
+            // Even by using all indexes we could not find the same type as the alloca. Bail out.
+            TheSrc = NULL;
+          }
+        } else {
+          // Not a contant GEP. Bail out.
+          TheSrc = NULL;
+        }
+      }
+      if (AI.getAlignment() <= SourceAlign && TheSrc) {
+        assert((DL && DL->isByteAddressable()) || TheSrc->getType()==AI.getType());
         DEBUG(dbgs() << "Found alloca equal to global: " << AI << '\n');
         DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
         for (unsigned i = 0, e = ToDelete.size(); i != e; ++i)
           EraseInstFromFunction(*ToDelete[i]);
-        Constant *TheSrc = cast<Constant>(Copy->getSource(DL && DL->isByteAddressable()));
         Constant *Cast
           = ConstantExpr::getPointerBitCastOrAddrSpaceCast(TheSrc, AI.getType());
         Instruction *NewI = ReplaceInstUsesWith(AI, Cast);
