@@ -842,9 +842,11 @@ void TypeOptimizer::rewriteFunction(Function* F)
 							// struct replace the upcast with a GEP
 							Value* ptrOperand = I.getOperand(0);
 							Type* curType = getOriginalOperandType(ptrOperand)->getPointerElementType();
-							Type* newRetType = rewriteType(I.getType()->getPointerElementType());
-							Type* newOpType = rewriteType(curType);
-							if(!newRetType->isStructTy() && newOpType->isStructTy())
+							TypeMappingInfo newRetInfo = rewriteType(I.getType()->getPointerElementType());
+							TypeMappingInfo newOpInfo = rewriteType(curType);
+							// TODO: Also handle MERGED_MEMBER_ARRAYS_AND_COLLAPSED
+							if(newRetInfo.elementMappingKind == TypeMappingInfo::COLLAPSED &&
+								newOpInfo.elementMappingKind != TypeMappingInfo::COLLAPSED)
 							{
 								Type* Int32 = IntegerType::get(II->getContext(), 32);
 								Value* Zero = ConstantInt::get(Int32, 0);
