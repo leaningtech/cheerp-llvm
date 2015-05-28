@@ -3189,11 +3189,11 @@ const SCEV *ScalarEvolution::getNegativeSCEV(const SCEV *V) {
     return getConstant(
                cast<ConstantInt>(ConstantExpr::getNeg(VC->getValue())));
 
-  if(DL && !DL->isByteAddressable() && V->getType()->isPointerTy())
-    return getNegPointer(V);
-
   if(const SCEVNegPointer* NegPtr = dyn_cast<SCEVNegPointer>(V))
     return NegPtr->getOperand();
+
+  if(DL && !DL->isByteAddressable() && V->getType()->isPointerTy())
+    return getNegPointer(V);
 
   Type *Ty = V->getType();
   Ty = getEffectiveSCEVType(Ty);
@@ -3609,7 +3609,7 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
   if (!Base->getType()->getPointerElementType()->isSized())
     return getUnknown(GEP);
 
-  if (CheerpNoPointerSCEV && (!DL || !DL->isByteAddressable()))
+  if (!DL || (CheerpNoPointerSCEV &&  !DL->isByteAddressable()))
   {
 	  // Cheerp: Running SCEV on pointers may be fragile
 	  return getUnknown(GEP);
@@ -3643,7 +3643,7 @@ const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
       IndexS = getTruncateOrSignExtend(IndexS, IntPtrTy);
 
       // Multiply the index by the element size to compute the element offset.
-      const SCEV *LocalOffset = getMulExpr(IndexS, ElementSize, Wrap);
+      const SCEV *LocalOffset = DL->isByteAddressable() ? getMulExpr(IndexS, ElementSize, Wrap) : IndexS;
 
       // Add the element offset to the running total offset.
       TotalOffset = getAddExpr(TotalOffset, LocalOffset);
