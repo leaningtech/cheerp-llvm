@@ -1901,7 +1901,7 @@ static void WriteModule(const Module *M, BitstreamWriter &Stream) {
   SmallVector<unsigned, 1> Vals;
   // Cheerp: Bump the version up to stop regular LLVM tools from trying to
   // read the bitcode
-  unsigned CurVersion = 10;
+  unsigned CurVersion = 11;
   Vals.push_back(CurVersion);
   Stream.EmitRecord(bitc::MODULE_CODE_VERSION, Vals);
 

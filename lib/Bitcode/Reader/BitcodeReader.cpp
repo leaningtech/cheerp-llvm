@@ -1786,7 +1786,7 @@ error_code BitcodeReader::ParseModule(bool Resume) {
           UseRelativeIDs = false;
           break;
         case 1:
-        case 10:
+        case 11:
           UseRelativeIDs = true;
           break;
       }
