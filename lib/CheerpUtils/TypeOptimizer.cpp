@@ -829,8 +829,6 @@ void TypeOptimizer::rewriteFunction(Function* F)
 			switch(I.getOpcode())
 			{
 				default:
-					if(I.getType()->isPointerTy())
-						llvm::errs() << "INST " << I << "\n";
 					assert(!I.getType()->isPointerTy() && "Unexpected instruction in TypeOptimizer");
 					break;
 				case Instruction::GetElementPtr:
@@ -842,7 +840,9 @@ void TypeOptimizer::rewriteFunction(Function* F)
 						SmallVector<Value*, 4> newIndexes;
 						Type* targetType = rewriteType(I.getType()->getPointerElementType());
 						rewriteGEPIndexes(newIndexes, ptrType, ArrayRef<Use>(I.op_begin()+1,I.op_end()), targetType, &I);
-						GetElementPtrInst* NewInst = GetElementPtrInst::Create(getMappedOperand(ptrOperand), newIndexes);
+						Value* newPtrOperand = getMappedOperand(ptrOperand);
+						assert(newPtrOperand->getType() == rewriteType(ptrType));
+						GetElementPtrInst* NewInst = GetElementPtrInst::Create(newPtrOperand, newIndexes);
 						assert(!NewInst->getType()->getPointerElementType()->isArrayTy());
 						NewInst->takeName(&I);
 						NewInst->setIsInBounds(cast<GetElementPtrInst>(I).isInBounds());
@@ -875,6 +875,16 @@ void TypeOptimizer::rewriteFunction(Function* F)
 								Value* Indexes[] = { Zero, Zero };
 								Value* newPtrOperand = getMappedOperand(ptrOperand);
 								Instruction* newGEP = GetElementPtrInst::Create(newPtrOperand, Indexes, "gepforupcast");
+								// If we get a pointer to an array, collapse that to a plain pointer
+								if(newGEP->getType()->getPointerElementType()->isArrayTy())
+								{
+									// TODO: Rework this
+									// Make a better GEP
+									delete newGEP;
+									Value* Indexes[] = { Zero, Zero, Zero };
+									newGEP = GetElementPtrInst::Create(newPtrOperand, Indexes, "gepforupcast");
+								}
+								assert(!newGEP->getType()->getPointerElementType()->isArrayTy());
 								setMappedOperand(&I, newGEP);
 								break;
 							}
