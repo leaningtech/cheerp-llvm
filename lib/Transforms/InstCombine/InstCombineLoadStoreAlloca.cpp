@@ -394,7 +394,7 @@ static LoadInst *combineLoadToNewType(InstCombiner &IC, LoadInst &LI, Type *NewT
 /// or a volatile load. This is debatable, and might be reasonable to change
 /// later. However, it is risky in case some backend or other part of LLVM is
 /// relying on the exact type loaded to select appropriate atomic operations.
-static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
+static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI, const DataLayout* DL) {
   // FIXME: We could probably with some care handle both volatile and atomic
   // loads here but it isn't clear that this is important.
   if (!LI.isSimple())
@@ -403,6 +403,9 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
   if (LI.use_empty())
     return nullptr;
 
+  // Cheerp: doing this would break pointer type analysis on Cheerp
+  if (!DL || !DL->isByteAddressable())
+    return nullptr;
 
   // Fold away bit casts of the loaded value by loading the desired type.
   if (LI.hasOneUse())
@@ -422,7 +425,7 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
   Value *Op = LI.getOperand(0);
 
   // Try to canonicalize the loaded type.
-  if (Instruction *Res = combineLoadToOperationType(*this, LI))
+  if (Instruction *Res = combineLoadToOperationType(*this, LI, DL))
     return Res;
 
   // Attempt to improve the alignment.
@@ -542,10 +545,14 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
 /// the caller must erase the store instruction. We have to let the caller erase
 /// the store instruction sas otherwise there is no way to signal whether it was
 /// combined or not: IC.EraseInstFromFunction returns a null pointer.
-static bool combineStoreToValueType(InstCombiner &IC, StoreInst &SI) {
+static bool combineStoreToValueType(InstCombiner &IC, StoreInst &SI, const DataLayout* DL) {
   // FIXME: We could probably with some care handle both volatile and atomic
   // stores here but it isn't clear that this is important.
   if (!SI.isSimple())
+    return false;
+
+  // Cheerp: doing this would break pointer type analysis on Cheerp
+  if (!DL || !DL->isByteAddressable())
     return false;
 
   Value *Ptr = SI.getPointerOperand();
@@ -633,7 +640,7 @@ Instruction *InstCombiner::visitStoreInst(StoreInst &SI) {
   Value *Ptr = SI.getOperand(1);
 
   // Try to canonicalize the stored type.
-  if (combineStoreToValueType(*this, SI))
+  if (combineStoreToValueType(*this, SI, DL))
     return EraseInstFromFunction(SI);
 
   // Attempt to improve the alignment.
