@@ -1,5 +1,5 @@
 ==============================================================================
-Duetto Release License
+Cheerp Release License
 ==============================================================================
 University of Illinois/NCSA
 Open Source License
