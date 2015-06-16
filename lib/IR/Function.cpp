@@ -466,8 +466,12 @@ static std::string getMangledTypeStr(Type* Ty) {
   } else if (StructType* STyp = dyn_cast<StructType>(Ty)) {
     if (!STyp->isLiteral())
       Result += STyp->getName();
-    else
-      llvm_unreachable("TODO: implement literal types");
+    else {
+      Result += "l_";
+      for (size_t i = 0; i < STyp->getNumElements(); i++)
+        Result += getMangledTypeStr(STyp->getElementType(i));
+      Result += "l";
+    }
   } else if (FunctionType* FT = dyn_cast<FunctionType>(Ty)) {
     Result += "f_" + getMangledTypeStr(FT->getReturnType());
     for (size_t i = 0; i < FT->getNumParams(); i++)
