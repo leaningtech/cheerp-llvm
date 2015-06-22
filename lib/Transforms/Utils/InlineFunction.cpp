@@ -738,7 +738,7 @@ static void HandleByValArgumentInit(Value *Dst, Value *Src, Module *M,
   // Always generate a memcpy of alignment 1 here because we don't know
   // the alignment of the src pointer.  Other optimizations can infer
   // better alignment.
-  Builder.CreateMemCpy(Dst, Src, Size, /*Align=*/1, /*isVolatile=*/1, nullptr, nullptr, nullptr, nullptr, /*byteLayout=*/false);
+  Builder.CreateMemCpy(Dst, Src, Size, /*Align=*/1, /*isVolatile=*/false, nullptr, nullptr, nullptr, nullptr, /*byteLayout=*/false);
 }
 
 /// HandleByValArgument - When inlining a call site that has a byval argument,
