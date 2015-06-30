@@ -76,7 +76,7 @@ public:
   Type *get(Type *SrcTy);
   Type *get(Type *SrcTy, SmallPtrSet<StructType *, 8> &Visited);
 
-  void finishType(StructType *DTy, StructType *STy, ArrayRef<Type *> ETypes);
+  void finishType(StructType *DTy, StructType *STy, ArrayRef<Type *> ETypes, StructType* DirectBase);
 
   FunctionType *get(FunctionType *T) {
     return cast<FunctionType>(get((Type *)T));
@@ -239,8 +239,8 @@ void TypeMapTy::linkDefinedTypeBodies() {
 }
 
 void TypeMapTy::finishType(StructType *DTy, StructType *STy,
-                           ArrayRef<Type *> ETypes) {
-  DTy->setBody(ETypes, STy->isPacked());
+                           ArrayRef<Type *> ETypes, StructType* DirectBase) {
+  DTy->setBody(ETypes, STy->isPacked(), DirectBase);
 
   // Steal STy's name.
   if (STy->hasName()) {
@@ -296,6 +296,9 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
     ElementTypes[I] = get(Ty->getContainedType(I), Visited);
     AnyChange |= ElementTypes[I] != Ty->getContainedType(I);
   }
+  StructType* DirectBase = NULL;
+  if (isa<StructType>(Ty) && cast<StructType>(Ty)->getDirectBase())
+    DirectBase = cast<StructType>(ElementTypes.pop_back_val());
 
   // If we found our type while recursively processing stuff, just use it.
   Entry = &MappedTypes[Ty];
@@ -303,7 +306,7 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
     if (auto *DTy = dyn_cast<StructType>(*Entry)) {
       if (DTy->isOpaque()) {
         auto *STy = cast<StructType>(Ty);
-        finishType(DTy, STy, ElementTypes);
+        finishType(DTy, STy, ElementTypes, DirectBase);
       }
     }
     return *Entry;
@@ -343,19 +346,13 @@ Type *TypeMapTy::get(Type *Ty, SmallPtrSet<StructType *, 8> &Visited) {
       return *Entry = Ty;
     }
 
-    if (StructType *OldT =
-            DstStructTypesSet.findNonOpaque(ElementTypes, IsPacked)) {
-      STy->setName("");
-      return *Entry = OldT;
-    }
-
     if (!AnyChange) {
       DstStructTypesSet.addNonOpaque(STy);
       return *Entry = Ty;
     }
 
     StructType *DTy = StructType::create(Ty->getContext());
-    finishType(DTy, STy, ElementTypes);
+    finishType(DTy, STy, ElementTypes, DirectBase);
     return *Entry = DTy;
   }
   }
@@ -855,8 +852,12 @@ void ModuleLinker::computeTypeMapping() {
     size_t DotPos = ST->getName().rfind('.');
     if (DotPos == 0 || DotPos == StringRef::npos ||
         ST->getName().back() == '.' ||
-        !isdigit(static_cast<unsigned char>(ST->getName()[DotPos + 1])))
+        !isdigit(static_cast<unsigned char>(ST->getName()[DotPos + 1]))) {
+      // Add this type to the set of known destination types
+      if(!ST->isOpaque())
+        TypeMap.DstStructTypesSet.addNonOpaque(ST);
       continue;
+    }
 
     // Check to see if the destination module has a struct with the prefix name.
     StructType *DST = DstM->getTypeByName(ST->getName().substr(0, DotPos));
@@ -898,7 +899,7 @@ static void upgradeGlobalArray(GlobalVariable *GV) {
   PointerType *VoidPtrTy = Type::getInt8Ty(GV->getContext())->getPointerTo();
   Type *Tys[3] = {OldTy->getElementType(0), OldTy->getElementType(1),
                   VoidPtrTy};
-  StructType *NewTy = StructType::get(GV->getContext(), Tys, false);
+  StructType *NewTy = StructType::get(GV->getContext(), Tys, false, NULL);
 
   // Build new constants with a null third field filled in.
   Constant *OldInitC = GV->getInitializer();
@@ -1612,59 +1613,6 @@ bool ModuleLinker::run() {
   return false;
 }
 
-Linker::StructTypeKeyInfo::KeyTy::KeyTy(ArrayRef<Type *> E, bool P)
-    : ETypes(E), IsPacked(P) {}
-
-Linker::StructTypeKeyInfo::KeyTy::KeyTy(const StructType *ST)
-    : ETypes(ST->elements()), IsPacked(ST->isPacked()) {}
-
-bool Linker::StructTypeKeyInfo::KeyTy::operator==(const KeyTy &That) const {
-  if (IsPacked != That.IsPacked)
-    return false;
-  if (ETypes != That.ETypes)
-    return false;
-  return true;
-}
-
-bool Linker::StructTypeKeyInfo::KeyTy::operator!=(const KeyTy &That) const {
-  return !this->operator==(That);
-}
-
-StructType *Linker::StructTypeKeyInfo::getEmptyKey() {
-  return DenseMapInfo<StructType *>::getEmptyKey();
-}
-
-StructType *Linker::StructTypeKeyInfo::getTombstoneKey() {
-  return DenseMapInfo<StructType *>::getTombstoneKey();
-}
-
-unsigned Linker::StructTypeKeyInfo::getHashValue(const KeyTy &Key) {
-  return hash_combine(hash_combine_range(Key.ETypes.begin(), Key.ETypes.end()),
-                      Key.IsPacked);
-}
-
-unsigned Linker::StructTypeKeyInfo::getHashValue(const StructType *ST) {
-  return getHashValue(KeyTy(ST));
-}
-
-bool Linker::StructTypeKeyInfo::isEqual(const KeyTy &LHS,
-                                        const StructType *RHS) {
-  if (RHS == getEmptyKey() || RHS == getTombstoneKey())
-    return false;
-  return LHS == KeyTy(RHS);
-}
-
-bool Linker::StructTypeKeyInfo::isEqual(const StructType *LHS,
-                                        const StructType *RHS) {
-  if (RHS == getEmptyKey())
-    return LHS == getEmptyKey();
-
-  if (RHS == getTombstoneKey())
-    return LHS == getTombstoneKey();
-
-  return KeyTy(LHS) == KeyTy(RHS);
-}
-
 void Linker::IdentifiedStructTypeSet::addNonOpaque(StructType *Ty) {
   assert(!Ty->isOpaque());
   NonOpaqueStructTypes.insert(Ty);
@@ -1675,19 +1623,9 @@ void Linker::IdentifiedStructTypeSet::addOpaque(StructType *Ty) {
   OpaqueStructTypes.insert(Ty);
 }
 
-StructType *
-Linker::IdentifiedStructTypeSet::findNonOpaque(ArrayRef<Type *> ETypes,
-                                               bool IsPacked) {
-  Linker::StructTypeKeyInfo::KeyTy Key(ETypes, IsPacked);
-  auto I = NonOpaqueStructTypes.find_as(Key);
-  if (I == NonOpaqueStructTypes.end())
-    return nullptr;
-  return *I;
-}
-
 bool Linker::IdentifiedStructTypeSet::hasType(StructType *Ty) {
-  if (Ty->isOpaque())
-    return OpaqueStructTypes.count(Ty);
+  if(OpaqueStructTypes.count(Ty))
+    return true;
   auto I = NonOpaqueStructTypes.find(Ty);
   if (I == NonOpaqueStructTypes.end())
     return false;

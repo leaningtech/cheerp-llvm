@@ -26,24 +26,7 @@ class Type;
 /// something with it after the linking.
 class Linker {
 public:
-  struct StructTypeKeyInfo {
-    struct KeyTy {
-      ArrayRef<Type *> ETypes;
-      bool IsPacked;
-      KeyTy(ArrayRef<Type *> E, bool P);
-      KeyTy(const StructType *ST);
-      bool operator==(const KeyTy &that) const;
-      bool operator!=(const KeyTy &that) const;
-    };
-    static StructType *getEmptyKey();
-    static StructType *getTombstoneKey();
-    static unsigned getHashValue(const KeyTy &Key);
-    static unsigned getHashValue(const StructType *ST);
-    static bool isEqual(const KeyTy &LHS, const StructType *RHS);
-    static bool isEqual(const StructType *LHS, const StructType *RHS);
-  };
-
-  typedef DenseSet<StructType *, StructTypeKeyInfo> NonOpaqueStructTypeSet;
+  typedef DenseSet<StructType *> NonOpaqueStructTypeSet;
   typedef DenseSet<StructType *> OpaqueStructTypeSet;
 
   struct IdentifiedStructTypeSet {
@@ -55,7 +38,6 @@ public:
 
     void addNonOpaque(StructType *Ty);
     void addOpaque(StructType *Ty);
-    StructType *findNonOpaque(ArrayRef<Type *> ETypes, bool IsPacked);
     bool hasType(StructType *Ty);
   };
 

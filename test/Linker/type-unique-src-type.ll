@@ -11,7 +11,7 @@
 ; CHECK-NEXT: %A = type { i8 }
 
 ; CHECK: @g1 = external global %C.0
-; CHECK:  getelementptr %C.0* null, i64 0, i32 0, i32 0
+; CHECK:  getelementptr %C* null, i64 0, i32 0, i32 0
 
 %A   = type { i8 }
 %B   = type { %A }
