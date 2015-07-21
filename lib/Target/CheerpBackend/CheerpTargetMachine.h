@@ -52,7 +52,7 @@ public:
                                    CodeGenFileType FileType,
                                    bool DisableVerify,
                                    AnalysisID StartAfter,
-                                   AnalysisID StopAfter);
+                                   AnalysisID StopAfter) override;
 };
 
 extern Target TheCheerpBackendTarget;
