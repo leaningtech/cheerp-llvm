@@ -3127,7 +3127,7 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
   // now.
   if (BitCastInst *CI = dyn_cast<BitCastInst>(Op0)) {
     if (Op0->getType()->isPointerTy() &&
-        (isa<Constant>(Op1) || isa<BitCastInst>(Op1))) {
+        (isa<Constant>(Op1) || isa<BitCastInst>(Op1)) && DL && DL->isByteAddressable()) {
       // We keep moving the cast from the left operand over to the right
       // operand, where it can often be eliminated completely.
       Op0 = CI->getOperand(0);
