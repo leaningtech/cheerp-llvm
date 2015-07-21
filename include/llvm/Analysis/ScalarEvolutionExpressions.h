@@ -29,7 +29,7 @@ namespace llvm {
     // folders simpler.
     scConstant, scTruncate, scZeroExtend, scSignExtend, scAddExpr, scMulExpr,
     scUDivExpr, scAddRecExpr, scUMaxExpr, scSMaxExpr,
-    scUnknown, scNegPointer, scCouldNotCompute
+    scNegPointer, scUnknown, scCouldNotCompute
   };
 
   //===--------------------------------------------------------------------===//
