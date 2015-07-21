@@ -559,7 +559,7 @@ static unsigned getEncodedComdatSelectionKind(const Comdat &C) {
 }
 
 static void writeComdats(const ValueEnumerator &VE, BitstreamWriter &Stream) {
-  SmallVector<uint8_t, 64> Vals;
+  SmallVector<unsigned, 64> Vals;
   for (const Comdat *C : VE.getComdats()) {
     // COMDAT: [selection_kind, name]
     Vals.push_back(getEncodedComdatSelectionKind(*C));
