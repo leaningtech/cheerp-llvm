@@ -1083,14 +1083,6 @@ bool ModuleLinker::linkGlobalValueProto(GlobalValue *SGV) {
   if (!LinkFromSrc) {
     NewGV = DGV;
   } else {
-    // If the GV is to be lazily linked, don't create it just yet.
-    // The ValueMaterializerTy will deal with creating it if it's used.
-    if (!DGV && (SGV->hasLocalLinkage() || SGV->hasLinkOnceLinkage() ||
-                 SGV->hasAvailableExternallyLinkage())) {
-      DoNotLinkFromSource.insert(SGV);
-      return false;
-    }
-
     NewGV = copyGlobalValueProto(TypeMap, *DstM, SGV);
 
     if (DGV && isa<Function>(DGV))
