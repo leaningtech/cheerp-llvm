@@ -1287,6 +1287,7 @@ private:
   bool presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS);
   bool rewritePartition(AllocaInst &AI, AllocaSlices &AS,
                         AllocaSlices::Partition &P);
+  Type* findPartitionType(AllocaInst &AI, AllocaSlices::Partition &P);
   bool splitAlloca(AllocaInst &AI, AllocaSlices &AS);
   bool runOnAlloca(AllocaInst &AI);
   void clobberUse(Use &U);
@@ -4030,6 +4031,33 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
   return true;
 }
 
+
+/// Try to compute a friendly type for this partition of the alloca. This
+/// won't always succeed, in which case we fall back to a legal integer type
+/// or an i8 array of an appropriate size.
+Type* SROA::findPartitionType(AllocaInst &AI, AllocaSlices::Partition &P) {
+  Type* SliceTy = nullptr;
+  if (Type *CommonUseTy = findCommonType(P.begin(), P.end(), P.endOffset()))
+    if (DL->getTypeAllocSize(CommonUseTy) >= P.size())
+      SliceTy = CommonUseTy;
+  if (!SliceTy)
+    if (Type *TypePartitionTy = getTypePartition(*DL, AI.getAllocatedType(),
+                                                 P.beginOffset(), P.size()))
+      SliceTy = TypePartitionTy;
+  // The code below is unsafe for NBA
+  if (!DL->isByteAddressable())
+    return SliceTy;
+  if ((!SliceTy || (SliceTy->isArrayTy() &&
+                    SliceTy->getArrayElementType()->isIntegerTy())) &&
+      DL->isLegalInteger(P.size() * 8))
+    SliceTy = Type::getIntNTy(*C, P.size() * 8);
+  if (!SliceTy)
+    SliceTy = ArrayType::get(Type::getInt8Ty(*C), P.size());
+  assert(DL->getTypeAllocSize(SliceTy) >= P.size());
+
+  return SliceTy;
+}
+
 /// \brief Rewrite an alloca partition's users.
 ///
 /// This routine drives both of the rewriting goals of the SROA pass. It tries
@@ -4042,36 +4070,13 @@ bool SROA::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
 /// promoted.
 bool SROA::rewritePartition(AllocaInst &AI, AllocaSlices &AS,
                             AllocaSlices::Partition &P) {
-  // Try to compute a friendly type for this partition of the alloca. This
-  // won't always succeed, in which case we fall back to a legal integer type
-  // or an i8 array of an appropriate size.
-  Type *SliceTy = nullptr;
-  if (Type *CommonUseTy = findCommonType(P.begin(), P.end(), P.endOffset()))
-    if (DL->getTypeAllocSize(CommonUseTy) >= P.size())
-      SliceTy = CommonUseTy;
-  if (!SliceTy)
-    if (Type *TypePartitionTy = getTypePartition(*DL, AI.getAllocatedType(),
-                                                 P.beginOffset(), P.size()))
-      SliceTy = TypePartitionTy;
-  if ((!SliceTy || (SliceTy->isArrayTy() &&
-                    SliceTy->getArrayElementType()->isIntegerTy())) &&
-      DL->isLegalInteger(P.size() * 8))
-    SliceTy = Type::getIntNTy(*C, P.size() * 8);
-  if (!SliceTy)
-  {
-    if (!DL->isByteAddressable())
-      return false;
-    SliceTy = ArrayType::get(Type::getInt8Ty(*C), P.size());
-  }
-  assert(DL->getTypeAllocSize(SliceTy) >= P.size());
-
+  Type *SliceTy = findPartitionType(AI, P);
   bool IsIntegerPromotable = isIntegerWideningViable(P, SliceTy, *DL);
 
   VectorType *VecTy =
       IsIntegerPromotable ? nullptr : isVectorPromotionViable(P, *DL);
   if (VecTy)
     SliceTy = VecTy;
-
   // Check for the case where we're going to rewrite to a new alloca of the
   // exact same type as the original, and with the same access offsets. In that
   // case, re-use the existing alloca, but still run through the rewriter to
@@ -4216,6 +4221,12 @@ bool SROA::splitAlloca(AllocaInst &AI, AllocaSlices &AS) {
   }
   if (!IsSorted)
     std::sort(AS.begin(), AS.end());
+
+  // Make sure that new types can be found for all partitions
+  for (auto &P : AS.partitions()) {
+    if(!findPartitionType(AI, P))
+      return false;
+  }
 
   // Rewrite each partition.
   for (auto &P : AS.partitions()) {
