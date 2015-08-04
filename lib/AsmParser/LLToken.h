@@ -46,6 +46,7 @@ namespace lltok {
     kw_default, kw_hidden, kw_protected,
     kw_unnamed_addr,
     kw_externally_initialized,
+    kw_directbase,
     kw_extern_weak,
     kw_external, kw_thread_local,
     kw_localdynamic, kw_initialexec, kw_localexec,

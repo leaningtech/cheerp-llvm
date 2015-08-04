@@ -514,6 +514,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(protected);
   KEYWORD(unnamed_addr);
   KEYWORD(externally_initialized);
+  KEYWORD(directbase);
   KEYWORD(extern_weak);
   KEYWORD(external);
   KEYWORD(thread_local);
