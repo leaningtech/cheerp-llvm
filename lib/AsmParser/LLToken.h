@@ -235,6 +235,7 @@ enum Kind {
   kw_immarg,
   kw_static,
   kw_bytelayout,
+  kw_directbase,
 
   kw_type,
   kw_opaque,
