@@ -141,7 +141,8 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Instruction *ScanFrom,
       continue;
 
     auto *AccessedTy = cast<PointerType>(AccessedPtr->getType());
-    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCasts(DL && DL->isByteAddressable()), V) &&
+    // NOTE: Use 'true' for stripPointerCasts as we are interested in having gep V,0,0,0... and V being considered equal
+    if (AreEquivalentAddressValues(AccessedPtr->stripPointerCasts(true), V) &&
         LoadSize <= DL->getTypeStoreSize(AccessedTy->getElementType()))
       return true;
   }
