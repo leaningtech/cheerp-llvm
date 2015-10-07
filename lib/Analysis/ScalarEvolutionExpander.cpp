@@ -1766,6 +1766,9 @@ unsigned SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     if (OrigPhiRef->getType()->isPointerTy() != Phi->getType()->isPointerTy())
       continue;
 
+    if (!SE.DL->isByteAddressable() && OrigPhiRef->getType() != Phi->getType())
+      continue;
+
     if (BasicBlock *LatchBlock = L->getLoopLatch()) {
       Instruction *OrigInc =
         cast<Instruction>(OrigPhiRef->getIncomingValueForBlock(LatchBlock));
