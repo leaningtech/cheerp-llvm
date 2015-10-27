@@ -50,8 +50,8 @@ public:
   }
 
   ~AllocaHolder() {
-    for (void *Allocation : Allocations)
-      free(Allocation);
+    // Do not call free() for each tracked allocation.
+    // TODO: call munmap() but the allocation size is required here!
   }
 
   void add(void *Mem) { Allocations.push_back(Mem); }
