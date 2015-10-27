@@ -105,11 +105,16 @@ class GVMemoryBlock final : public CallbackVH {
 public:
   /// Returns the address the GlobalVariable should be written into.  The
   /// GVMemoryBlock object prefixes that.
-  static char *Create(const GlobalVariable *GV, const DataLayout& TD) {
+  static char *Create(BumpPtrMmap32bitAllocator &MemoryAllocator,
+          const GlobalVariable *GV, const DataLayout& TD) {
     Type *ElTy = GV->getValueType();
     size_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
-    void *RawMemory = ::operator new(
-        alignTo(sizeof(GVMemoryBlock), TD.getPreferredAlignment(GV)) + GVSize);
+    void *RawMemory = MemoryAllocator.Allocate(
+      alignTo(sizeof(GVMemoryBlock),
+                         TD.getPreferredAlignment(GV))
+      + GVSize,
+      8);
+
     new(RawMemory) GVMemoryBlock(GV);
     return static_cast<char*>(RawMemory) + sizeof(GVMemoryBlock);
   }
@@ -119,13 +124,12 @@ public:
     // end, so don't just delete this.  I'm not sure if this is actually
     // required.
     this->~GVMemoryBlock();
-    ::operator delete(this);
   }
 };
 }  // anonymous namespace
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
-  return GVMemoryBlock::Create(GV, getDataLayout());
+  return GVMemoryBlock::Create(MemoryAllocator, GV, getDataLayout());
 }
 
 void ExecutionEngine::addObjectFile(std::unique_ptr<object::ObjectFile> O) {
@@ -315,6 +319,8 @@ const GlobalValue *ExecutionEngine::getGlobalValueAtAddress(void *Addr) {
 
   std::map<uint64_t, std::string>::iterator I =
     EEState.getGlobalAddressReverseMap().upper_bound((uint64_t) Addr);
+  if (I == EEState.getGlobalAddressReverseMap().begin())
+      return 0;
   --I;
   if (Addr < I->first)
     return 0;
@@ -899,6 +905,9 @@ GenericValue ExecutionEngine::getConstantValue(const Constant *C) {
     report_fatal_error(OS.str());
   }
 
+  if (const GlobalAlias *GA = dyn_cast<GlobalAlias>(C))
+    return getConstantValue(GA->getAliasee());
+
   // Otherwise, we have a simple constant.
   GenericValue Result;
   switch (C->getType()->getTypeID()) {
@@ -1055,11 +1064,7 @@ void ExecutionEngine::StoreValueToMemory(const GenericValue &Val,
     memcpy(Ptr, Val.IntVal.getRawData(), 10);
     break;
   case Type::PointerTyID:
-    // Ensure 64 bit target pointers are fully initialized on 32 bit hosts.
-    if (StoreBytes != sizeof(PointerTy))
-      memset(&(Ptr->PointerVal), 0, StoreBytes);
-
-    *((PointerTy*)Ptr) = Val.PointerVal;
+    memcpy(Ptr, &Val.PointerVal, StoreBytes);
     break;
   case Type::VectorTyID:
     for (unsigned i = 0; i < Val.AggregateVal.size(); ++i) {
@@ -1101,7 +1106,8 @@ void ExecutionEngine::LoadValueFromMemory(GenericValue &Result,
     Result.DoubleVal = *((double*)Ptr);
     break;
   case Type::PointerTyID:
-    Result.PointerVal = *((PointerTy*)Ptr);
+    Result.PointerVal = nullptr;
+    memcpy(&Result.PointerVal, Ptr, LoadBytes);
     break;
   case Type::X86_FP80TyID: {
     // This is endian dependent, but it will only work on x86 anyway.
