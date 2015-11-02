@@ -197,9 +197,15 @@ void ExecutionEngine::clearGlobalMappingsFromModule(Module *M) {
 
   for (Module::iterator FI = M->begin(), FE = M->end(); FI != FE; ++FI)
     EEState.RemoveMapping(FI);
+
   for (Module::global_iterator GI = M->global_begin(), GE = M->global_end();
-       GI != GE; ++GI)
-    EEState.RemoveMapping(GI);
+       GI != GE; ++GI) {
+    char *gv = (char *)EEState.RemoveMapping(GI);
+    if (!gv)
+      continue;
+    gv -= sizeof(GVMemoryBlock);
+    ((GVMemoryBlock*)gv)->~GVMemoryBlock();
+  }
 }
 
 void *ExecutionEngine::updateGlobalMapping(const GlobalValue *GV, void *Addr) {
