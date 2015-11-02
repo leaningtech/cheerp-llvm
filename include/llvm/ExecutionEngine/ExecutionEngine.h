@@ -28,10 +28,13 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/ExecutionEngine/Mmap32bitAllocator.h"
 #include <map>
 #include <string>
 #include <vector>
+
+#if defined(__linux__)
+#include "llvm/ExecutionEngine/Mmap32bitAllocator.h"
+#endif
 
 namespace llvm {
 
@@ -137,7 +140,11 @@ public:
 
   /// Allocator used for emulating the execution of code in a 32-bit
   /// environment (e.g. JavaScript code in browsers).
+#if defined(__linux__)
   BumpPtrMmap32bitAllocator MemoryAllocator;
+#else
+  MallocAllocator MemoryAllocator;
+#endif
 
 protected:
   /// The list of Modules that we are JIT'ing from.  We use a SmallVector to

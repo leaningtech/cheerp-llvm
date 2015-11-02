@@ -85,7 +85,11 @@ class GVMemoryBlock : public CallbackVH {
 public:
   /// \brief Returns the address the GlobalVariable should be written into.  The
   /// GVMemoryBlock object prefixes that.
+#if defined(__linux__)
   static char *Create(BumpPtrMmap32bitAllocator &MemoryAllocator,
+#else
+  static char *Create(MallocAllocator &MemoryAllocator,
+#endif
           const GlobalVariable *GV, const DataLayout& TD) {
     Type *ElTy = GV->getType()->getElementType();
     size_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
