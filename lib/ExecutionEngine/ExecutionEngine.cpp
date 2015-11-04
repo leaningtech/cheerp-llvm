@@ -47,6 +47,7 @@ ExecutionEngine *(*ExecutionEngine::MCJITCtor)(
     std::unique_ptr<RTDyldMemoryManager> MCJMM,
     std::unique_ptr<TargetMachine> TM) = nullptr;
 ExecutionEngine *(*ExecutionEngine::InterpCtor)(std::unique_ptr<Module> M,
+                                                bool preExecute,
                                                 std::string *ErrorStr) =nullptr;
 
 void JITEventListener::anchor() {}
@@ -244,8 +245,18 @@ const GlobalValue *ExecutionEngine::getGlobalValueAtAddress(void *Addr) {
   }
 
   std::map<void *, AssertingVH<const GlobalValue> >::iterator I =
-    EEState.getGlobalAddressReverseMap().find(Addr);
-  return I != EEState.getGlobalAddressReverseMap().end() ? I->second : nullptr;
+    EEState.getGlobalAddressReverseMap().upper_bound(Addr);
+  --I;
+  if (Addr < I->first)
+    return 0;
+  if (I->first == Addr)
+    return I->second;
+  // Check if the address is in the middle of the global
+  Type *ElTy = I->second->getType()->getElementType();
+  size_t GVSize = (size_t)getDataLayout()->getTypeAllocSize(ElTy);
+  if (uintptr_t(Addr) < (uintptr_t(I->first)+GVSize))
+    return I->second;
+  return 0;
 }
 
 namespace {
@@ -467,9 +478,9 @@ ExecutionEngine *EngineBuilder::create(TargetMachine *TM) {
 
   // If we can't make a JIT and we didn't request one specifically, try making
   // an interpreter instead.
-  if (WhichEngine & EngineKind::Interpreter) {
+  if (WhichEngine & (EngineKind::Interpreter|EngineKind::PreExecuteInterpreter)) {
     if (ExecutionEngine::InterpCtor)
-      return ExecutionEngine::InterpCtor(std::move(M), ErrorStr);
+      return ExecutionEngine::InterpCtor(std::move(M), WhichEngine & EngineKind::PreExecuteInterpreter, ErrorStr);
     if (ErrorStr)
       *ErrorStr = "Interpreter has not been linked in.";
     return nullptr;
@@ -1148,7 +1159,7 @@ void ExecutionEngine::InitializeMemory(const Constant *Init, void *Addr) {
 /// EmitGlobals - Emit all of the global variables to memory, storing their
 /// addresses into GlobalAddress.  This must make sure to copy the contents of
 /// their initializers into the memory.
-void ExecutionEngine::emitGlobals() {
+void ExecutionEngine::emitGlobals(bool AllowUnresolved) {
   // Loop over all of the global variables in the program, allocating the memory
   // to hold them.  If there is more than one module, do a prepass over globals
   // to figure out how the different modules should link together.
@@ -1209,7 +1220,7 @@ void ExecutionEngine::emitGlobals() {
         if (void *SymAddr =
             sys::DynamicLibrary::SearchForAddressOfSymbol(GV.getName()))
           addGlobalMapping(&GV, SymAddr);
-        else {
+        else if (!AllowUnresolved) {
           report_fatal_error("Could not resolve external global address: "
                             +GV.getName());
         }

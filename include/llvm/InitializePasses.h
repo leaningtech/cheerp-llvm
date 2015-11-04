@@ -300,6 +300,7 @@ void initializeAllocaArraysPass(PassRegistry&);
 void initializeReplaceNopCastsPass(PassRegistry&);
 void initializeTypeOptimizerPass(PassRegistry&);
 void initializeDelayAllocasPass(PassRegistry&);
+void initializePreExecutePass(PassRegistry&);
 }
 
 #endif
