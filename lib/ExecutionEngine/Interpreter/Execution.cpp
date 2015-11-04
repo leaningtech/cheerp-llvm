@@ -1052,6 +1052,11 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
   StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
                      I.getOperand(0)->getType());
+  if (StoreListener)
+  {
+    assert(ForPreExecute);
+    StoreListener(GVTOP(SRC));
+  }
   if (I.isVolatile() && PrintVolatile)
     dbgs() << "Volatile store: " << I;
 }
@@ -1082,6 +1087,9 @@ void Interpreter::visitCallSite(CallSite CS) {
       SetValue(CS.getInstruction(), getOperandValue(*CS.arg_begin(), SF), SF);
       return;
     default:
+      // Check if the callback can provide an implementation
+      if (LazyFunctionCreator(F->getName().str()))
+        break;
       // If it is an unknown intrinsic function, use the intrinsic lowering
       // class to transform it into hopefully tasty LLVM code.
       //
@@ -2110,7 +2118,7 @@ void Interpreter::callFunction(Function *F, ArrayRef<GenericValue> ArgVals) {
 
 
 void Interpreter::run() {
-  while (!ECStack.empty()) {
+  while (!ECStack.empty() && !CleanAbort) {
     // Interpret a single instruction & increment the "PC".
     ExecutionContext &SF = ECStack.back();  // Current stack frame
     Instruction &I = *SF.CurInst++;         // Increment before execute
@@ -2118,7 +2126,7 @@ void Interpreter::run() {
     // Track the number of dynamic instructions executed.
     ++NumDynamicInsts;
 
-    DEBUG(dbgs() << "About to interpret: " << I);
+    DEBUG(dbgs() << "About to interpret: " << I << "\n");
     visit(I);   // Dispatch to one of the visit* methods...
   }
 }
