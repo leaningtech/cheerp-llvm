@@ -390,6 +390,13 @@ static void initialize(TargetLibraryInfo &TLI, const Triple &T,
   }
 #endif // !NDEBUG
 
+  // Disable functions that we don't have natively in JS
+  if (T.getArch() == Triple::cheerp) {
+    TLI.setUnavailable(LibFunc::exp2);
+    TLI.setUnavailable(LibFunc::exp2f);
+    TLI.setUnavailable(LibFunc::exp2l);
+  }
+
   // There are no library implementations of mempcy and memset for AMD gpus and
   // these can be difficult to lower in the backend.
   if (T.getArch() == Triple::r600 ||
