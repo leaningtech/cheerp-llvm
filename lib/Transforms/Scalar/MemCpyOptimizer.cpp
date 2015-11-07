@@ -1229,7 +1229,7 @@ bool MemCpyOptPass::processMemCpy(MemCpyInst *M) {
   // If copying from a constant, try to turn the memcpy into a memset.
   const DataLayout &DL = M->getModule()->getDataLayout();
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(M->getSource()))
-    if (GV->isConstant() && GV->hasDefinitiveInitializer())
+    if (GV->isConstant() && GV->hasDefinitiveInitializer() && DL.isByteAddressable())
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
         Builder.CreateMemSet(M->getRawDest(), ByteVal, M->getLength(),
