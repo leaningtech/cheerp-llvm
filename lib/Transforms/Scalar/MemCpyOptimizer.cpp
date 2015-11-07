@@ -854,7 +854,7 @@ bool MemCpyOpt::processMemCpy(MemCpyInst *M) {
 
   // If copying from a constant, try to turn the memcpy into a memset.
   if (GlobalVariable *GV = dyn_cast<GlobalVariable>(M->getSource(DL && DL->isByteAddressable())))
-    if (GV->isConstant() && GV->hasDefinitiveInitializer())
+    if (GV->isConstant() && GV->hasDefinitiveInitializer() && DL && DL->isByteAddressable())
       if (Value *ByteVal = isBytewiseValue(GV->getInitializer())) {
         IRBuilder<> Builder(M);
         Builder.CreateMemSet(M->getRawDest(), ByteVal, M->getLength(),
