@@ -1314,6 +1314,21 @@ TEST(APFloatTest, roundToIntegral) {
   EXPECT_TRUE(IsInf(P.convertToDouble()) && P.convertToDouble() < 0.0);
 
 }
+  
+TEST(APFloatTest, isInteger) {
+  APFloat T(-0.0);
+  EXPECT_TRUE(T.isInteger());
+  T = APFloat(3.14159);
+  EXPECT_FALSE(T.isInteger());
+  T = APFloat::getNaN(APFloat::IEEEdouble);
+  EXPECT_FALSE(T.isInteger());
+  T = APFloat::getInf(APFloat::IEEEdouble);
+  EXPECT_FALSE(T.isInteger());
+  T = APFloat::getInf(APFloat::IEEEdouble, true);
+  EXPECT_FALSE(T.isInteger());
+  T = APFloat::getLargest(APFloat::IEEEdouble);
+  EXPECT_TRUE(T.isInteger());
+}
 
 TEST(APFloatTest, getLargest) {
   EXPECT_EQ(3.402823466e+38f, APFloat::getLargest(APFloat::IEEEsingle).convertToFloat());
