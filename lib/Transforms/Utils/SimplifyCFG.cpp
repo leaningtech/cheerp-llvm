@@ -862,7 +862,7 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(TerminatorInst *TI,
     TerminatorInst *PTI = Pred->getTerminator();
     Value *PCV = isValueEqualityComparison(PTI);  // PredCondVal
 
-    if (PCV == CV && SafeToMergeTerminators(TI, PTI)) {
+    if (PCV == CV && SafeToMergeTerminators(TI, PTI) && (!CV->getType()->isPointerTy() || DL->isByteAddressable())) {
       // Figure out which 'cases' to copy from SI to PSI.
       std::vector<ValueEqualityComparisonCase> BBCases;
       BasicBlock *BBDefault = GetValueEqualityComparisonCases(TI, BBCases);
