@@ -54,7 +54,8 @@ void JITEventListener::anchor() {}
 
 ExecutionEngine::ExecutionEngine(std::unique_ptr<Module> M)
   : EEState(*this),
-    LazyFunctionCreator(nullptr) {
+    LazyFunctionCreator(nullptr),
+    StoreListener(nullptr) {
   CompilingLazily         = false;
   GVCompilationDisabled   = false;
   SymbolSearchingDisabled = false;
@@ -201,7 +202,7 @@ void ExecutionEngine::clearGlobalMappingsFromModule(Module *M) {
   for (Module::global_iterator GI = M->global_begin(), GE = M->global_end();
        GI != GE; ++GI) {
     char *gv = (char *)EEState.RemoveMapping(GI);
-    if (!gv)
+    if (!gv || GI->isDeclaration())
       continue;
     gv -= sizeof(GVMemoryBlock);
     ((GVMemoryBlock*)gv)->~GVMemoryBlock();
