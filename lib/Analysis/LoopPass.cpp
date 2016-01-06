@@ -41,14 +41,17 @@ public:
   }
 
   bool runOnLoop(Loop *L, LPPassManager &) override {
-    Out << Banner;
+    bool bannerShown = false;
     for (Loop::block_iterator b = L->block_begin(), be = L->block_end();
          b != be;
          ++b) {
-      if (*b)
+      if (*b && isFunctionInPrintList((*b)->getParent()->getName())) {
+        if (!bannerShown) {
+          Out << Banner << '\n';
+          bannerShown = true;
+        }
         (*b)->print(Out);
-      else
-        Out << "Printing <null> block";
+      }
     }
     return false;
   }

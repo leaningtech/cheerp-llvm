@@ -25,7 +25,21 @@ PrintModulePass::PrintModulePass(raw_ostream &OS, const std::string &Banner)
     : OS(OS), Banner(Banner) {}
 
 PreservedAnalyses PrintModulePass::run(Module &M) {
-  OS << Banner << M;
+  if (llvm::isFunctionInPrintList("*")) {
+    OS << Banner << '\n';
+    M.print(OS, nullptr);
+  } else {
+    bool bannerShown = false;
+    for(const auto &F : M.functions()) {
+      if (llvm::isFunctionInPrintList(F.getName())) {
+        if (!bannerShown) {
+          OS << Banner << '\n';
+          bannerShown = true;
+        }
+        F.print(OS);
+      }
+    }
+  }
   return PreservedAnalyses::all();
 }
 
@@ -34,7 +48,8 @@ PrintFunctionPass::PrintFunctionPass(raw_ostream &OS, const std::string &Banner)
     : OS(OS), Banner(Banner) {}
 
 PreservedAnalyses PrintFunctionPass::run(Function &F) {
-  OS << Banner << static_cast<Value &>(F);
+  if (isFunctionInPrintList(F.getName()))
+    OS << Banner << static_cast<Value &>(F);
   return PreservedAnalyses::all();
 }
 
@@ -90,7 +105,8 @@ public:
       : BasicBlockPass(ID), Out(Out), Banner(Banner) {}
 
   bool runOnBasicBlock(BasicBlock &BB) override {
-    Out << Banner << BB;
+    if (!BB.getParent() || isFunctionInPrintList(BB.getParent()->getName()))
+      Out << Banner << BB;
     return false;
   }
 

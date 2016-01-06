@@ -193,12 +193,15 @@ public:
   }
 
   bool runOnRegion(Region *R, RGPassManager &RGM) override {
-    Out << Banner;
+    bool bannerShown = false;
     for (const auto &BB : R->blocks()) {
-      if (BB)
+      if (BB && isFunctionInPrintList(BB->getParent()->getName())) {
+        if (!bannerShown) {
+          Out << Banner << '\n';
+          bannerShown = true;
+        }
         BB->print(Out);
-      else
-        Out << "Printing <null> Block";
+      }
     }
 
     return false;
