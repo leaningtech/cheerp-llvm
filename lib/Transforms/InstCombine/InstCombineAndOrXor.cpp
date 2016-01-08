@@ -1479,6 +1479,9 @@ Instruction *InstCombiner::visitAnd(BinaryOperator &I) {
 /// Given an OR instruction, check to see if this is a bswap idiom. If so,
 /// insert the new intrinsic and return it.
 Instruction *InstCombiner::MatchBSwap(BinaryOperator &I) {
+  // Cheerp: We don't have a byte swap intrinsic, so don't generate it
+  if (!DL.isByteAddressable())
+    return nullptr;
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
 
   // Look through zero extends.
