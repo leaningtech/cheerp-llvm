@@ -1654,7 +1654,9 @@ Instruction *InstCombiner::MatchBSwap(BinaryOperator &I) {
   IntegerType *ITy = dyn_cast<IntegerType>(I.getType());
   if (!ITy || ITy->getBitWidth() % 16 ||
       // ByteMask only allows up to 32-byte values.
-      ITy->getBitWidth() > 32*8)
+      ITy->getBitWidth() > 32*8 ||
+      // Cheerp: We don't have a byte swap intrinsic, so don't generate it
+      !DL->isByteAddressable())
     return nullptr;   // Can only bswap pairs of bytes.  Can't do vectors.
 
   /// ByteValues - For each byte of the result, we keep track of which value
