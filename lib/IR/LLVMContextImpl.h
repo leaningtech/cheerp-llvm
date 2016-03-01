@@ -79,14 +79,17 @@ struct AnonStructTypeKeyInfo {
   struct KeyTy {
     ArrayRef<Type*> ETypes;
     bool isPacked;
-    KeyTy(const ArrayRef<Type*>& E, bool P) :
-      ETypes(E), isPacked(P) {}
+    StructType* directBase;
+    KeyTy(const ArrayRef<Type*>& E, bool P, StructType* b) :
+      ETypes(E), isPacked(P), directBase(b) {}
     KeyTy(const StructType *ST)
-        : ETypes(ST->elements()), isPacked(ST->isPacked()) {}
+        : ETypes(ST->elements()), isPacked(ST->isPacked()), directBase(ST->getDirectBase()) {}
     bool operator==(const KeyTy& that) const {
       if (isPacked != that.isPacked)
         return false;
       if (ETypes != that.ETypes)
+        return false;
+      if (directBase != that.directBase)
         return false;
       return true;
     }
@@ -103,7 +106,7 @@ struct AnonStructTypeKeyInfo {
   static unsigned getHashValue(const KeyTy& Key) {
     return hash_combine(hash_combine_range(Key.ETypes.begin(),
                                            Key.ETypes.end()),
-                        Key.isPacked);
+                        Key.isPacked, Key.directBase);
   }
   static unsigned getHashValue(const StructType *ST) {
     return getHashValue(KeyTy(ST));

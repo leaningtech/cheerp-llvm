@@ -402,7 +402,7 @@ bool FunctionType::isValidArgumentType(Type *ArgTy) {
 StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes, 
                             bool isPacked, StructType* directBase) {
   LLVMContextImpl *pImpl = Context.pImpl;
-  AnonStructTypeKeyInfo::KeyTy Key(ETypes, isPacked);
+  AnonStructTypeKeyInfo::KeyTy Key(ETypes, isPacked, directBase);
   auto I = pImpl->AnonStructTypes.find_as(Key);
   StructType *ST;
 
