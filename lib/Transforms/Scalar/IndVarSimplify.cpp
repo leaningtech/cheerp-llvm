@@ -655,6 +655,17 @@ bool IndVarSimplify::rewriteLoopExitValues(Loop *L, SCEVExpander &Rewriter) {
         if (!isValidRewrite(Inst, ExitVal)) {
           DeadInsts.push_back(ExitVal);
           continue;
+	}
+
+        if(!DL.isByteAddressable()) {
+          // On Cheerp we need to make sure this did not generate a uglygep
+          if(Instruction* bc = dyn_cast<BitCastInst>(ExitVal)) {
+            if(bc->getOperand(0)->getType()->getPointerElementType()->isIntegerTy(8)) {
+              // Cast from i8* to something, it is most probably a bad idea
+              DeadInsts.push_back(ExitVal);
+              continue;
+            }
+          }
         }
 
 #ifndef NDEBUG
