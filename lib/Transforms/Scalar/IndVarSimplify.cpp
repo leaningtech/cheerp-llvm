@@ -154,6 +154,15 @@ bool IndVarSimplify::isValidRewrite(Value *FromVal, Value *ToVal) {
   // because it understands lcssa phis while SCEV does not.
   Value *FromPtr = FromVal;
   Value *ToPtr = ToVal;
+  if(DL && !DL->isByteAddressable()) {
+    // On Cheerp we need to make sure this did not generate a uglygep
+    if(Instruction* bc = dyn_cast<BitCastInst>(ToPtr)) {
+      if(bc->getOperand(0)->getType()->getPointerElementType()->isIntegerTy(8)) {
+        // Cast from i8* to something, it is most probably a bad idea
+        return false;
+      }
+    }
+  }
   if (GEPOperator *GEP = dyn_cast<GEPOperator>(FromVal)) {
     FromPtr = GEP->getPointerOperand();
   }
