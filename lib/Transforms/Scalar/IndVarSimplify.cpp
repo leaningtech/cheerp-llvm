@@ -104,7 +104,7 @@ class IndVarSimplify {
   SmallVector<WeakTrackingVH, 16> DeadInsts;
   bool Changed = false;
 
-  bool isValidRewrite(Value *FromVal, Value *ToVal);
+  bool isValidRewrite(Instruction *FromVal, Value *ToVal);
 
   void handleFloatingPointIV(Loop *L, PHINode *PH);
   void rewriteNonIntegerIVs(Loop *L);
@@ -137,7 +137,7 @@ public:
 /// original value. SCEV guarantees that it produces the same value, but the way
 /// it is produced may be illegal IR.  Ideally, this function will only be
 /// called for verification.
-bool IndVarSimplify::isValidRewrite(Value *FromVal, Value *ToVal) {
+bool IndVarSimplify::isValidRewrite(Instruction *FromVal, Value *ToVal) {
   // If an SCEV expression subsumed multiple pointers, its expansion could
   // reassociate the GEP changing the base pointer. This is illegal because the
   // final address produced by a GEP chain must be inbounds relative to its
@@ -150,6 +150,16 @@ bool IndVarSimplify::isValidRewrite(Value *FromVal, Value *ToVal) {
   // because it understands lcssa phis while SCEV does not.
   Value *FromPtr = FromVal;
   Value *ToPtr = ToVal;
+  const DataLayout &DL = FromVal->getModule()->getDataLayout();
+  if(!DL.isByteAddressable()) {
+    // On Cheerp we need to make sure this did not generate a uglygep
+    if(Instruction* bc = dyn_cast<BitCastInst>(ToPtr)) {
+      if(bc->getOperand(0)->getType()->getPointerElementType()->isIntegerTy(8)) {
+        // Cast from i8* to something, it is most probably a bad idea
+        return false;
+      }
+    }
+  }
   if (auto *GEP = dyn_cast<GEPOperator>(FromVal)) {
     FromPtr = GEP->getPointerOperand();
   }
