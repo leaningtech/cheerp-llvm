@@ -28,6 +28,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <fstream>
@@ -55,6 +56,7 @@ APIList("internalize-public-api-list", cl::value_desc("list"),
 namespace {
   class InternalizePass : public ModulePass {
     std::set<std::string> ExternalNames;
+    const TargetLibraryInfo *TLI;
   public:
     static char ID; // Pass identification, replacement for typeid
     explicit InternalizePass();
@@ -87,6 +89,7 @@ InternalizePass::InternalizePass(ArrayRef<const char *> ExportList)
         itr != ExportList.end(); itr++) {
     ExternalNames.insert(*itr);
   }
+  TLI = getAnalysisIfAvailable<TargetLibraryInfo>();
 }
 
 void InternalizePass::LoadFile(const char *Filename) {
@@ -106,7 +109,8 @@ void InternalizePass::LoadFile(const char *Filename) {
 }
 
 static bool shouldInternalize(const GlobalValue &GV,
-                              const std::set<std::string> &ExternalNames) {
+                              const std::set<std::string> &ExternalNames,
+                              const TargetLibraryInfo* TLI) {
   // Function must be defined here
   if (GV.isDeclaration())
     return false;
@@ -125,6 +129,11 @@ static bool shouldInternalize(const GlobalValue &GV,
 
   // Marked to keep external?
   if (ExternalNames.count(GV.getName()))
+    return false;
+
+  // Never internalize functions that may have a better native implementation
+  LibFunc::Func Func;
+  if (!TLI || TLI->getLibFunc(GV.getName(), Func))
     return false;
 
   return true;
@@ -154,7 +163,7 @@ bool InternalizePass::runOnModule(Module &M) {
 
   // Mark all functions not in the api as internal.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (!shouldInternalize(*I, ExternalNames))
+    if (!shouldInternalize(*I, ExternalNames, TLI))
       continue;
 
     I->setVisibility(GlobalValue::DefaultVisibility);
@@ -191,7 +200,7 @@ bool InternalizePass::runOnModule(Module &M) {
   // internal as well.
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
-    if (!shouldInternalize(*I, ExternalNames))
+    if (!shouldInternalize(*I, ExternalNames, TLI))
       continue;
 
     I->setVisibility(GlobalValue::DefaultVisibility);
@@ -204,7 +213,7 @@ bool InternalizePass::runOnModule(Module &M) {
   // Mark all aliases that are not in the api as internal as well.
   for (Module::alias_iterator I = M.alias_begin(), E = M.alias_end();
        I != E; ++I) {
-    if (!shouldInternalize(*I, ExternalNames))
+    if (!shouldInternalize(*I, ExternalNames, TLI))
       continue;
 
     I->setVisibility(GlobalValue::DefaultVisibility);
