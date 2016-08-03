@@ -1141,6 +1141,8 @@ public:
     return V->getValueID() == ConstantExprVal;
   }
 
+  static void getAllFromOpcode(SmallVector<ConstantExpr*, 4>& ret, LLVMContext& C, unsigned Opcode);
+
 private:
   // Shadow Value::setValueSubclassData with a private forwarding method so that
   // subclasses cannot accidentally use it.
