@@ -1651,6 +1651,11 @@ void PointerAnalyzer::fullResolve()
 		if(it.second!=INDIRECT)
 		{
 			it.second.applyRegularPreference(PREF_REGULAR);
+if(it.second == REGULAR)
+{
+//llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
+//it.second.dump();
+}
 			continue;
 		}
 		bool mayCache = true;
@@ -1659,6 +1664,11 @@ void PointerAnalyzer::fullResolve()
 		assert(k==COMPLETE_OBJECT || k==SPLIT_REGULAR || k==REGULAR);
 		it.second = k;
 		it.second.applyRegularPreference(PREF_REGULAR);
+if(it.second == REGULAR)
+{
+//llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
+//it.second.dump();
+}
 	}
 	for(auto& it: pointerKindData.constraintsMap)
 	{
@@ -1667,6 +1677,11 @@ void PointerAnalyzer::fullResolve()
 		if(it.second!=INDIRECT)
 		{
 			it.second.applyRegularPreference(pref);
+if(it.second == SPLIT_REGULAR && it.first.kind == BASE_AND_INDEX_CONSTRAINT && it.first.i==3)
+{
+llvm::errs() << "BASE1 " << *it.first.typePtr << " INDEX " << it.first.i << " ";
+it.second.dump();
+}
 			continue;
 		}
 		bool mayCache = true;
@@ -1674,6 +1689,11 @@ void PointerAnalyzer::fullResolve()
 		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
 		it.second = k;
 		it.second.applyRegularPreference(pref);
+if(it.second == SPLIT_REGULAR && it.first.kind == BASE_AND_INDEX_CONSTRAINT && it.first.i==3)
+{
+llvm::errs() << "BASE2 " << *it.first.typePtr << " INDEX " << it.first.i << " ";
+it.second.dump();
+}
 	}
 	for(auto& it: pointerKindData.valueMap)
 	{
