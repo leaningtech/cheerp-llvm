@@ -208,7 +208,7 @@ void PassManagerBuilder::populateModulePassManager(PassManagerBase &MPM) {
   }
   if (!DisableUnitAtATime)
     MPM.add(createFunctionAttrsPass());       // Set readonly/readnone attrs
-  if (OptLevel > 2)
+  if (OptLevel > 1)
     MPM.add(createArgumentPromotionPass());   // Scalarize uninlined fn args
 
   // Start of function pass.
