@@ -56,7 +56,6 @@ APIList("internalize-public-api-list", cl::value_desc("list"),
 namespace {
   class InternalizePass : public ModulePass {
     std::set<std::string> ExternalNames;
-    const TargetLibraryInfo *TLI;
   public:
     static char ID; // Pass identification, replacement for typeid
     explicit InternalizePass();
@@ -67,6 +66,7 @@ namespace {
     void getAnalysisUsage(AnalysisUsage &AU) const override {
       AU.setPreservesCFG();
       AU.addPreserved<CallGraphWrapperPass>();
+      AU.addPreserved<TargetLibraryInfo>();
     }
   };
 } // end anonymous namespace
@@ -89,7 +89,6 @@ InternalizePass::InternalizePass(ArrayRef<const char *> ExportList)
         itr != ExportList.end(); itr++) {
     ExternalNames.insert(*itr);
   }
-  TLI = getAnalysisIfAvailable<TargetLibraryInfo>();
 }
 
 void InternalizePass::LoadFile(const char *Filename) {
@@ -133,7 +132,7 @@ static bool shouldInternalize(const GlobalValue &GV,
 
   // Never internalize functions that may have a better native implementation
   LibFunc::Func Func;
-  if (!TLI || TLI->getLibFunc(GV.getName(), Func))
+  if (TLI && TLI->getLibFunc(GV.getName(), Func))
     return false;
 
   return true;
@@ -143,6 +142,7 @@ bool InternalizePass::runOnModule(Module &M) {
   CallGraphWrapperPass *CGPass = getAnalysisIfAvailable<CallGraphWrapperPass>();
   CallGraph *CG = CGPass ? &CGPass->getCallGraph() : nullptr;
   CallGraphNode *ExternalNode = CG ? CG->getExternalCallingNode() : nullptr;
+  const TargetLibraryInfo *TLI = getAnalysisIfAvailable<TargetLibraryInfo>();
   bool Changed = false;
 
   SmallPtrSet<GlobalValue *, 8> Used;
