@@ -505,7 +505,7 @@ void PassManagerBuilder::populateModulePassManager(
   }
   if (!DisableUnitAtATime)
     MPM.add(createPostOrderFunctionAttrsLegacyPass());
-  if (OptLevel > 2)
+  if (OptLevel > 1)
     MPM.add(createArgumentPromotionPass()); // Scalarize uninlined fn args
 
   addExtensionsToPM(EP_CGSCCOptimizerLate, MPM);
