@@ -1158,7 +1158,10 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
     return ReplaceInstUsesWith(I, V);
 
   // A+B --> A|B iff A and B have no bits set in common.
-  if (IntegerType *IT = dyn_cast<IntegerType>(I.getType())) {
+  // Cheerp: Do not convert an ADD to a bitwise OR because it makes it
+  // more difficult to hoist bounds checks out in SpiderMonkey.
+  IntegerType *IT;
+  if (DL->isByteAddressable() && (IT = dyn_cast<IntegerType>(I.getType()))) {
     APInt LHSKnownOne(IT->getBitWidth(), 0);
     APInt LHSKnownZero(IT->getBitWidth(), 0);
     computeKnownBits(LHS, LHSKnownZero, LHSKnownOne, 0, &I);
