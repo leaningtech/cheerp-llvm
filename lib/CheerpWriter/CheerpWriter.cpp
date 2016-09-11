@@ -462,10 +462,10 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 	
 	if(BYTE_LAYOUT == result)
 	{
-		stream << "new DataView(new ArrayBuffer(((";
+		stream << "new Uint8Array(((";
 		compileArraySize(info, /* shouldPrint */true, /* inBytes */true);
 		// Round up the size to make sure that any typed array can be initialized from the buffer
-		stream << ")+ 7) & (~7)))";
+		stream << ")+ 7) & (~7))";
 	}
 	else if (info.useTypedArray())
 	{
@@ -684,8 +684,31 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 	else if(intrinsicId==Intrinsic::vastart)
 	{
 		assert(!asmjs && "vastart instructions in asmjs functions are removed in the AllocaLowering pass");
-		compileCompleteObject(*it);
-		stream << "={d:arguments,o:" << namegen.getName(currentFun) << ".length}";
+		if(PA.getPointerKind(*it) == BYTE_LAYOUT)
+		{
+			stream << "var __tmp__=cheerpPointerBaseInt(arguments)+" << namegen.getName(currentFun) << ".length>>0;" << NewLine;
+			compilePointerBase(*it);
+			stream << '[';
+			compilePointerOffset(*it, ADD_SUB);
+			stream << "]=__tmp__;" << NewLine;
+			compilePointerBase(*it);
+			stream << "[1+";
+			compilePointerOffset(*it, ADD_SUB);
+			stream << "]=__tmp__>>8;" << NewLine;
+			compilePointerBase(*it);
+			stream << "[2+";
+			compilePointerOffset(*it, ADD_SUB);
+			stream << "]=__tmp__>>16;" << NewLine;
+			compilePointerBase(*it);
+			stream << "[3+";
+			compilePointerOffset(*it, ADD_SUB);
+			stream << "]=__tmp__>>24";
+		}
+		else
+		{
+			compileCompleteObject(*it);
+			stream << "={d:arguments,o:" << namegen.getName(currentFun) << ".length}";
+		}
 		return COMPILE_OK;
 	}
 	else if(intrinsicId==Intrinsic::vaend)
@@ -1958,9 +1981,9 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 		if(TypeSupport::hasByteLayout(c->getType()))
 		{
 			// Populate a DataView with a byte buffer
-			stream << "new DataView(new Int8Array([";
+			stream << "new Uint8Array([";
 			compileConstantAsBytes(c, true);
-			stream << "]).buffer)";
+			stream << "])";
 			return;
 		}
 		stream << '[';
@@ -1976,10 +1999,10 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 		if(TypeSupport::hasByteLayout(c->getType()))
 		{
 			// Populate a DataView with a byte buffer
-			stream << "new DataView(new Int8Array([";
+			stream << "new Uint8Array([";
 			JSBytesWriter bytesWriter(stream);
 			linearHelper.compileConstantAsBytes(c, /*asmjs*/false, &bytesWriter);
-			stream << "]).buffer)";
+			stream << "])";
 			return;
 		}
 		stream << '{';
@@ -2738,7 +2761,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			else if(k == BYTE_LAYOUT)
 			{
 				stream << "{d:";
-				stream << "new DataView(new ArrayBuffer(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7)))";
+				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
 				stream << ",o:0}";
 			}
 			else 
@@ -2848,10 +2871,10 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			else if (kind == BYTE_LAYOUT)
 			{
 				//Optimize stores of single values from unions
-				compilePointerBase(ptrOp);
 				Type* pointedType=ptrOp->getType()->getPointerElementType();
 				if(pointedType->isPointerTy() && !pointedType->getPointerElementType()->isFunctionTy() && PA.getPointerKind(valOp) == COMPLETE_OBJECT)
 				{
+					compilePointerBase(ptrOp);
 					// Special support for client pointers, we cannot map them to integers because they would not be freed
 					stream << "['a'+(";
 					compilePointerOffset(ptrOp, LOWEST);
@@ -2860,21 +2883,158 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					return COMPILE_OK;
 				}
 				if(pointedType->isIntegerTy(8) || pointedType->isIntegerTy(1))
-					stream << ".setInt8(";
+				{
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=";
+					compileOperand(valOp);
+					return COMPILE_OK;
+				}
 				else if(pointedType->isIntegerTy(16))
-					stream << ".setInt16(";
+				{
+					stream << "var __tmp__=";
+					compileOperand(valOp);
+					stream << ";" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isIntegerTy(24))
+				{
+					compilePointerBase(ptrOp);
 					stream << ".setInt24(";
+				}
 				else if(pointedType->isIntegerTy(32))
-					stream << ".setInt32(";
+				{
+					stream << "var __tmp__=";
+					compileOperand(valOp);
+					stream << ";" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>16;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>24";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isFloatTy())
-					stream << ".setFloat32(";
+				{
+					// Bit pattern conversion required
+					stream << "mSlot.setFloat32(0,";
+					compileOperand(valOp);
+					stream << ",true); " << NewLine;
+					stream << "var __tmp__=mSlot.getInt32(0,true);" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>16;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>24";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isDoubleTy())
-					stream << ".setFloat64(";
-				else if(pointedType->isPointerTy() && pointedType->getPointerElementType()->isFunctionTy())
-					stream << ".setFunctionPointer(";
+				{
+					// Bit pattern conversion required
+					stream << "mSlot.setFloat64(0,";
+					compileOperand(valOp);
+					stream << ",true); " << NewLine;
+					stream << "var __tmp__=mSlot.getInt32(0,true);" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>16;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>24;" << NewLine;
+					stream << "var __tmp__=mSlot.getInt32(4,true);" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[4+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[5+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[6+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>16;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[7+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>24";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isPointerTy())
-					stream << ".setPointer(";
+				{
+					if(PA.getPointerKind(valOp) == COMPLETE_OBJECT)
+					{
+						stream << "var __tmp__=cheerpPointerBaseInt(";
+						compileOperand(valOp);
+						stream << ")>>0;" << NewLine;
+					}
+					else
+					{
+						stream << "var __tmp__=cheerpPointerBaseInt(";
+						compilePointerBase(valOp);
+						stream << ")+";
+						compilePointerOffset(valOp,ADD_SUB);
+						stream << ">>0;" << NewLine;
+					}
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>8;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>16;" << NewLine;
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "]=__tmp__>>24";
+					return COMPILE_OK;
+				}
 				compilePointerOffset(ptrOp, LOWEST);
 				stream << ',';
 
@@ -3745,6 +3905,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 		case Instruction::VAArg:
 		{
 			const VAArgInst& vi=cast<VAArgInst>(I);
+<<<<<<< HEAD
 			if (asmjs)
 			{
 				// floats are promoted to double as per standard
@@ -3769,7 +3930,28 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			else
 			{
 				stream << "handleVAArg(";
-				compileCompleteObject(vi.getPointerOperand());
+				if(PA.getPointerKind(vi.getPointerOperand()) == BYTE_LAYOUT)
+				{
+					stream << "cheerpIPR(";
+					compilePointerBase(vi.getPointerOperand());
+					stream << '[';
+					compilePointerOffset(vi.getPointerOperand(), LOWEST);
+					stream << "]|";
+					compilePointerBase(vi.getPointerOperand());
+					stream << "[1+";
+					compilePointerOffset(vi.getPointerOperand(), LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(vi.getPointerOperand());
+					stream << "[2+";
+					compilePointerOffset(vi.getPointerOperand(), LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(vi.getPointerOperand());
+					stream << "[3+";
+					compilePointerOffset(vi.getPointerOperand(), LOWEST);
+					stream << "]<<24)";
+				}
+				else
+					compileCompleteObject(vi.getPointerOperand());
 				stream << ')';
 
 				assert( globalDeps.needHandleVAArg() );
@@ -3930,10 +4112,10 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			else if (kind == BYTE_LAYOUT)
 			{
 				//Optimize loads of single values from unions
-				compilePointerBase(ptrOp);
 				Type* pointedType=ptrOp->getType()->getPointerElementType();
 				if(pointedType->isPointerTy() && !pointedType->getPointerElementType()->isFunctionTy() && PA.getPointerKind(&li) == COMPLETE_OBJECT)
 				{
+					compilePointerBase(ptrOp);
 					// Special support for client pointers, we cannot map them to integers because they would not be freed
 					stream << "['a'+(";
 					compilePointerOffset(ptrOp, LOWEST);
@@ -3941,23 +4123,132 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					return COMPILE_OK;
 				}
 				if(pointedType->isIntegerTy(8) || pointedType->isIntegerTy(1))
-					stream << ".getInt8(";
+				{
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << ']';
+					return COMPILE_OK;
+				}
 				else if(pointedType->isIntegerTy(16))
-					stream << ".getInt16(";
+				{
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isIntegerTy(24))
+				{
+					compilePointerBase(ptrOp);
 					stream << ".getInt24(";
+				}
 				else if(pointedType->isIntegerTy(32))
-					stream << ".getInt32(";
+				{
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<24";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isFloatTy())
-					stream << ".getFloat32(";
+				{
+					stream << "(mSlot.setInt32(0,";
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<24,true),mSlot.getFloat32(0,true))";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isDoubleTy())
-					stream << ".getFloat64(";
-				else if(pointedType->isPointerTy() && pointedType->getPointerElementType()->isFunctionTy())
-					stream << ".getFunctionPointer(";
+				{
+					stream << "(mSlot.setInt32(0,";
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<24,true),mSlot.setInt32(4,";
+					compilePointerBase(ptrOp);
+					stream << "[4+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[5+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(ptrOp);
+					stream << "[6+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(ptrOp);
+					stream << "[7+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<24,true),mSlot.getFloat64(0,true))";
+					return COMPILE_OK;
+				}
 				else if(pointedType->isPointerTy())
 				{
+					if(pointedType->getPointerElementType()->isFunctionTy())
+						stream << "cheerpIPO(";
+					else
+						stream << "cheerpIPR(";
+					compilePointerBase(ptrOp);
+					stream << '[';
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]|";
+					compilePointerBase(ptrOp);
+					stream << "[1+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<8|";
+					compilePointerBase(ptrOp);
+					stream << "[2+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<16|";
+					compilePointerBase(ptrOp);
+					stream << "[3+";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << "]<<24)";
 //					assert(PA.getPointerKind(&li) == REGULAR);
-					stream << ".getPointer(";
+					return COMPILE_OK;
 				}
 				compilePointerOffset(ptrOp, LOWEST);
 				if(!pointedType->isIntegerTy(8))
@@ -3965,8 +4256,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				stream << ')';
 			}
 			else
-				compileCompleteObject(ptrOp);
-			if(li.getType()->isPointerTy() && !li.use_empty() && PA.getPointerKind(&li) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(&li))
 			{
 				assert(!isInlineable(li, PA));
 				if(kind == RAW)
@@ -3984,7 +4273,17 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				if(kind == RAW)
 					compileHeapForType(cast<PointerType>(li.getType())->getPointerElementType());
 				else
+				{
 					compileCompleteObject(ptrOp);
+					if(li.getType()->isPointerTy() && !li.use_empty() && PA.getPointerKind(&li) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(&li))
+					{
+						assert(!isInlineable(li, PA));
+						stream <<'o';
+						stream << ';' << NewLine;
+						stream << namegen.getName(&li) << '=';
+						compileCompleteObject(ptrOp);
+					}
+				}
 			}
 			if(regKind==Registerize::INTEGER && needsIntCoercion(regKind, parentPrio))
 			{
@@ -4491,9 +4790,9 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 			//	compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
 			if(!C->getType()->isStructTy())
 			{
-				stream << "new DataView(new Int8Array([";
+				stream << "new Uint8Array([";
 				compileConstantAsBytes(C, true);
-				stream << "]).buffer)";
+				stream << "])";
 			}
 			else
 				compileOperand(C, LOWEST);
@@ -5119,10 +5418,9 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	if( globalDeps.needHandleVAArg() )
 		compileHandleVAArg();
 
-	stream << "DataView.prototype.setPointer = function(offset, p, le){this.setInt32(offset,cheerpPointerBaseInt(p.d)+p.o,le);}" << NewLine;
-	stream << "DataView.prototype.setFunctionPointer = function(offset, f, le){this.setInt32(offset,cheerpPointerBaseInt(f),le);}" << NewLine;
-	stream << "DataView.prototype.getPointer = function(offset, le){var ret=this.getInt32(offset,le);if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){if(!b.es)debugger;s=b.es;}else{s=1} return {d:b,o:(ret-b.po)/s};}" << NewLine;
-	stream << "DataView.prototype.getFunctionPointer = function(offset, le){var ret=this.getInt32(offset,le);return ret?cheerpGetPtrBase(ret):null;}" << NewLine;
+	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){if(!b.es)debugger;s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
+	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
 	
 	//Load Wast module
 	if (!wasmFile.empty())
