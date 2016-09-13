@@ -3902,6 +3902,16 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			compilePtrToInt(pi.getOperand(0));
 			return COMPILE_OK;
 		}
+		case Instruction::IntToPtr:
+		{
+			if(PA.getPointerKind(&I) == COMPLETE_OBJECT)
+				stream << "cheerpIPO(";
+			else
+				stream << "cheerpIPR(";
+			compileOperand(I.getOperand(0));
+			stream << ')';
+			return COMPILE_OK;
+		}
 		case Instruction::VAArg:
 		{
 			const VAArgInst& vi=cast<VAArgInst>(I);
