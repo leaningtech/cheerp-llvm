@@ -1400,7 +1400,31 @@ Instruction *InstCombiner::visitIntToPtr(IntToPtrInst &CI) {
         Ty = VectorType::get(Ty, CI.getType()->getVectorNumElements());
 
       Value *P = Builder->CreateZExtOrTrunc(CI.getOperand(0), Ty);
-      return new IntToPtrInst(P, CI.getType());
+      return new IntToPtrInst(P, CI.getType(), "puppa");
+    }
+    // Convert ptrtoint, add, inttoptr to gep if the pointer types are i8*
+    Value* Ptr = nullptr;
+    Value *Offset = nullptr;
+    if (match(CI.getOperand(0), m_Add(m_PtrToInt(m_Value(Ptr)), m_Value(Offset))) ||
+        match(CI.getOperand(0), m_Add(m_Value(Offset), m_PtrToInt(m_Value(Ptr))))) {
+      LLVMContext &C = CI.getContext();
+      Type* i8p = PointerType::getUnqual(Type::getInt8Ty(C));
+      Ptr = new BitCastInst(Ptr, i8p, "", &CI);
+      Value *Idxs[] = { Offset };
+      Ptr = GetElementPtrInst::Create(Ptr, Idxs, "", &CI);
+      Ptr = new BitCastInst(Ptr, CI.getType(), "", &CI);
+      return ReplaceInstUsesWith(CI, Ptr);
+    }
+    // Same with sub, only for Cheerp, there are unsafe transformations on native that will revert this to the previous state
+    if (!DL->isByteAddressable() && match(CI.getOperand(0), m_Sub(m_PtrToInt(m_Value(Ptr)), m_Value(Offset)))) {
+      LLVMContext &C = CI.getContext();
+      Type* i8p = PointerType::getUnqual(Type::getInt8Ty(C));
+      Ptr = new BitCastInst(Ptr, i8p, "", &CI);
+      Offset = BinaryOperator::Create(Instruction::Sub, ConstantInt::get(Offset->getType(), 0), Offset, "", &CI);
+      Value *Idxs[] = { Offset };
+      Ptr = GetElementPtrInst::Create(Ptr, Idxs, "", &CI);
+      Ptr = new BitCastInst(Ptr, CI.getType(), "", &CI);
+      return ReplaceInstUsesWith(CI, Ptr);
     }
   }
 
