@@ -567,7 +567,7 @@ Value *InstCombiner::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
       // Turn it into OR if input bits are zero.
       // Cheerp: Do not convert an add to a bitwise OR because it makes it
       // more difficult to hoist bounds checks out in SpiderMonkey.
-      if (DL->isByteAddressable() &&
+      if ((!DL || DL->isByteAddressable()) &&
           (LHSKnownZero & RHS->getValue()) == RHS->getValue()) {
         Instruction *Or =
           BinaryOperator::CreateOr(I->getOperand(0), I->getOperand(1),
