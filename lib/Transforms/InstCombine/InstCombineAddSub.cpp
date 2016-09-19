@@ -1118,7 +1118,7 @@ Instruction *InstCombiner::visitAdd(BinaryOperator &I) {
 
   // Cheerp: Do not convert an ADD to a bitwise OR because it makes it
   // more difficult to hoist bounds checks out in SpiderMonkey.
-  if (DL->isByteAddressable() && haveNoCommonBitsSet(LHS, RHS, DL, &AC, &I, &DT))
+  if (DL.isByteAddressable() && haveNoCommonBitsSet(LHS, RHS, DL, &AC, &I, &DT))
     return BinaryOperator::CreateOr(LHS, RHS);
 
   if (Constant *CRHS = dyn_cast<Constant>(RHS)) {
