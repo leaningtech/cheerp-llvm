@@ -1609,8 +1609,8 @@ void PointerAnalyzer::fullResolve()
 			it.second.applyRegularPreference(PREF_REGULAR);
 if(it.second == REGULAR)
 {
-//llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
-//it.second.dump();
+llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
+it.second.dump();
 }
 			continue;
 		}
@@ -1622,8 +1622,8 @@ if(it.second == REGULAR)
 		it.second.applyRegularPreference(PREF_REGULAR);
 if(it.second == REGULAR)
 {
-//llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
-//it.second.dump();
+llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
+it.second.dump();
 }
 	}
 	for(auto& it: pointerKindData.constraintsMap)
