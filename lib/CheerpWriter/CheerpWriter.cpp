@@ -1693,7 +1693,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	while ( isBitCast(p) || isGEP(p) )
 	{
 		const User * u = cast<User>(p);
-		bool byteLayoutFromHere = PA.getPointerKind(u->getOperand(0)) != BYTE_LAYOUT;
+		bool byteLayoutFromHere = PA.getPointerKind(u->getOperand(0)) == COMPLETE_OBJECT;
 		Type* curType = u->getOperand(0)->getType();
 		if (isGEP(p))
 		{
@@ -1743,7 +1743,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 		p = u->getOperand(0);
 		continue;
 	}
-	assert (PA.getPointerKind(p) == BYTE_LAYOUT);
+	assert (PA.getPointerKind(p) != COMPLETE_OBJECT);
 	if(offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT)
 	{
 		if(const ConstantInt* CI=PA.getConstantOffsetForPointer(p))
@@ -1765,8 +1765,13 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 		}
 		else
 		{
-			compileOperand(p);
-			stream << ".o";
+			if(PA.getPointerKind(p) == SPLIT_REGULAR)
+				stream << namegen.getSecondaryName(p);
+			else
+			{
+				compileOperand(p);
+				stream << ".o";
+			}
 		}
 	}
 	return lastOffset;

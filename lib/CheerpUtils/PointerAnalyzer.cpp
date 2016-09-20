@@ -792,7 +792,7 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 	{
 		const Constant * constOffset = dyn_cast<Constant>( p->getOperand(1) );
 		
-		if ( constOffset && constOffset->isNullValue() )
+		if ( constOffset && constOffset->isNullValue() && !visitByteLayoutChain(*U))
 		{
 			if ( p->getNumOperands() == 2 )
 				return visitValue( ret, p, /*first*/ false );
@@ -950,10 +950,14 @@ llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << *cast<Instruct
 	// Bitcasts from byte layout types require COMPLETE_OBJECT, and generate BYTE_LAYOUT
 	if(isBitCast(p))
 	{
-		if (TypeSupport::hasByteLayout(p->getOperand(0)->getType()->getPointerElementType()))
+		if (visitByteLayoutChain(p))
+			return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
+		else if (TypeSupport::hasByteLayout(p->getOperand(0)->getType()->getPointerElementType()))
 			return ret |= COMPLETE_OBJECT;
 		else
+		{
 			return visitValue( ret, p, /*first*/ false );
+		}
 	}
 
 	if(isa<SelectInst> (p) || isa <PHINode>(p) || (isa<ConstantExpr>(p) && cast<ConstantExpr>(p)->getOpcode() == Instruction::Select) )
