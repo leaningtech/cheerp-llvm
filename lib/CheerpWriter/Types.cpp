@@ -73,7 +73,7 @@ void CheerpWriter::compileSimpleType(Type* t, llvm::Value* init)
 			else
 			{
 				// NOTE: V8 requires the `.` to identify it as a double in asm.js
-				stream << "-0.";
+				stream << "0.";
 			}
 			break;
 		}
