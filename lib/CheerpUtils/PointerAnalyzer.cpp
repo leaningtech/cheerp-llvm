@@ -1130,6 +1130,8 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 	const User* gep=cast<User>(p);
 	if (gep->getNumOperands() == 2)
 		return NULL;
+	if(PointerUsageVisitor::visitByteLayoutChain(gep->getOperand(0)))
+		return NULL;
 	SmallVector<Value*, 4> indexes;
 	for(uint32_t i=1;i<gep->getNumOperands()-1;i++)
 		indexes.push_back(*(gep->op_begin()+i));
