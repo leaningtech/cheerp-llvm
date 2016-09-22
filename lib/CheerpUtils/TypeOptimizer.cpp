@@ -29,7 +29,14 @@ const char *TypeOptimizer::getPassName() const {
 void TypeOptimizer::addAllBaseTypesForByteLayout(StructType* st, Type* baseType)
 {
 	if(ArrayType* AT=dyn_cast<ArrayType>(baseType))
-		addAllBaseTypesForByteLayout(st, AT->getElementType());
+	{
+		if(AT->getNumElements() == 0)
+		{
+			baseTypesForByteLayout[st] = NULL;
+		}
+		else
+			addAllBaseTypesForByteLayout(st, AT->getElementType());
+	}
 	else if(StructType* ST=dyn_cast<StructType>(baseType))
 	{
 		// TODO: This is broken for unions inside union. We would need to indirectly reference them.
