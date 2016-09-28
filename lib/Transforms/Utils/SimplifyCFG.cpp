@@ -2851,6 +2851,9 @@ static bool SimplifyBranchOnICmpChain(BranchInst *BI, const DataLayout *DL,
   // If we didn't have a multiply compared value, fail.
   if (!CompVal) return false;
 
+  // Cheerp: Do not convert comparisons on pointers to switches as that requires a ptrtoint
+  if (CompVal->getType()->isPointerTy() && !DL->isByteAddressable()) return false;
+
   // Avoid turning single icmps into a switch.
   if (UsedICmps <= 1)
     return false;
