@@ -3153,7 +3153,9 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 			// If this GEP or a previous one passed through an array of immutables generate a regular from
 			// the start of the array and not from the pointed element
 			compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_STOP_AT_ARRAY );
-			stream << ')';
+			stream << '+';
+			compilePointerBase( baseOperand );
+			stream << ".byteOffset>>0)";
 		}
 		else
 			compilePointerBase( baseOperand );
