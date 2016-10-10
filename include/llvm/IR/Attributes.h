@@ -115,6 +115,7 @@ public:
     Client,                ///< Client side method for cheerp
     Server,                ///< Server side method for cheerp
     Static,                ///< Static method, needed for static client methods
+    Recoverable,           ///< Function that may be interrupted and recovered, for cheerp/cheerpj
 
     EndAttrKinds           ///< Sentinal value useful for loops
   };
