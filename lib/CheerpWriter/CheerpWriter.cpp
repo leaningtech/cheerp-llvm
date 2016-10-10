@@ -3636,7 +3636,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			{
 				if(parentPrio==ADD_SUB)
 					stream << '(';
-				stream << '+';
 			}
 			else if(regKind==Registerize::FLOAT)
 			{
