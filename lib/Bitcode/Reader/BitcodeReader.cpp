@@ -761,9 +761,8 @@ static Attribute::AttrKind GetAttrFromCode(uint64_t Code) {
     return Attribute::ZExt;
   case bitc::ATTR_KIND_STATIC:
     return Attribute::Static;
-  case bitc::ATTR_KIND_RESERVED:
-    llvm::errs() << "error: deprecated attribute found in LLVM IR, please rebuild using an updated version of Cheerp\n";
-    return Attribute::None;
+  case bitc::ATTR_KIND_RECOVERABLE:
+    return Attribute::Recoverable;
   }
 }
 

@@ -113,6 +113,7 @@ public:
     UWTable,               ///< Function must be in a unwind table
     ZExt,                  ///< Zero extended before/after call
     Static,                ///< Static method, needed for static client methods
+    Recoverable,           ///< Function that may be interrupted and recovered, for cheerp/cheerpj
 
     EndAttrKinds           ///< Sentinal value useful for loops
   };

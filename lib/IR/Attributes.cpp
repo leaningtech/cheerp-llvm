@@ -251,6 +251,8 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "cold";
   if (hasAttribute(Attribute::Static))
     return "static";
+  if (hasAttribute(Attribute::Recoverable))
+    return "recoverable";
 
   // FIXME: These should be output like this:
   //
