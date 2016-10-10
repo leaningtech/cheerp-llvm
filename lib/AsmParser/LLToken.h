@@ -143,6 +143,7 @@ namespace lltok {
     kw_client,
     kw_server,
     kw_static,
+    kw_recoverable,
 
     kw_type,
     kw_opaque,

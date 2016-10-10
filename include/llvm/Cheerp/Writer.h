@@ -156,6 +156,7 @@ private:
 	llvm::Module& module;
 	llvm::DataLayout targetData;
 	const llvm::Function* currentFun;
+	int currentPC;
 	const PointerAnalyzer & PA;
 	Registerize & registerize;
 
@@ -379,7 +380,7 @@ private:
 	void compileSignedInteger(const llvm::Value* v, bool forComparison, PARENT_PRIORITY parentPrio);
 	void compileUnsignedInteger(const llvm::Value* v, PARENT_PRIORITY parentPrio);
 
-	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind);
+	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet);
 	void compileMethodLocals(const llvm::Function& F, bool needsLabel);
 	void compileMethod(const llvm::Function& F);
 	/**
@@ -480,6 +481,7 @@ private:
 	};
 public:
 	ostream_proxy stream;
+<<<<<<< HEAD
 	CheerpWriter(llvm::Module& m, llvm::raw_ostream& s, cheerp::PointerAnalyzer & PA,
 			cheerp::Registerize & registerize,
 			cheerp::GlobalDepsAnalyzer & gda,
@@ -506,6 +508,7 @@ public:
 		module(m),
 		targetData(&m),
 		currentFun(NULL),
+		currentPC(0),
 		PA(PA),
 		registerize(registerize),
 		globalDeps(gda),

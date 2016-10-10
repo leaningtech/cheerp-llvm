@@ -244,6 +244,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_SERVER;
   case Attribute::Static:
     return bitc::ATTR_KIND_STATIC;
+  case Attribute::Recoverable:
+    return bitc::ATTR_KIND_RECOVERABLE;
   case Attribute::EndAttrKinds:
     llvm_unreachable("Can not encode end-attribute kinds marker.");
   case Attribute::None:

@@ -33,13 +33,18 @@ using namespace cheerp;
 
 class CheerpRenderInterface: public RenderInterface
 {
+public:
+	enum CHEERP_MODE { GENERICJS, ASMJS };
+	enum STACKLET_MODE { NO_STACKET, NEEDS_STACKLET };
 private:
 	CheerpWriter* writer;
 	const NewLineHandler& NewLine;
 	bool asmjs;
+	bool needsStacklet;
 	void renderCondition(const BasicBlock* B, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio);
+	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, CHEERP_MODE cheerpMode, STACKLET_MODE stackletMode):
+		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET)
 public:
-	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, bool asmjs=false):writer(w),NewLine(n),asmjs(asmjs)
 	{
 	}
 	void renderBlock(const BasicBlock* BB);
@@ -1672,6 +1677,8 @@ assert(false);
 
 	if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == SPLIT_REGULAR)
 	{
+		if(isa<Instruction>(p) && currentFun->hasFnAttribute(Attribute::Recoverable))
+			stream << "a.";
 		stream << namegen.getName(p);
 		return;
 	}
@@ -1843,6 +1850,8 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	}
 	else if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == SPLIT_REGULAR)
 	{
+		if(isa<Instruction>(p) && currentFun->hasFnAttribute(Attribute::Recoverable))
+			stream << "a.";
 		stream << namegen.getSecondaryName(p);
 	}
 	else if(const IntrinsicInst* II=dyn_cast<IntrinsicInst>(p))
@@ -2277,11 +2286,17 @@ void CheerpWriter::compileOperand(const Value* v, PARENT_PRIORITY parentPrio, bo
 		}
 		else
 		{
+			bool needsStacklet = it->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
+			if(needsStacklet)
+				stream << "a.";
 			stream << namegen.getName(it);
 		}
 	}
 	else if(const Argument* arg=dyn_cast<Argument>(v))
 	{
+		bool needsStacklet = arg->getParent()->hasFnAttribute(Attribute::Recoverable);
+		if(needsStacklet)
+			stream << "a.";
 		stream << namegen.getName(arg);
 	}
 	else if(const InlineAsm* a=dyn_cast<InlineAsm>(v))
@@ -2382,6 +2397,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			// We can avoid assignment from the same register if no pointer kind conversion is required
 			if(!needsPointerKindConversion(phi, incoming, writer.PA, writer.registerize))
 				return;
+			bool needsStacklet = phi->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
 			Type* phiType=phi->getType();
 			if(phiType->isPointerTy())
 			{
@@ -2437,6 +2453,8 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else
 				{
+					if(needsStacklet)
+						writer.stream << "a.";
 					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if(k==REGULAR)
@@ -2448,6 +2466,8 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			}
 			else
 			{
+				if(needsStacklet)
+					writer.stream << "a.";
 				writer.stream << writer.namegen.getName(phi) << '=';
 				writer.registerize.setEdgeContext(fromBB, toBB);
 				writer.compileOperand(incoming, LOWEST);
@@ -2605,6 +2625,12 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		{
 			++arg_it;
 		}
+	}
+	if(callV.getInstruction()->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+	{
+		if(opCount)
+			stream << ',';
+		stream << 'a';
 	}
 	stream << ')';
 }
@@ -4297,6 +4323,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						assert(!isInlineable(li, PA));
 						stream <<'o';
 						stream << ';' << NewLine;
+						if(I.getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+							stream << "a.";
 						stream << namegen.getName(&li) << '=';
 						compileCompleteObject(ptrOp);
 					}
@@ -4341,6 +4369,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 
 void CheerpWriter::compileBB(const BasicBlock& BB)
 {
+	bool needsStacklet = BB.getParent()->hasFnAttribute(Attribute::Recoverable);
 	BasicBlock::const_iterator I=BB.begin();
 	BasicBlock::const_iterator IE=BB.end();
 	for(;I!=IE;++I)
@@ -4363,14 +4392,20 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 		const DebugLoc& debugLoc = I->getDebugLoc();
 		if(sourceMapGenerator && !debugLoc.isUnknown())
 			sourceMapGenerator->setDebugLoc(I->getDebugLoc());
+		if(needsStacklet && isa<CallInst>(I))
+			stream << "a.pc=" << currentPC++ << ';';
 		if(!I->use_empty())
 		{
 			if(I->getType()->isPointerTy() && I->getOpcode() != Instruction::Call && PA.getPointerKind(I) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(I))
 			{
+				if(needsStacklet)
+					stream << "a.";
 				stream << namegen.getSecondaryName(I) << '=';
 			}
 			else if(!I->getType()->isVoidTy())
 			{
+				if(needsStacklet)
+					stream << "a.";
 				stream << namegen.getName(I) << '=';
 			}
 		}
@@ -4597,6 +4632,8 @@ void CheerpRenderInterface::renderContinue(int labelId)
 
 void CheerpRenderInterface::renderLabel(int labelId)
 {
+	if(needsStacklet)
+		writer->stream << "a.";
 	writer->stream << "label=" << labelId << "|0;" << NewLine;
 }
 
@@ -4607,12 +4644,21 @@ void CheerpRenderInterface::renderIfOnLabel(int labelId, bool first)
 	if (asmjs)
 		writer->stream << "if(label>>>0==" << labelId << ">>>0){" << NewLine;
 	else
-		writer->stream << "if(label===" << labelId << "){" << NewLine;
+	{
+		writer->stream << "if(";
+		if(needsStacklet)
+			writer->stream << "a.";
+		writer->stream << "label===" << labelId << "){" << NewLine;
+	}
 }
 
-void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind)
+void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet)
 {
-	stream << name << '=';
+	stream << name;
+	if(needsStacklet)
+		stream << ':';
+	else
+		stream << '=';
 	if(kind == Registerize::INTEGER)
 		stream << '0';
 	else if(kind == Registerize::DOUBLE)
@@ -4628,30 +4674,68 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 
 void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 {
+	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable);
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
+	auto CompileStartVar = [&]()
+	{
+		if(firstVar)
+		{
+			if(needsStacklet)
+				stream << "var a={p:p,pc:0,f:" << namegen.getName(&F) << ',';
+			else
+				stream << "var ";
+			firstVar = false;
+		}
+		else
+			stream << ",";
+	};
+	auto CompileEndVar = [&]()
+	{
+		if(!firstVar)
+		{
+			if(needsStacklet)
+				stream << "};";
+			else
+				stream << ';';
+		}
+		stream << NewLine;
+	};
 	if(needsLabel)
 	{
-		stream << "var label=0";
-		firstVar = false;
+		CompileStartVar();
+		stream << "label";
+		if(needsStacklet)
+			stream << ':';
+		else
+			stream << '=';
+		stream << '0';
 	}
 	const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(&F);
 	for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 	{
-		if(firstVar)
-			stream << "var ";
-		else
-			stream << ',';
-		compileMethodLocal(namegen.getName(&F, regId), regsInfo[regId].regKind);
+		CompileStartVar();
+		compileMethodLocal(namegen.getName(&F, regId), regsInfo[regId].regKind, needsStacklet);
 		firstVar = false;
 		if(regsInfo[regId].needsSecondaryName)
 		{
 			stream << ',';
-			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER);
+			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet);
 		}
 	}
-	if(!firstVar)
-		stream << ';' << NewLine;
+	// In the stacklet case we need to also save arguments and the function itself
+	if(needsStacklet)
+	{
+		const Function::const_arg_iterator A=F.arg_begin();
+		const Function::const_arg_iterator AE=F.arg_end();
+		for(Function::const_arg_iterator curArg=A;curArg!=AE;++curArg)
+		{
+			stream << ',' << namegen.getName(curArg) << ':' << namegen.getName(curArg);
+			if(curArg->getType()->isPointerTy() && PA.getPointerKind(curArg) == SPLIT_REGULAR)
+				stream << ',' << namegen.getSecondaryName(curArg) << ':' << namegen.getSecondaryName(curArg);
+		}
+	}
+	CompileEndVar();
 }
 
 void CheerpWriter::compileMethod(const Function& F)
@@ -4672,6 +4756,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		}
 	}
 	currentFun = &F;
+	currentPC = 0;
 	stream << "function " << namegen.getName(&F) << '(';
 	const Function::const_arg_iterator A=F.arg_begin();
 	const Function::const_arg_iterator AE=F.arg_end();
@@ -4683,6 +4768,13 @@ void CheerpWriter::compileMethod(const Function& F)
 			stream << namegen.getName(curArg) << ',' << namegen.getSecondaryName(curArg);
 		else
 			stream << namegen.getName(curArg);
+	}
+	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable);
+	if(needsStacklet)
+	{
+		if(A!=AE)
+			stream << ',';
+		stream << 'p';
 	}
 	stream << "){" << NewLine;
 	if (measureTimeToMain && F.getName() == "main")
@@ -4701,7 +4793,10 @@ void CheerpWriter::compileMethod(const Function& F)
 	else
 	{
 		Relooper* rl = runRelooperOnFunction(F, PA, registerize);
-		CheerpRenderInterface ri(this, NewLine, asmjs);
+		Relooper* rl = runRelooperOnFunction(F);
+		CheerpRenderInterface ri(this, NewLine,
+			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
+			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
 		compileMethodLocals(F, rl->needsLabel());
 		rl->Render(&ri);
 	}
