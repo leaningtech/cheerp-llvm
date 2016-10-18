@@ -941,7 +941,7 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 		if(visitByteLayoutChain(arg))
 		{
 llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << *cast<Instruction>(p)->getParent()->getParent() << "\n";
-			return ret |= PointerKindWrapper(REGULAR, p);
+			return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
 		}
 		return ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint(DIRECT_ARG_CONSTRAINT, arg));
 	}
