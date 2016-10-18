@@ -744,9 +744,9 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		PointerKindWrapper& k = visitAllUses(ret, p);
 		k.makeKnown();
 		// We want to override the ret value, not add a constraint
-		// TODO: This mess with Argument is orrible
+		// TODO: This mess with Argument is horrible
 		if(visitByteLayoutChain(LI->getOperand(0)))
-			return CacheAndReturn(ret = PointerKindWrapper(REGULAR, p));
+			return CacheAndReturn(ret = PointerKindWrapper(SPLIT_REGULAR, p));
 		else if (TypeSupport::isImmutableType(LI->getType()) && isa<Argument>(LI->getOperand(0)) && cast<Argument>(LI->getOperand(0))->getParent()->getSection() == StringRef("bytelayout"))
 			return CacheAndReturn(ret = PointerKindWrapper(REGULAR, p));
 		else if (TypeAndIndex b = PointerAnalyzer::getBaseStructAndIndexFromGEP(LI->getOperand(0)))
