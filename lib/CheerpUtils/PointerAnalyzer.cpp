@@ -748,7 +748,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		if(visitByteLayoutChain(LI->getOperand(0)))
 			return CacheAndReturn(ret = PointerKindWrapper(SPLIT_REGULAR, p));
 		else if (TypeSupport::isImmutableType(LI->getType()) && isa<Argument>(LI->getOperand(0)) && cast<Argument>(LI->getOperand(0))->getParent()->getSection() == StringRef("bytelayout"))
-			return CacheAndReturn(ret = PointerKindWrapper(REGULAR, p));
+			return CacheAndReturn(ret = PointerKindWrapper(SPLIT_REGULAR, p));
 		else if (TypeAndIndex b = PointerAnalyzer::getBaseStructAndIndexFromGEP(LI->getOperand(0)))
 		{
 			IndirectPointerKindConstraint baseAndIndexContraint(BASE_AND_INDEX_CONSTRAINT, b);
