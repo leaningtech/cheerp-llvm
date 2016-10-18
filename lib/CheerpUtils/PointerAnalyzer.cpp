@@ -503,6 +503,8 @@ bool PointerUsageVisitor::visitByteLayoutChain( const Value * p )
 				return true;
 			else if(F->getIntrinsicID() == Intrinsic::cheerp_allocate)
 				return true;
+			else if(F->getIntrinsicID() == Intrinsic::cheerp_reallocate)
+				return true;
 			return false;
 		}
 		return true;
@@ -608,7 +610,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		else if (visitRawChain(SI->getValueOperand()))
 			return CacheAndReturn(ret = RAW);
 		else if(visitByteLayoutChain(SI->getPointerOperand()))
-			return CacheAndReturn(ret |= PointerKindWrapper(REGULAR, p));
+			return CacheAndReturn(ret |= PointerKindWrapper(SPLIT_REGULAR, p));
 		else if(TypeAndIndex baseAndIndex = PointerAnalyzer::getBaseStructAndIndexFromGEP(SI->getPointerOperand()))
 			ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint( BASE_AND_INDEX_CONSTRAINT, baseAndIndex ));
 		else
@@ -646,7 +648,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 			return CacheAndReturn(ret |= COMPLETE_OBJECT);
 		}
 		case Intrinsic::cheerp_make_regular:
-			return CacheAndReturn(ret |= PointerKindWrapper(REGULAR, p));
+			return CacheAndReturn(ret |= PointerKindWrapper(SPLIT_REGULAR, p));
 		case Intrinsic::memmove:
 		case Intrinsic::memcpy:
 		case Intrinsic::memset:
