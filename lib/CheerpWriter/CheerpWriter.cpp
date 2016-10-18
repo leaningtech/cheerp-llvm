@@ -5530,7 +5530,7 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	if( globalDeps.needHandleVAArg() )
 		compileHandleVAArg();
 
-	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){if(!b.es)debugger;s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
 	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
 	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
 	
