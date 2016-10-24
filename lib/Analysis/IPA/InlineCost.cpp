@@ -1041,7 +1041,7 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
 
   // If there is only one call of the function, and it has internal linkage,
   // the cost of inlining it drops dramatically.
-  bool OnlyOneCallAndLocalLinkage = F.hasLocalLinkage() && F.hasOneUse() &&
+  bool OnlyOneCallAndLocalLinkage = DL && DL->isByteAddressable() && F.hasLocalLinkage() && F.hasOneUse() &&
     &F == CS.getCalledFunction();
   if (OnlyOneCallAndLocalLinkage)
     Cost += InlineConstants::LastCallToStaticBonus;
