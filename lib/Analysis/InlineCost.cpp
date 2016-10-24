@@ -1496,7 +1496,7 @@ bool CallAnalyzer::analyzeCall(CallSite CS) {
     }
   }
 
-  bool OnlyOneCallAndLocalLinkage =
+  bool OnlyOneCallAndLocalLinkage = DL.isByteAddressable() &&
       F.hasLocalLinkage() && F.hasOneUse() && &F == CS.getCalledFunction();
   // If this is a noduplicate call, we can still inline as long as
   // inlining this would cause the removal of the caller (so the instruction
