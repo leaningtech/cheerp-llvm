@@ -3729,6 +3729,21 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 		{
 			stream << namegen.getName(I) << '=';
 		}
+		if(I->getType()->isFloatingPointTy() && !I->use_empty() && !isa<LoadInst>(I))
+		{
+			// Only do this if the use ends up into a PHI node
+			bool hasPHI = false;
+			for(const Use& U: I->uses())
+			{
+				if(isa<PHINode>(U.getUser()))
+				{
+					hasPHI = true;
+					break;
+				}
+			}
+			if(hasPHI)
+				stream << '+';
+		}
 		if(I->isTerminator())
 		{
 			compileTerminatorInstruction(*dyn_cast<TerminatorInst>(I));
