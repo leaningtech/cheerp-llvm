@@ -3729,7 +3729,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 		{
 			stream << namegen.getName(I) << '=';
 		}
-		if(I->getType()->isFloatingPointTy() && !I->use_empty() && !isa<LoadInst>(I))
+		if(I->getType()->isFloatingPointTy() && !I->use_empty() && !isa<LoadInst>(I) && !isa<CallInst>(I))
 		{
 			// Only do this if the use ends up into a PHI node
 			bool hasPHI = false;
