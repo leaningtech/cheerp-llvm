@@ -35,6 +35,9 @@ GlobalVariable *IRBuilderBase::CreateGlobalString(StringRef Str,
                                           GlobalVariable::NotThreadLocal,
                                           AddressSpace);
   GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+  // for cheerp asmjs mode
+  if (BB->getParent()->getSection() == StringRef("asmjs"))
+	  GV->setSection("asmjs");
   return GV;
 }
 
