@@ -31,6 +31,9 @@ Value *IRBuilderBase::CreateGlobalString(StringRef Str, const Twine &Name) {
                                           StrConstant);
   GV->setName(Name);
   GV->setUnnamedAddr(true);
+  // for cheerp asmjs mode
+  if (BB->getParent()->getSection() == StringRef("asmjs"))
+	  GV->setSection("asmjs");
   return GV;
 }
 
