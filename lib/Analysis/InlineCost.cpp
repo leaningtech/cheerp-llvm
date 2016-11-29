@@ -2081,8 +2081,16 @@ InlineCost llvm::getInlineCost(
   if (Call.isNoInline())
     return llvm::InlineCost::getNever("noinline call site attribute");
 
+  //CHEERP: Do not inline normal/asmjs methods called from the other side
+  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
+  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
+  if (calleeAsmJS!= callerAsmJS)
+  {
+    return llvm::InlineCost::getNever();
+  }
+
   LLVM_DEBUG(llvm::dbgs() << "      Analyzing call of " << Callee->getName()
-                          << "... (caller:" << Caller->getName() << ")\n");
+                     << "... (caller:" << Caller->getName() << ")\n");
 
   CallAnalyzer CA(CalleeTTI, GetAssumptionCache, GetBFI, PSI, ORE, *Callee,
                   Call, Params);
