@@ -1629,6 +1629,14 @@ InlineCost llvm::getInlineCost(
     return llvm::InlineCost::getNever();
   }
 
+  //CHEERP: Do not inline normal/asmjs methods called from the other side
+  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
+  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
+  if (calleeAsmJS!= callerAsmJS)
+  {
+    return llvm::InlineCost::getNever();
+  }
+
   DEBUG(llvm::dbgs() << "      Analyzing call of " << Callee->getName()
                      << "...\n");
 
