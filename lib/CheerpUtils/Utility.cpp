@@ -126,13 +126,18 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 		{
 			// A few opcodes if immediately used in a store or return can be inlined
 			case Instruction::Call:
+				if(isa<InlineAsm>(cast<CallInst>(I).getCalledValue()) && I.getType()->isIntegerTy(1))
+				{
+					// This is an hack to improve cheerpj code for instanceof checks
+					return true;
+				}
 			case Instruction::Load:
 			{
 				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
 					return false;
 				const Instruction* nextInst=I.getNextNode();
 				assert(nextInst);
-				if(I.user_back()!=nextInst)
+				if(I.user_back()!=nextInst || I.getParent()->getParent()->hasFnAttribute(llvm::Attribute::Recoverable))
 					return false;
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
@@ -151,6 +156,8 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			case Instruction::Switch:
 			case Instruction::Unreachable:
 			case Instruction::VAArg:
+			case Instruction::IntToPtr:
+			case Instruction::Select:
 				return false;
 			case Instruction::Add:
 			case Instruction::Sub:
@@ -177,14 +184,12 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			case Instruction::ICmp:
 			case Instruction::ZExt:
 			case Instruction::SExt:
-			case Instruction::Select:
 			case Instruction::ExtractValue:
 			case Instruction::URem:
 			case Instruction::UDiv:
 			case Instruction::UIToFP:
 			case Instruction::FPToUI:
 			case Instruction::PtrToInt:
-			case Instruction::IntToPtr:
 				return true;
 			default:
 				llvm::report_fatal_error(Twine("Unsupported opcode: ",StringRef(I.getOpcodeName())), false);
@@ -652,7 +657,7 @@ bool DynamicAllocInfo::useTypedArray() const
 	return TypeSupport::isTypedArrayType( getCastedType()->getElementType(), forceTypedArrays);
 }
 
-void EndOfBlockPHIHandler::runOnPHI(PHIRegs& phiRegs, uint32_t regId, const llvm::Instruction* incoming, llvm::SmallVector<std::pair<const PHINode*, /*selfReferencing*/bool>, 4>& orderedPHIs)
+void EndOfBlockPHIHandler::runOnPHI(PHIRegs& phiRegs, uint32_t regId, const llvm::Value* incoming, llvm::SmallVector<std::pair<const PHINode*, /*selfReferencing*/bool>, 4>& orderedPHIs)
 {
 	auto it=phiRegs.find(regId);
 	if(it==phiRegs.end())
@@ -691,8 +696,7 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 		if(phi->use_empty())
 			continue;
 		const Value* val=phi->getIncomingValueForBlock(fromBB);
-		const Instruction* I=dyn_cast<Instruction>(val);
-		if(!I)
+		if(!isa<Instruction>(val) && !isa<Argument>(val))
 		{
 			orderedPHIs.push_back(std::make_pair(phi, /*selfReferencing*/false));
 			continue;
@@ -700,17 +704,18 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 		uint32_t phiReg = registerize.getRegisterId(phi);
 		setRegisterUsed(phiReg);
 		// This instruction may depend on multiple registers
-		llvm::SmallVector<std::pair<uint32_t, const Instruction*>, 2> incomingRegisters;
-		llvm::SmallVector<std::pair<const Instruction*, /*dereferenced*/bool>, 4> instQueue;
-		instQueue.push_back(std::make_pair(I, false));
+		llvm::SmallVector<std::pair<uint32_t, const Value*>, 2> incomingRegisters;
+		llvm::SmallVector<std::pair<const Value*, /*dereferenced*/bool>, 4> instQueue;
+		instQueue.push_back(std::make_pair(val, false));
 		bool mayNeedSelfRef = phi->getType()->isPointerTy() && PA.getPointerKind(phi) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(phi);
 		bool selfReferencing = false;
 		while(!instQueue.empty())
 		{
-			std::pair<const Instruction*, bool> incomingInst = instQueue.pop_back_val();
-			if(!isInlineable(*incomingInst.first, PA))
+			std::pair<const Value*, bool> incomingValue = instQueue.pop_back_val();
+			const Instruction* incomingInst = dyn_cast<Instruction>(incomingValue.first);
+			if(!incomingInst || !isInlineable(*incomingInst, PA))
 			{
-				uint32_t incomingValueId = registerize.getRegisterId(incomingInst.first);
+				uint32_t incomingValueId = registerize.getRegisterId(incomingValue.first);
 				if(incomingValueId==phiReg)
 				{
 					if(mayNeedSelfRef &&
@@ -723,7 +728,7 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 					continue;
 				}
 				setRegisterUsed(incomingValueId);
-				incomingRegisters.push_back(std::make_pair(incomingValueId, incomingInst.first));
+				incomingRegisters.push_back(std::make_pair(incomingValueId, incomingValue.first));
 			}
 			else
 			{
@@ -794,6 +799,7 @@ void initializeCheerpOpts(PassRegistry &Registry)
 	initializeReplaceNopCastsAndByteSwapsPass(Registry);
 	initializeTypeOptimizerPass(Registry);
 	initializeDelayAllocasPass(Registry);
+	initializePointerToImmutablePHIRemovalPass(Registry);
 	initializePreExecutePass(Registry);
 	initializeExpandStructRegsPass(Registry);
 	initializeFreeAndDeleteRemovalPass(Registry);

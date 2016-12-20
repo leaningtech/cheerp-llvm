@@ -15,15 +15,17 @@
 #include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/Utility.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
 // Uncomment the following line to enable very verbose debugging
-// #define VERBOSEDEBUG
+//#define VERBOSEDEBUG
 
 STATISTIC(NumRegisters, "Total number of registers allocated to functions");
 
@@ -62,16 +64,11 @@ const char* Registerize::getPassName() const
 	return "CheerpRegisterize";
 }
 
-uint32_t Registerize::getRegisterId(const llvm::Instruction* I) const
+uint32_t Registerize::getRegisterId(const llvm::Value* V) const
 {
 	assert(RegistersAssigned);
-	if(!registersMap.count(I))
-	{
-		llvm::errs() << "FAIL FOR " << *I << "\n";
-		I->getParent()->getParent()->dump();
-	}
-	assert(registersMap.count(I));
-	uint32_t regId = registersMap.find(I)->second;
+	assert(registersMap.count(V));
+	uint32_t regId = registersMap.find(V)->second;
 	if(!edgeContext.isNull())
 	{
 		auto it=edgeRegistersMap.find(InstOnEdge(edgeContext.fromBB, edgeContext.toBB, regId));
@@ -118,11 +115,15 @@ void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnal
 {
 	if (F.empty())
 		return;
-//llvm::errs() << "REGS " << F.getName() << "\n";
 	if (NoRegisterize)
 	{
 		// Do a fake run and assign every instruction to a different register
 		uint32_t nextRegister=0;
+		for(Argument& A: F.args())
+		{
+			// We need to assign names event if there are no uses
+			registersMap[&A]=nextRegister++;
+		}
 		for(BasicBlock& BB: F)
 		{
 			for(Instruction& I: BB)
@@ -150,9 +151,10 @@ void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnal
 #ifdef VERBOSEDEBUG
 		for(auto it: liveRanges)
 		{
-			if(it.first->getParent()->getParent() != &F)
+			if((isa<Instruction>(it.first) && cast<Instruction>(it.first)->getParent()->getParent() != &F) ||
+			   (isa<Argument>(it.first) && cast<Argument>(it.first)->getParent() != &F))
 				continue;
-			dbgs() << "Instruction " << *it.first << " alive in ranges ";
+			dbgs() << (isa<Instruction>(it.first) ? "Instruction " : "Argument ") << *it.first << " alive in ranges ";
 			for(const Registerize::LiveRangeChunk& chunk: it.second.range)
 				dbgs() << '[' << chunk.start << ',' << chunk.end << ')';
 			dbgs() << "\n";
@@ -204,11 +206,46 @@ void Registerize::computeLiveRangeForAllocas(Function& F)
 
 Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const InstIdMapTy& instIdMap, cheerp::PointerAnalyzer & PA)
 {
+	std::set<uint32_t> recoverPoints;
+	bool needsRecover = F.hasFnAttribute(llvm::Attribute::Recoverable);
 	BlocksState blocksState;
+	for(Argument& A: F.args())
+	{
+		for(Use& U: A.uses())
+		{
+			Instruction* userI = cast<Instruction>(U.getUser());
+			BasicBlock* useBB=userI->getParent();
+			if(PHINode* phi=dyn_cast<PHINode>(userI))
+			{
+				// We want to set instruction I as alive at the end of the predecessor
+				// And start going up from the predecessor itself
+				useBB=phi->getIncomingBlock(U.getOperandNo());
+				BlockState& blockState=blocksState[useBB];
+				blockState.addLiveOut(&A);
+			}
+			doUpAndMark(blocksState, useBB, &A);
+		}
+	}
 	for(BasicBlock& BB: F)
 	{
 		for(Instruction& I: BB)
 		{
+			if(needsRecover && isa<CallInst>(I))
+			{
+				bool isRecoverPoint = true;
+				// For InlineAsm we use the stack align flag to signal if recovery is necessary
+				if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue()))
+				{
+					if(!ia->isAlignStack())
+						isRecoverPoint = false;
+				}
+
+				if(isRecoverPoint)
+				{
+					assert(instIdMap.count(&I));
+					recoverPoints.insert(instIdMap.find(&I)->second);
+				}
+			}
 			// Start from each use and trace up until the definition is found
 			for(Use& U: I.uses())
 			{
@@ -232,36 +269,68 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 	{
 		llvm::errs() << "Block:\n" << *it.first << "\n";
 		llvm::errs() << "Inst out:\n";
-		for(Instruction* I: it.second.outSet)
+		for(Value* I: it.second.outSet)
 			llvm::errs() << *I << "\n";
 	}
 #endif
 	// Depth first analysis of blocks, starting from the entry block
 	LiveRangesTy liveRanges(instIdMap);
-	dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, F.getEntryBlock(), PA, 1, 1);
+	uint32_t nextIndex = 1;
+	for(Argument& A: F.args())
+	{
+		assert(liveRanges.count(&A)==0);
+		uint32_t thisIndex = nextIndex++;
+		assert(instIdMap.count(&A));
+		assert(instIdMap.find(&A)->second==thisIndex);
+		InstructionLiveRange& range=liveRanges.emplace(&A, InstructionLiveRange(1)).first->second;
+		range.range.push_back(LiveRangeChunk(thisIndex, F.arg_size()+1));
+	}
+	dfsLiveRangeInBlock(blocksState, liveRanges, instIdMap, F.getEntryBlock(), PA, nextIndex, 1);
+	if(needsRecover)
+	{
+		for(auto& it: liveRanges)
+		{
+			// This is very quite ugly and slow
+			for(uint32_t i: recoverPoints)
+			{
+				// TODO: We don't want to interfere with the definition itself, but there may be a way to encode it without the explicit map lookup.
+				if(instIdMap.find(it.first)->second == i)
+					continue;
+				if(it.second.range.doesInterfere(i))
+				{
+					llvm::errs() << "INTERFERE BECAUSE OF " << i << " ID " << instIdMap.find(it.first)->second << "\n";
+					it.second.needsRecover = true;
+					break;
+				}
+			}
+			if(it.second.needsRecover)
+				llvm::errs() << "NEEDS RECOVER FOR " << *it.first << " FUNC " << F.getName() << "\n";
+		}
+	}
 	return liveRanges;
 }
 
-void Registerize::doUpAndMark(BlocksState& blocksState, BasicBlock* BB, Instruction* I)
+void Registerize::doUpAndMark(BlocksState& blocksState, BasicBlock* BB, Value* V)
 {
+	Instruction* I = dyn_cast<Instruction>(V);
 	// Defined here, no propagation needed
-	if(I->getParent()==BB && !isa<PHINode>(I))
+	if(I && I->getParent()==BB && !isa<PHINode>(I))
 		return;
 	BlockState& blockState=blocksState[BB];
 	// Already propagated
-	if(blockState.isLiveIn(I))
+	if(blockState.isLiveIn(V))
 		return;
-	blockState.setLiveIn(I);
-	if(I->getParent()==BB && isa<PHINode>(I))
+	blockState.setLiveIn(V);
+	if(I && I->getParent()==BB && isa<PHINode>(I))
 		return;
 	// Run on predecessor blocks
 	for(::pred_iterator it=pred_begin(BB);it!=pred_end(BB);++it)
 	{
 		BasicBlock* pred=*it;
 		BlockState& predBlockState=blocksState[pred];
-		if(!predBlockState.isLiveOut(I))
-			predBlockState.addLiveOut(I);
-		doUpAndMark(blocksState, pred, I);
+		if(!predBlockState.isLiveOut(V))
+			predBlockState.addLiveOut(V);
+		doUpAndMark(blocksState, pred, V);
 	}
 }
 
@@ -270,6 +339,11 @@ void Registerize::assignInstructionsIds(InstIdMapTy& instIdMap, const Function& 
 	SmallVector<const BasicBlock*, 4> bbQueue;
 	std::set<const BasicBlock*> doneBlocks;
 	uint32_t nextIndex = 1;
+	for(const Argument& A: F.args())
+	{
+		uint32_t thisIndex = nextIndex++;
+		instIdMap[&A]=thisIndex;
+	}
 
 	bbQueue.push_back(&F.getEntryBlock());
 	while(!bbQueue.empty())
@@ -347,17 +421,18 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 	// Extend the live range of live-out instrution to the end of the block
 	uint32_t endOfBlockIndex=nextIndex;
 	TerminatorInst* term=BB.getTerminator();
-	for(Instruction* outLiveInst: blockState.outSet)
+	for(Value* outLiveVal: blockState.outSet)
 	{
+		Instruction* outLiveInst = dyn_cast<Instruction>(outLiveVal);
 		// If inlineable we need to extend the life of the not-inlineable operands
-		if (isInlineable(*outLiveInst, PA))
+		if (outLiveInst && isInlineable(*outLiveInst, PA))
 		{
 			// We don't care about splitRegularDest, the point is to extend to the end of the block
 			extendRangeForUsedOperands(*outLiveInst, liveRanges, PA, endOfBlockIndex, codePathId, /*splitRegularDest*/false);
 		}
 		else
 		{
-			InstructionLiveRange& range=liveRanges.find(outLiveInst)->second;
+			InstructionLiveRange& range=liveRanges.find(outLiveVal)->second;
 			range.addUse(codePathId, endOfBlockIndex);
 		}
 	}
@@ -380,18 +455,26 @@ void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveR
 {
 	for(Value* op: I.operands())
 	{
-		Instruction* usedI = dyn_cast<Instruction>(op);
-		// Uses which are not instruction do not require live range analysis
-		if(!usedI)
-			continue;
-		// Recursively traverse inlineable operands
-		if(isInlineable(*usedI, PA))
-			extendRangeForUsedOperands(*usedI, liveRanges, PA, thisIndex, codePathId, splitRegularDest);
-		else
+		if(Instruction* usedI = dyn_cast<Instruction>(op))
 		{
-			assert(liveRanges.count(usedI));
-			InstructionLiveRange& range=liveRanges.find(usedI)->second;
-			if(splitRegularDest && usedI->getType()->isPointerTy() && PA.getPointerKind(usedI) == SPLIT_REGULAR)
+			// Recursively traverse inlineable operands
+			if(isInlineable(*usedI, PA))
+				extendRangeForUsedOperands(*usedI, liveRanges, PA, thisIndex, codePathId, splitRegularDest);
+			else
+			{
+				assert(liveRanges.count(usedI));
+				InstructionLiveRange& range=liveRanges.find(usedI)->second;
+				if(splitRegularDest && usedI->getType()->isPointerTy() && PA.getPointerKind(usedI) == SPLIT_REGULAR)
+					thisIndex++;
+				if(codePathId!=thisIndex)
+					range.addUse(codePathId, thisIndex);
+			}
+		}
+		else if(Argument* usedA = dyn_cast<Argument>(op))
+		{
+			assert(liveRanges.count(usedA));
+			InstructionLiveRange& range=liveRanges.find(usedA)->second;
+			if(splitRegularDest && usedA->getType()->isPointerTy() && PA.getPointerKind(usedA) == SPLIT_REGULAR)
 				thisIndex++;
 			if(codePathId!=thisIndex)
 				range.addUse(codePathId, thisIndex);
@@ -405,15 +488,15 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 	// First try to assign all PHI operands to the same register as the PHI itself
 	for(auto it: liveRanges)
 	{
-		Instruction* I=it.first;
+		Value* I=it.first;
 		if(!isa<PHINode>(I))
 			continue;
-		handlePHI(*I, liveRanges, registers, PA);
+		handlePHI(cast<PHINode>(*I), liveRanges, registers, PA);
 	}
 	// Assign a register to the remaining instructions
 	for(auto it: liveRanges)
 	{
-		Instruction* I=it.first;
+		Value* I=it.first;
 		if(isa<PHINode>(I))
 			continue;
 		InstructionLiveRange& range=it.second;
@@ -421,8 +504,18 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 		if(registersMap.count(I))
 			continue;
 		bool asmjs = I->getParent()->getParent()->getSection()==StringRef("asmjs");
-		uint32_t chosenRegister=findOrCreateRegister(registers, range, getRegKindFromType(I->getType(), asmjs), cheerp::needsSecondaryName(I, PA));
+		uint32_t chosenRegister = -1;
+		REGISTER_KIND kind = getRegKindFromType(I->getType(), asmjs);
+		if(isa<Argument>(I))
+		{
+			registers.push_back(RegisterRange(range.range, kind, cheerp::needsSecondaryName(I, PA), range.needsRecover, /*isArg*/true));
+			chosenRegister = registers.size()-1;
+		}
+		else
+			chosenRegister = findOrCreateRegister(registers, range, kind, cheerp::needsSecondaryName(I, PA), range.needsRecover);
 		registersMap[I] = chosenRegister;
+		if(range.needsRecover)
+			recoverableSet.insert(I);
 	}
 	// Assign registers for temporary values required to break loops in PHIs
 	class RegisterizePHIHandler: public EndOfBlockPHIHandler
@@ -546,7 +639,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 			uint32_t operandRegister=registersMap[usedI];
 			if(addRangeToRegisterIfPossible(registers[operandRegister], PHIrange,
 							getRegKindFromType(usedI->getType(), asmjs),
-							cheerp::needsSecondaryName(&I, PA)))
+							cheerp::needsSecondaryName(&I, PA), PHIrange.needsRecover))
 			{
 				chosenRegister=operandRegister;
 				break;
@@ -555,8 +648,10 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 	}
 	// If a register has not been chosen yet, find or create a new one
 	if(chosenRegister==0xffffffff)
-		chosenRegister=findOrCreateRegister(registers, PHIrange, getRegKindFromType(I.getType(), asmjs), cheerp::needsSecondaryName(&I, PA));
+		chosenRegister=findOrCreateRegister(registers, PHIrange, getRegKindFromType(I.getType(), asmjs), cheerp::needsSecondaryName(&I, PA), PHIrange.needsRecover);
 	registersMap[&I]=chosenRegister;
+	if(PHIrange.needsRecover)
+		recoverableSet.insert(&I);
 	// Iterate again on the operands and try to map as many as possible into the same register
 	for(Value* op: I.operands())
 	{
@@ -570,21 +665,29 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 		const InstructionLiveRange& opRange=liveRanges.find(usedI)->second;
 		bool spaceFound=addRangeToRegisterIfPossible(registers[chosenRegister], opRange,
 								getRegKindFromType(usedI->getType(), asmjs),
-								cheerp::needsSecondaryName(usedI, PA));
+								cheerp::needsSecondaryName(usedI, PA), opRange.needsRecover);
 		if (spaceFound)
 		{
 			// Update the mapping
 			registersMap[usedI]=chosenRegister;
+			if(opRange.needsRecover)
+				recoverableSet.insert(usedI);
 		}
 	}
 }
 
 uint32_t Registerize::findOrCreateRegister(llvm::SmallVector<RegisterRange, 4>& registers, const InstructionLiveRange& range,
-						REGISTER_KIND kind, bool needsSecondaryName)
+						REGISTER_KIND kind, bool needsSecondaryName, bool needsRecover)
 {
 	for(uint32_t i=0;i<registers.size();i++)
 	{
-		if(addRangeToRegisterIfPossible(registers[i], range, kind, needsSecondaryName))
+		if(addRangeToRegisterIfPossible(registers[i], range, kind, needsSecondaryName, needsRecover))
+			return i;
+	}
+	// Try again with the reverse of the needsRecover flag, that's also ok although less optimal
+	for(uint32_t i=0;i<registers.size();i++)
+	{
+		if(addRangeToRegisterIfPossible(registers[i], range, kind, needsSecondaryName, !needsRecover))
 			return i;
 	}
 	// Create a new register with the range of the current instruction already used
@@ -650,6 +753,24 @@ bool Registerize::LiveRange::doesInterfere(const LiveRange& other) const
 	return false;
 }
 
+bool Registerize::LiveRange::doesInterfere(uint32_t id) const
+{
+	// Check if all the ranges in this range fit inside other's holes
+	llvm::SmallVector<LiveRangeChunk, 4>::const_iterator thisIt = begin();
+	llvm::SmallVector<LiveRangeChunk, 4>::const_iterator thisItE = end();
+	while(thisIt!=thisItE)
+	{
+		if(thisIt->start > id || thisIt->end <= id)
+		{
+			// Move to the next range of this
+			++thisIt;
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
 void Registerize::LiveRange::merge(const LiveRange& other)
 {
 	insert(end(), other.begin(), other.end());
@@ -664,9 +785,13 @@ void Registerize::LiveRange::dump() const
 }
 
 bool Registerize::addRangeToRegisterIfPossible(RegisterRange& regRange, const InstructionLiveRange& liveRange,
-						REGISTER_KIND kind, bool needsSecondaryName)
+						REGISTER_KIND kind, bool needsSecondaryName, bool needsRecover)
 {
 	if(regRange.info.regKind!=kind)
+		return false;
+	if(regRange.needsRecover!=needsRecover)
+		return false;
+	if(regRange.isArg)
 		return false;
 	if(regRange.range.doesInterfere(liveRange.range))
 		return false;

@@ -73,7 +73,11 @@ public:
 	
 	const char *getPassName() const override;
 
-	uint32_t getRegisterId(const llvm::Instruction* I) const;
+	uint32_t getRegisterId(const llvm::Value* V) const;
+	bool isRecoverable(const llvm::Value* V) const
+	{
+		return recoverableSet.count(V);
+	}
 	uint32_t getRegisterIdForEdge(const llvm::Instruction* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const;
 	uint32_t getSelfRefTmpReg(const llvm::Instruction* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const;
 
@@ -95,7 +99,9 @@ public:
 		// Try to save bits, we may need more flags here
 		const REGISTER_KIND regKind : 2;
 		int needsSecondaryName : 1;
-		RegisterInfo(REGISTER_KIND k, bool n):regKind(k),needsSecondaryName(n)
+		int needsRecover : 1;
+		int isArg : 1;
+		RegisterInfo(REGISTER_KIND k, bool s, bool r, bool a):regKind(k),needsSecondaryName(s),needsRecover(r),isArg(a)
 		{
 		}
 	};
@@ -145,7 +151,8 @@ private:
 			}
 		};
 	};
-	std::unordered_map<const llvm::Instruction*, uint32_t> registersMap;
+	std::unordered_map<const llvm::Value*, uint32_t> registersMap;
+	std::unordered_set<const llvm::Value*> recoverableSet;
 	std::unordered_map<InstOnEdge, uint32_t, InstOnEdge::Hash> edgeRegistersMap;
 	std::unordered_map<const llvm::AllocaInst*, LiveRange> allocaLiveRanges;
 	std::unordered_map<const llvm::Function*, std::vector<RegisterInfo>> registersForFunctionMap;
@@ -179,13 +186,14 @@ private:
 		// codePathId is used to efficently coalesce uses in a sequential range when possible
 		uint32_t codePathId;
 		LiveRange range;
-		InstructionLiveRange(uint32_t c): codePathId(c)
+		bool needsRecover;
+		InstructionLiveRange(uint32_t c):codePathId(c), needsRecover(false)
 		{
 		}
 		void addUse(uint32_t codePathId, uint32_t thisIndex);
 	};
 	// Map from instructions to their unique identifier
-	typedef std::unordered_map<const llvm::Instruction*, uint32_t> InstIdMapTy;
+	typedef std::unordered_map<const llvm::Value*, uint32_t> InstIdMapTy;
 	struct CompareInstructionByID
 	{
 	private:
@@ -194,41 +202,41 @@ private:
 		CompareInstructionByID(const InstIdMapTy& i):instIdMap(&i)
 		{
 		}
-		bool operator()(llvm::Instruction* l, llvm::Instruction*r) const
+		bool operator()(llvm::Value* l, llvm::Value *r) const
 		{
 			assert(instIdMap->count(l) && instIdMap->count(r));
 			return instIdMap->find(l)->second < instIdMap->find(r)->second;
 		}
 	};
 	// Map from instructions to their live ranges
-	typedef std::map<llvm::Instruction*, InstructionLiveRange, CompareInstructionByID> LiveRangesTy;
+	typedef std::map<llvm::Value*, InstructionLiveRange, CompareInstructionByID> LiveRangesTy;
 	struct RegisterRange
 	{
 		LiveRange range;
 		RegisterInfo info;
-		RegisterRange(const LiveRange& range, REGISTER_KIND k, bool n):range(range),info(k, n)
+		RegisterRange(const LiveRange& range, REGISTER_KIND k, bool s, bool r, bool a):range(range),info(k, s, r, a)
 		{
 		}
 	};
 	// Temporary data structures used while exploring the CFG
 	struct BlockState
 	{
-		llvm::Instruction* inInst;
-		llvm::SmallVector<llvm::Instruction*, 4> outSet;
-		void addLiveOut(llvm::Instruction* I)
+		llvm::Value* inInst;
+		llvm::SmallVector<llvm::Value*, 4> outSet;
+		void addLiveOut(llvm::Value* I)
 		{
 			if(outSet.empty() || outSet.back()!=I)
 				outSet.push_back(I);
 		}
-		void setLiveIn(llvm::Instruction* I)
+		void setLiveIn(llvm::Value* I)
 		{
 			inInst=I;
 		}
-		bool isLiveOut(llvm::Instruction* I) const
+		bool isLiveOut(llvm::Value* I) const
 		{
 			return !outSet.empty() && outSet.back()==I;
 		}
-		bool isLiveIn(llvm::Instruction* I) const
+		bool isLiveIn(llvm::Value* I) const
 		{
 			return inInst==I;
 		}
@@ -289,7 +297,7 @@ private:
 	};
 
 	LiveRangesTy computeLiveRanges(llvm::Function& F, const InstIdMapTy& instIdMap, cheerp::PointerAnalyzer& PA);
-	void doUpAndMark(BlocksState& blocksState, llvm::BasicBlock* BB, llvm::Instruction* I);
+	void doUpAndMark(BlocksState& blocksState, llvm::BasicBlock* BB, llvm::Value* I);
 	static void assignInstructionsIds(InstIdMapTy& instIdMap, const llvm::Function& F, AllocaSetTy& allocaSet, const PointerAnalyzer* PA);
 	uint32_t dfsLiveRangeInBlock(BlocksState& blockState, LiveRangesTy& liveRanges, const InstIdMapTy& instIdMap,
 					llvm::BasicBlock& BB, cheerp::PointerAnalyzer& PA, uint32_t nextIndex, uint32_t codePathId);
@@ -298,8 +306,8 @@ private:
 	uint32_t assignToRegisters(llvm::Function& F, const InstIdMapTy& instIdMap, const LiveRangesTy& liveRanges, const PointerAnalyzer& PA);
 	void handlePHI(llvm::Instruction& I, const LiveRangesTy& liveRanges, llvm::SmallVector<RegisterRange, 4>& registers, const PointerAnalyzer& PA);
 	uint32_t findOrCreateRegister(llvm::SmallVector<RegisterRange, 4>& registers, const InstructionLiveRange& range,
-					REGISTER_KIND kind, bool needsSecondaryName);
-	bool addRangeToRegisterIfPossible(RegisterRange& regRange, const InstructionLiveRange& liveRange, REGISTER_KIND kind, bool needsSecondaryName);
+					REGISTER_KIND kind, bool needsSecondaryName, bool needsRecover);
+	bool addRangeToRegisterIfPossible(RegisterRange& regRange, const InstructionLiveRange& liveRange, REGISTER_KIND kind, bool needsSecondaryName, bool needsRecover);
 	void computeAllocaLiveRanges(AllocaSetTy& allocaSet, const InstIdMapTy& instIdMap);
 	typedef std::set<llvm::Instruction*, CompareInstructionByID> InstructionSetOrderedByID;
 	InstructionSetOrderedByID gatherDerivedMemoryAccesses(const llvm::AllocaInst* rootI, const InstIdMapTy& instIdMap);

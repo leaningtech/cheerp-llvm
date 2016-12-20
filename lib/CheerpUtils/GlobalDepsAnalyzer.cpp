@@ -207,6 +207,16 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 		llvm::errs() << "warning: webMain or main entry point not found\n";
 	}
 	entryPoint = webMainOrMain;
+
+	for(Function& F: module)
+	{
+		if(F.getSection() == StringRef("cheerpj"))
+		{
+			SubExprVec vec;
+			visitGlobal( &F, visited, vec );
+			externals.push_back(&F);
+		}
+	}
 	
 	//Process constructors
 	const ConstantArray* constructors = ModuleGlobalConstructors(module);
@@ -634,7 +644,9 @@ int GlobalDepsAnalyzer::filterModule( llvm::Module & module )
 		delete var;
 
 	for ( GlobalValue * var: externals)
+	{
 		var->setLinkage(GlobalValue::ExternalLinkage);
+	}
 
 	return eraseQueue.size();
 }
