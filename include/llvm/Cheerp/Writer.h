@@ -218,6 +218,8 @@ private:
 	bool symbolicGlobalsAsmJS;
 	// Flag to signal if we should emit readable or compressed output
 	bool readableOutput;
+	// Flag to signal if we should disable generation of Cheerp boilerplate around user code
+	bool noBoilerplate;
 
 	/**
 	 * \addtogroup MemFunction methods to handle memcpy, memmove, mallocs and free (and alike)
@@ -502,7 +504,6 @@ private:
 	};
 public:
 	ostream_proxy stream;
-<<<<<<< HEAD
 	CheerpWriter(llvm::Module& m, llvm::raw_ostream& s, cheerp::PointerAnalyzer & PA,
 			cheerp::Registerize & registerize,
 			cheerp::GlobalDepsAnalyzer & gda,
@@ -524,7 +525,8 @@ public:
 			bool checkBounds,
 			bool compileGlobalsAddrAsmJS,
 			const std::string& wasmFile,
-			bool forceTypedArrays):
+			bool forceTypedArrays,
+			bool NoBoilerplate):
 		module(m),
 		targetData(&m),
 		currentFun(NULL),
@@ -557,6 +559,7 @@ public:
 		forceTypedArrays(forceTypedArrays),
 		symbolicGlobalsAsmJS(compileGlobalsAddrAsmJS),
 		readableOutput(readableOutput),
+		noBoilerplate(NoBoilerplate),
 		stream(s, sourceMapGenerator, readableOutput)
 	{
 	}
