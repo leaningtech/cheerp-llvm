@@ -42,3 +42,5 @@ llvm::cl::opt<unsigned> CheerpHeapSize("cheerp-linear-heap-size", llvm::cl::init
 llvm::cl::opt<bool> BoundsCheck("cheerp-bounds-check", llvm::cl::desc("Generate debug code for bounds-checking arrays") );
 
 llvm::cl::opt<bool> DefinedCheck("cheerp-defined-members-check", llvm::cl::desc("Generate debug code for checking if accessed object members are defined") );
+
+llvm::cl::opt<bool> NoBoilerplate("cheerp-no-boilerplate", llvm::cl::desc("Disable generation of Cheerp boilerplate, useful to combine multiple JS files") );

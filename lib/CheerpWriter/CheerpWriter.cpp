@@ -2653,7 +2653,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			//This can be a problem if this function or one of the called ones is deoptimized,
 			//as the SROA-ed object will then be materialied with a pessimized hidden type map
 			//which will then be used for all the objects with the same structure
-			stream << "aSlot=";
+			if(!noBoilerplate)
+				stream << "aSlot=";
 			POINTER_KIND k = PA.getPointerKind(ai);
 //stream << "__" << k << "__";
 			StringRef varName = namegen.getName(&I);
@@ -5280,143 +5281,144 @@ void CheerpWriter::makeJS()
 	if (makeModule)
 		stream << "(function(){" << NewLine;
 
-	// Enable strict mode first
-	stream << "\"use strict\";" << NewLine;
-
-	if(addCredits)
-		stream << "/*Compiled using Cheerp (R) by Leaning Technologies Ltd*/" << NewLine;
-
-	if (measureTimeToMain)
+	if(!noBoilerplate)
 	{
-		stream << "var __cheerp_now = typeof dateNow!==\"undefined\"?dateNow:(typeof performance!==\"undefined\"?performance.now:function(){return new Date().getTime()});" << NewLine;
-		stream << "var __cheerp_main_time = -0;" << NewLine;
-		stream << "var __cheerp_start_time = __cheerp_now();" << NewLine;
-	}
+		// Enable strict mode first
+		stream << "\"use strict\";" << NewLine;
 
-	//Compile the bound-checking function
-	if ( checkBounds )
-	{
-		compileCheckBoundsHelper();
-	}
-	//Compile the defined-checking function
-	if ( checkDefined )
-	{
-		compileCheckDefinedHelper();
-	}
+		if (wasmFile.empty())
+			compileBuiltins(false);
 
-	if (wasmFile.empty())
-		compileBuiltins(false);
+		std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
+		compileNullPtrs();
 
-	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
-	compileNullPtrs();
+		// Utility function for loading files
+		if(!wasmFile.empty() || asmJSMem)
+			compileFetchBuffer();
 
-	// Utility function for loading files
-	if(!wasmFile.empty() || asmJSMem)
-		compileFetchBuffer();
-
-	if (globalDeps.needAsmJS() && wasmFile.empty())
-	{
-		// compile boilerplate
-		stream << "function asmJS(stdlib, ffi, heap){" << NewLine;
-		stream << "\"use asm\";" << NewLine;
-		stream << "var __stackPtr=ffi.heapSize|0;" << NewLine;
-		for (int i = HEAP8; i<=HEAPF64; i++)
+		if (globalDeps.needAsmJS() && wasmFile.empty())
 		{
-			stream << "var "<<heapNames[i]<<"=new stdlib."<<typedArrayNames[i]<<"(heap);" << NewLine;
-		}
-		compileMathDeclAsmJS();
-		compileBuiltins(true);
-		stream << "var isNaN=ffi.isNaN;" << NewLine;
-		stream << "var __dummy=ffi.__dummy;" << NewLine;
-		if (checkBounds)
-		{
-			stream << "var checkBoundsAsmJS=ffi.checkBoundsAsmJS;" << NewLine;
-			stream << "var checkFunctionPtrAsmJS=ffi.checkFunctionPtrAsmJS;" << NewLine;
-		}
-		for (const Function* imported: globalDeps.asmJSImports())
-		{
-			stream << "var " << namegen.getName(imported) << "=ffi." << namegen.getName(imported) << ';' << NewLine;
-		}
-
-		// Declare globals
-		for ( const GlobalVariable & GV : module.getGlobalList() )
-		{
-			if (GV.getSection() == StringRef("asmjs"))
-				compileGlobalAsmJS(GV);
-		}
-		for ( const Function & F : module.getFunctionList() )
-		{
-			if (!F.empty() && F.getSection() == StringRef("asmjs"))
+			// compile boilerplate
+			stream << "function asmJS(stdlib, ffi, heap){" << NewLine;
+			stream << "\"use asm\";" << NewLine;
+			stream << "var __stackPtr=ffi.heapSize|0;" << NewLine;
+			for (int i = HEAP8; i<=HEAPF64; i++)
 			{
-				compileMethod(F);
+				stream << "var __cheerp_now = typeof dateNow!==\"undefined\"?dateNow:(typeof performance!==\"undefined\"?performance.now:function(){return new Date().getTime()});" << NewLine;
+				stream << "var __cheerp_main_time = -0;" << NewLine;
+				stream << "var __cheerp_start_time = __cheerp_now();" << NewLine;
 			}
-		}
-		compileMemmoveHelperAsmJS();
-		
-		compileFunctionTablesAsmJS();
 
-		stream << "return {" << NewLine;
-		// export constructors
-		for (const Function * F : globalDeps.constructors() )
-		{
-			if (F->getSection() == StringRef("asmjs"))
-				stream << namegen.getName(F) << ':' << namegen.getName(F) << ',' << NewLine;
+			//Compile the bound-checking function
+			if ( checkBounds )
+			{
+				compileCheckBoundsHelper();
+			}
+			//Compile the defined-checking function
+			if ( checkDefined )
+			{
+				compileCheckDefinedHelper();
+			}
+
+			compileBuiltins(false);
+
+			compileNullPtrs();
+			if (globalDeps.needAsmJS() && wasmFile.empty())
+			{
+				// compile boilerplate
+				stream << "function asmJS(stdlib, ffi, heap){" << NewLine;
+				stream << "\"use asm\";" << NewLine;
+				stream << "var __stackPtr=ffi.heapSize|0;" << NewLine;
+				for (int i = HEAP8; i<=HEAPF64; i++)
+				{
+					stream << "var "<<heapNames[i]<<"=new stdlib."<<typedArrayNames[i]<<"(heap);" << NewLine;
+				}
+				compileMathDeclAsmJS();
+				compileBuiltins(true);
+				stream << "var isNaN=ffi.isNaN;" << NewLine;
+				stream << "var __dummy=ffi.__dummy;" << NewLine;
+				if (checkBounds)
+				{
+					stream << "var checkBoundsAsmJS=ffi.checkBoundsAsmJS;" << NewLine;
+					stream << "var checkFunctionPtrAsmJS=ffi.checkFunctionPtrAsmJS;" << NewLine;
+				}
+				for (const Function* imported: globalDeps.asmJSImports())
+				{
+					stream << "var " << namegen.getName(imported) << "=ffi." << namegen.getName(imported) << ';' << NewLine;
+				}
+			}
+			compileMemmoveHelperAsmJS();
+			
+			compileFunctionTablesAsmJS();
+
+			stream << "return {" << NewLine;
+			// export constructors
+			for (const Function * F : globalDeps.constructors() )
+			{
+				if (F->getSection() == StringRef("asmjs"))
+					stream << namegen.getName(F) << ':' << namegen.getName(F) << ',' << NewLine;
+			}
+			// if entry point is in asm.js, explicitly export it
+			if ( const Function * entryPoint = globalDeps.getEntryPoint())
+			{
+				if (entryPoint->getSection() == StringRef("asmjs"))
+					stream << namegen.getName(entryPoint) << ':' << namegen.getName(entryPoint) << ',' << NewLine;
+			}
+			for (const Function* exported: globalDeps.asmJSExports())
+			{
+				StringRef name = namegen.getName(exported);
+				stream << name << ':' << name << ',' << NewLine;
+			}
+			stream << "};" << NewLine;
+			stream << "};" << NewLine;
+			stream << "var heap = new ArrayBuffer("<<heapSize*1024*1024<<");" << NewLine;
+			for (int i = HEAP8; i<=HEAPF64; i++)
+				stream << "var " << heapNames[i] << "= new " << typedArrayNames[i] << "(heap);" << NewLine;
+			compileAsmJSImports();
+			compileAsmJSExports();
+			stream << "function __dummy() { throw new Error('this should be unreachable'); };" << NewLine;
+			stream << "var ffi = {" << NewLine;
+			stream << "heapSize:heap.byteLength," << NewLine;
+			stream << "isNaN:isNaN," << NewLine;
+			stream << "__dummy:__dummy," << NewLine;
+			if (checkBounds)
+			{
+				stream << "checkBoundsAsmJS:checkBoundsAsmJS," << NewLine;
+				stream << "checkFunctionPtrAsmJS:checkFunctionPtrAsmJS," << NewLine;
+			}
+			for (const Function* imported: globalDeps.asmJSImports())
+			{
+				std::string name;
+				if (imported->empty() && !TypeSupport::isClientGlobal(imported))
+					name = "__dummy";
+				else
+					name = ("_asm_"+namegen.getName(imported)).str();
+				stream << namegen.getName(imported) << ':' << name  << ',' << NewLine;
+			}
+			stream << "};" << NewLine;
+			stream << "var stdlib = {"<<NewLine;
+			stream << "Math:Math,"<<NewLine;
+			stream << "Infinity:Infinity,"<<NewLine;
+			stream << "NaN:NaN,"<<NewLine;
+			for (int i = HEAP8; i<=HEAPF64; i++)
+			{
+				stream << typedArrayNames[i] << ':' << typedArrayNames[i] << ',' << NewLine;
+			}
+			stream << "};" << NewLine;
+			compileGlobalsInitAsmJS();
 		}
-		// if entry point is in asm.js, explicitly export it
-		if ( const Function * entryPoint = globalDeps.getEntryPoint())
-		{
-			if (entryPoint->getSection() == StringRef("asmjs"))
-				stream << namegen.getName(entryPoint) << ':' << namegen.getName(entryPoint) << ',' << NewLine;
-		}
-		for (const Function* exported: globalDeps.asmJSExports())
-		{
-			StringRef name = namegen.getName(exported);
-			stream << name << ':' << name << ',' << NewLine;
-		}
-		stream << "};" << NewLine;
-		stream << "};" << NewLine;
-		stream << "var heap = new ArrayBuffer("<<heapSize*1024*1024<<");" << NewLine;
-		for (int i = HEAP8; i<=HEAPF64; i++)
-			stream << "var " << heapNames[i] << "= new " << typedArrayNames[i] << "(heap);" << NewLine;
-		compileAsmJSImports();
-		compileAsmJSExports();
-		stream << "function __dummy() { throw new Error('this should be unreachable'); };" << NewLine;
-		stream << "var ffi = {" << NewLine;
-		stream << "heapSize:heap.byteLength," << NewLine;
-		stream << "isNaN:isNaN," << NewLine;
-		stream << "__dummy:__dummy," << NewLine;
-		if (checkBounds)
-		{
-			stream << "checkBoundsAsmJS:checkBoundsAsmJS," << NewLine;
-			stream << "checkFunctionPtrAsmJS:checkFunctionPtrAsmJS," << NewLine;
-		}
-		for (const Function* imported: globalDeps.asmJSImports())
-		{
-			std::string name;
-			if (imported->empty() && !TypeSupport::isClientGlobal(imported))
-				name = "__dummy";
-			else
-				name = ("_asm_"+namegen.getName(imported)).str();
-			stream << namegen.getName(imported) << ':' << name  << ',' << NewLine;
-		}
-		stream << "};" << NewLine;
-		stream << "var stdlib = {"<<NewLine;
-		stream << "Math:Math,"<<NewLine;
-		stream << "Infinity:Infinity,"<<NewLine;
-		stream << "NaN:NaN,"<<NewLine;
-		for (int i = HEAP8; i<=HEAPF64; i++)
-		{
-			stream << typedArrayNames[i] << ':' << typedArrayNames[i] << ',' << NewLine;
-		}
-		stream << "};" << NewLine;
-		compileGlobalsInitAsmJS();
 	}
-
+	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
 	// TODO: Use only if necessary
 	// TODO: Use .o instead of .po
-	// TODO: NULL
-	stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
-	stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
+	if(!noBoilerplate)
+	{
+		stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
+		stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
+		stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+		stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
+		stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
+	}
 int count = 0;	
 	for ( const Function & F : module.getFunctionList() )
 		if (!F.empty() && F.getSection() != StringRef("asmjs"))
@@ -5459,10 +5461,13 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	if( globalDeps.needHandleVAArg() )
 		compileHandleVAArg();
 
-	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
-	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
-	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
-	
+	//Call constructors
+	for (const Function * F : globalDeps.constructors() )
+	{
+		if (F->getSection() != StringRef("asmjs"))
+			stream << namegen.getName(F) << "();" << NewLine;
+	}
+
 	//Load Wast module
 	if (!wasmFile.empty())
 	{
