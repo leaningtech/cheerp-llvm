@@ -67,6 +67,7 @@ PointerKindWrapper& PointerKindWrapper::operator|=(const PointerKindWrapper& rhs
 	PointerKindWrapper& lhs=*this;
 
 	assert(lhs!=BYTE_LAYOUT && rhs!=BYTE_LAYOUT);
+	assert(lhs!=SPLIT_BYTE_LAYOUT && rhs!=SPLIT_BYTE_LAYOUT);
 	assert(lhs!=RAW && rhs!=RAW);
 	
 	// Handle 1
@@ -113,6 +114,7 @@ PointerKindWrapper& PointerKindWrapper::operator|=(const IndirectPointerKindCons
 	PointerKindWrapper& lhs=*this;
 
 	assert(lhs!=BYTE_LAYOUT);
+	assert(lhs!=SPLIT_BYTE_LAYOUT);
 
 	// Handle 1
 	if (lhs==REGULAR)
@@ -531,7 +533,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		{
 		Type* pointedType = p->getType()->getPointerElementType();
 		if (visitByteLayoutChain(p))
-			return pointerKindData.valueMap.insert( std::make_pair(p, BYTE_LAYOUT ) ).first->second;
+			return pointerKindData.valueMap.insert( std::make_pair(p, SPLIT_BYTE_LAYOUT ) ).first->second;
 		else if(getKindForType(pointedType) == COMPLETE_OBJECT)
 			return pointerKindData.valueMap.insert( std::make_pair(p, COMPLETE_OBJECT ) ).first->second;
 		}
@@ -604,7 +606,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		assert(SI->getValueOperand()->getType()->isPointerTy());
 		Type* pointedValueType = SI->getValueOperand()->getType()->getPointerElementType();
 		if(TypeSupport::hasByteLayout(pointedValueType))
-			return CacheAndReturn(ret = BYTE_LAYOUT);
+			return CacheAndReturn(ret = SPLIT_BYTE_LAYOUT);
 		else if(visitByteLayoutChain(SI->getPointerOperand()))
 			return CacheAndReturn(ret |= PointerKindWrapper(SPLIT_REGULAR, p));
 		else if(TypeAndIndex baseAndIndex = PointerAnalyzer::getBaseStructAndIndexFromGEP(SI->getPointerOperand()))
@@ -667,8 +669,8 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		assert(first);
 		if ( (TypeSupport::isImmutableType(argPointedType) && arg->getParent()->getSection() == StringRef("bytelayout")) || TypeSupport::hasByteLayout(argPointedType) )
 		{
-//			pointerKindData.argsMap[arg] = BYTE_LAYOUT;
-			return CacheAndReturn(ret = BYTE_LAYOUT);
+//			pointerKindData.argsMap[arg] = SPLIT_BYTE_LAYOUT;
+			return CacheAndReturn(ret = SPLIT_BYTE_LAYOUT);
 		}
 		if(getKindForType(argPointedType) == COMPLETE_OBJECT)
 			return CacheAndReturn(ret |= COMPLETE_OBJECT);
@@ -949,7 +951,7 @@ llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << *cast<Instruct
 	if ( const ReturnInst * retInst = dyn_cast<ReturnInst>(p) )
 		return ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint(RETURN_CONSTRAINT, retInst->getParent()->getParent()));
 
-	// Bitcasts from byte layout types require COMPLETE_OBJECT, and generate BYTE_LAYOUT
+	// Bitcasts from byte layout types require COMPLETE_OBJECT, and generate SPLIT_BYTE_LAYOUT
 	if(isBitCast(p))
 	{
 		if (visitByteLayoutChain(p))
@@ -1081,7 +1083,7 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 		closedset.push_back(constraint);
 		const PointerKindWrapper& retKind=resolveConstraint(*constraint);
 		assert(retKind.isKnown());
-		if(retKind==REGULAR || retKind==SPLIT_REGULAR || retKind==BYTE_LAYOUT)
+		if(retKind == REGULAR || retKind==SPLIT_REGULAR || retKind==BYTE_LAYOUT || retKind==SPLIT_BYTE_LAYOUT)
 			return retKind;
 		else if(retKind==INDIRECT)
 		{
@@ -1470,7 +1472,7 @@ POINTER_KIND PointerAnalyzer::getPointerKind(const Value* p) const
 POINTER_KIND PointerAnalyzer::getPointerKindForReturn(const Function* F) const
 {
 	if(TypeSupport::hasByteLayout(F->getReturnType()->getPointerElementType()) || (TypeSupport::isImmutableType(F->getReturnType()->getPointerElementType()) && F->getSection() == StringRef("bytelayout")))
-		return BYTE_LAYOUT;
+		return SPLIT_BYTE_LAYOUT;
 
 	assert(F->getReturnType()->isPointerTy());
 	if (F->getSection() == StringRef("asmjs"))
@@ -1513,7 +1515,7 @@ POINTER_KIND PointerAnalyzer::getPointerKindForStoredType(Type* pointerType) con
 POINTER_KIND PointerAnalyzer::getPointerKindForArgumentTypeAndIndex( const TypeAndIndex& argTypeAndIndex ) const
 {
 	if(TypeSupport::hasByteLayout(argTypeAndIndex.type))
-		return BYTE_LAYOUT;
+		return SPLIT_BYTE_LAYOUT;
 
 	IndirectPointerKindConstraint c(INDIRECT_ARG_CONSTRAINT, argTypeAndIndex);
 	const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolveConstraint(c);
@@ -1713,7 +1715,7 @@ void PointerAnalyzer::fullResolve()
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR);
 		it.second = k;
 		it.second.applyRegularPreference(PREF_SPLIT_REGULAR);
 	}
@@ -1757,7 +1759,7 @@ it.second.dump();
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
 		it.second = k;
 		it.second.applyRegularPreference(pref);
 if(it.second == SPLIT_REGULAR && it.first.kind == BASE_AND_INDEX_CONSTRAINT && it.first.i==3)
@@ -1772,7 +1774,7 @@ it.second.dump();
 			continue;
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
 		it.second = k;
 	}
 #ifndef NDEBUG
@@ -1862,6 +1864,7 @@ void PointerAnalyzer::dumpPointer(const Value* v, bool dumpOwnerFunc) const
 			case REGULAR: fmt << "REGULAR"; break;
 			case SPLIT_REGULAR: fmt << "SPLIT_REGULAR"; break;
 			case BYTE_LAYOUT: fmt << "BYTE_LAYOUT"; break;
+			case SPLIT_BYTE_LAYOUT: fmt << "SPLIT_BYTE_LAYOUT"; break;
 			default:
 				assert(false && "Unexpected pointer kind");
 		}
@@ -1886,6 +1889,7 @@ void dumpAllPointers(const Function & F, const PointerAnalyzer & analyzer)
 			case REGULAR: llvm::errs() << "REGULAR"; break;
 			case SPLIT_REGULAR: llvm::errs() << "SPLIT_REGULAR"; break;
 			case BYTE_LAYOUT: llvm::errs() << "BYTE_LAYOUT"; break;
+			case SPLIT_BYTE_LAYOUT: llvm::errs() << "SPLIT_BYTE_LAYOUT"; break;
 			default:
 				assert(false && "Unexpected pointer kind");
 		}

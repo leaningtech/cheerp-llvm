@@ -1675,7 +1675,7 @@ assert(false);
 		return;
 	}
 
-	if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == SPLIT_REGULAR)
+	if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && (PA.getPointerKind(p) == SPLIT_REGULAR || PA.getPointerKind(p) == SPLIT_BYTE_LAYOUT))
 	{
 		if(isa<Instruction>(p) && currentFun->hasFnAttribute(Attribute::Recoverable))
 			stream << "a.";
@@ -1772,8 +1772,13 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 		}
 		else
 		{
-			if(PA.getPointerKind(p) == SPLIT_REGULAR)
-				stream << namegen.getSecondaryName(p);
+			if(PA.getPointerKind(p) == SPLIT_REGULAR || PA.getPointerKind(p) == SPLIT_BYTE_LAYOUT)
+			{
+				if(passedP == p)
+					stream << namegen.getSecondaryName(p);
+				else
+					compilePointerOffset(p, LOWEST);
+			}
 			else
 			{
 				compileOperand(p);
@@ -2382,7 +2387,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 		void handleRecursivePHIDependency(const Instruction* incoming) override
 		{
 			assert(incoming);
-			if(incoming->getType()->isPointerTy() && writer.PA.getPointerKind(incoming)==SPLIT_REGULAR && !writer.PA.getConstantOffsetForPointer(incoming))
+			if(incoming->getType()->isPointerTy() && (writer.PA.getPointerKind(incoming)==SPLIT_REGULAR || writer.PA.getPointerKind(incoming)==SPLIT_BYTE_LAYOUT) && !writer.PA.getConstantOffsetForPointer(incoming))
 			{
 				writer.stream << writer.namegen.getSecondaryNameForEdge(incoming, fromBB, toBB);
 				writer.stream << '=';
@@ -2408,7 +2413,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerBase(incoming);
 				}
-				else if(k==SPLIT_REGULAR)
+				else if(k==SPLIT_REGULAR || k==SPLIT_BYTE_LAYOUT)
 				{
 					POINTER_KIND incomingKind=writer.PA.getPointerKind(incoming);
 					// TODO: Won't have a self ref tmp if there is a tmpphi already for this PHI
@@ -2549,9 +2554,9 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 					if(isa<BitCastInst>(calledVal))
 						calledVal = cast<User>(calledVal)->getOperand(0);
 					if(!isa<LoadInst>(calledVal))
-						argKind = BYTE_LAYOUT;
+						argKind = SPLIT_BYTE_LAYOUT;
 					else if(isByteLayout(PA.getPointerKind(cast<User>(calledVal)->getOperand(0))))
-						argKind = BYTE_LAYOUT;
+						argKind = SPLIT_BYTE_LAYOUT;
 					else
 					{
 						TypeAndIndex typeAndIndex(tp->getPointerElementType(), opCount, TypeAndIndex::ARGUMENT);
@@ -2581,6 +2586,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 						st = st->getDirectBase();
 					tp = st->getPointerTo();
 				}
+				assert(PA.getPointerKindForStoredType(tp) != SPLIT_BYTE_LAYOUT);
 				compilePointerAs(*cur, PA.getPointerKindForStoredType(tp));
 			}
 
@@ -2589,7 +2595,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			// The second condition is for when the function is only declared
 			// And the passed pointer is BYTE_LAYOUT. We decide to compile it as
 			// SPLIT_REGULAR, since the code will crash here anyway
-			if(argKind == SPLIT_REGULAR ||
+			if(argKind == SPLIT_REGULAR || argKind == SPLIT_BYTE_LAYOUT ||
 				(argKind == COMPLETE_OBJECT && curKind == BYTE_LAYOUT))
 			{
 				if(curKind == RAW)
@@ -2679,7 +2685,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 					case Registerize::OBJECT:
 						POINTER_KIND k=PA.getPointerKindForReturn(ri.getParent()->getParent());
 						// For SPLIT_REGULAR we return the .d part and store the .o part into oSlot
-						if(k==SPLIT_REGULAR)
+						if(k==SPLIT_REGULAR || k==SPLIT_BYTE_LAYOUT)
 						{
 							stream << "oSlot=";
 							compilePointerOffset(retVal, LOWEST);
@@ -2687,7 +2693,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 						}
 						stream << "return ";
 						assert(k != REGULAR);
-						if(k==SPLIT_REGULAR)
+						if(k==SPLIT_REGULAR || k==SPLIT_BYTE_LAYOUT)
 							compilePointerBase(retVal);
 						else
 							compilePointerAs(retVal, k);
@@ -2795,6 +2801,13 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				stream << "{d:";
 				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
 				stream << ",o:0}";
+			}
+			else if(k == SPLIT_BYTE_LAYOUT)
+			{
+				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
+				stream << ';' << NewLine;
+				stream << namegen.getSecondaryName(&I) << '=';
+				stream << '0';
 			}
 			else 
 				compileType(ai->getAllocatedType(), LITERAL_OBJ, varName);
@@ -3097,7 +3110,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				// If regular see if we can omit the offset part
 				if((storedKind==SPLIT_REGULAR || storedKind==REGULAR || isByteLayout(storedKind)) && PA.getConstantOffsetForPointer(&si))
 					compilePointerBase(valOp);
-				else if(storedKind==SPLIT_REGULAR)
+				else if(storedKind==SPLIT_REGULAR || storedKind==SPLIT_BYTE_LAYOUT)
 				{
 					compilePointerBase(valOp);
 					stream << ';' << NewLine;
@@ -3864,7 +3877,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 		case Instruction::Select:
 		{
 			const SelectInst& si = cast<SelectInst>(I);
-			if(si.getType()->isPointerTy() && PA.getPointerKind(&si) == SPLIT_REGULAR)
+			if(si.getType()->isPointerTy() && (PA.getPointerKind(&si) == SPLIT_REGULAR || PA.getPointerKind(&si) == SPLIT_BYTE_LAYOUT))
 			{
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
@@ -3938,12 +3951,22 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 		}
 		case Instruction::IntToPtr:
 		{
-			if(PA.getPointerKind(&I) == COMPLETE_OBJECT)
+			POINTER_KIND k = PA.getPointerKind(&I);
+			if(k == COMPLETE_OBJECT)
 				stream << "cheerpIPO(";
 			else
+			{
+				assert(k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT);
 				stream << "cheerpIPR(";
+			}
 			compileOperand(I.getOperand(0));
 			stream << ')';
+			if(k != COMPLETE_OBJECT)
+			{
+				stream << ';' << NewLine;
+				stream << namegen.getSecondaryName(&I) << '=';
+				stream << "oSlot";
+			}
 			return COMPILE_OK;
 		}
 		case Instruction::VAArg:
@@ -3975,7 +3998,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				stream << "handleVAArg(";
 				if(isByteLayout(PA.getPointerKind(vi.getPointerOperand())))
 				{
-					stream << "cheerpIPR(";
+					stream << "{d:cheerpIPR(";
 					compilePointerBase(vi.getPointerOperand());
 					stream << '[';
 					compilePointerOffset(vi.getPointerOperand(), LOWEST);
@@ -3991,7 +4014,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					compilePointerBase(vi.getPointerOperand());
 					stream << "[3+";
 					compilePointerOffset(vi.getPointerOperand(), LOWEST);
-					stream << "]<<24)";
+					stream << "]<<24),o:oSlot}";
 				}
 				else
 					compileCompleteObject(vi.getPointerOperand());
@@ -4102,7 +4125,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						stream << ')';
 						break;
 					case Registerize::OBJECT:
-						if(PA.getPointerKind(&ci) == SPLIT_REGULAR && !ci.use_empty())
+						if((PA.getPointerKind(&ci) == SPLIT_REGULAR || PA.getPointerKind(&ci) == SPLIT_BYTE_LAYOUT) && !ci.use_empty())
 						{
 							assert(!isInlineable(ci, PA));
 							stream << ';' << NewLine;
@@ -4318,7 +4341,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				else
 				{
 					compileCompleteObject(ptrOp);
-					if(li.getType()->isPointerTy() && !li.use_empty() && PA.getPointerKind(&li) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(&li))
+					if(li.getType()->isPointerTy() && !li.use_empty() && (PA.getPointerKind(&li) == SPLIT_REGULAR || PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(&li))
 					{
 						assert(!isInlineable(li, PA));
 						stream <<'o';
@@ -4731,7 +4754,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 		for(Function::const_arg_iterator curArg=A;curArg!=AE;++curArg)
 		{
 			stream << ',' << namegen.getName(curArg) << ':' << namegen.getName(curArg);
-			if(curArg->getType()->isPointerTy() && PA.getPointerKind(curArg) == SPLIT_REGULAR)
+			if(curArg->getType()->isPointerTy() && (PA.getPointerKind(curArg) == SPLIT_REGULAR || PA.getPointerKind(curArg) == SPLIT_BYTE_LAYOUT))
 				stream << ',' << namegen.getSecondaryName(curArg) << ':' << namegen.getSecondaryName(curArg);
 		}
 	}
@@ -4764,7 +4787,7 @@ void CheerpWriter::compileMethod(const Function& F)
 	{
 		if(curArg!=A)
 			stream << ',';
-		if(curArg->getType()->isPointerTy() && PA.getPointerKind(curArg) == SPLIT_REGULAR)
+		if(curArg->getType()->isPointerTy() && (PA.getPointerKind(curArg) == SPLIT_REGULAR || PA.getPointerKind(curArg) == SPLIT_BYTE_LAYOUT))
 			stream << namegen.getName(curArg) << ',' << namegen.getSecondaryName(curArg);
 		else
 			stream << namegen.getName(curArg);
@@ -4896,7 +4919,7 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 		}
 		else if(isByteLayout(k))
 		{
-			if(!PA.getConstantOffsetForPointer(&G))
+			if(!PA.getConstantOffsetForPointer(&G) && k == BYTE_LAYOUT)
 				stream << "{d:";
 			//if(C->getType()->isPointerTy())
 			//	compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
@@ -4908,8 +4931,13 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 			}
 			else
 				compileOperand(C, LOWEST);
-			if(!PA.getConstantOffsetForPointer(&G))
+			if(!PA.getConstantOffsetForPointer(&G) && k == BYTE_LAYOUT)
 				stream << ",o:0}";
+			if(!PA.getConstantOffsetForPointer(&G) && k == SPLIT_BYTE_LAYOUT)
+			{
+				stream << ';' << NewLine;
+				stream << "var " << namegen.getSecondaryName(&G) << "=0";
+			}
 		}
 		else if(k == SPLIT_REGULAR)
 		{
@@ -5492,7 +5520,7 @@ void CheerpWriter::makeJS()
 	{
 	stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
 	stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
-	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+	stream << "function cheerpIPR(ret){if(!ret){oSlot=0;return nullArray;}var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(Array.isArray(b)){s=b[b.length-1|0];}else{s=1;} oSlot=(ret-b.po)/s>>0;return b;}" << NewLine;
 	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
 	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
 	}

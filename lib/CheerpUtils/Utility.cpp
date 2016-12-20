@@ -128,7 +128,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			case Instruction::Call:
 			case Instruction::Load:
 			{
-				if(I.use_empty() || (I.getType()->isPointerTy() && PA.getPointerKind(&I) == SPLIT_REGULAR))
+				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
 					return false;
 				const Instruction* nextInst=I.getNextNode();
 				assert(nextInst);
@@ -773,7 +773,7 @@ bool needsSecondaryName(const Value* V, const PointerAnalyzer& PA)
 {
 	if(!V->getType()->isPointerTy())
 		return false;
-	if(PA.getPointerKind(V) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(V))
+	if((PA.getPointerKind(V) == SPLIT_REGULAR || PA.getPointerKind(V) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(V))
 		return true;
 	return false;
 }
