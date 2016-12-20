@@ -147,7 +147,7 @@ void CheerpWriter::compileBitCast(const llvm::User* bc_inst, POINTER_KIND kind)
 			compilePointerBase(bc_inst);
 		else if(PA.getPointerKind(bc_inst->getOperand(0)) == REGULAR && !isa<Argument>(bc_inst->getOperand(0)))
 			compileOperand(bc_inst->getOperand(0));
-		else if(PA.getPointerKind(bc_inst->getOperand(0)) == BYTE_LAYOUT)
+		else if(isByteLayout(PA.getPointerKind(bc_inst->getOperand(0))))
 			compileOperand(bc_inst->getOperand(0));
 		else
 		{
@@ -164,7 +164,7 @@ void CheerpWriter::compileBitCastBase(const llvm::Value* op, llvm::Type* dstType
 {
 	Type* dst=dstType;
 	//Special case unions
-	if(PA.getPointerKind(op) == BYTE_LAYOUT && forEscapingPointer)
+	if(isByteLayout(PA.getPointerKind(op)) && forEscapingPointer)
 	{
 		//Find the type
 		llvm::Type* elementType = dst->getPointerElementType();
@@ -191,7 +191,7 @@ void CheerpWriter::compileBitCastOffset(const llvm::Value* op, llvm::Type* dstTy
 {
 	Type* dst=dstType;
 	//Special case unions
-	if(PA.getPointerKind(op) == BYTE_LAYOUT)
+	if(isByteLayout(PA.getPointerKind(op)))
 	{
 		//Find the type
 		llvm::Type* elementType = dst->getPointerElementType();

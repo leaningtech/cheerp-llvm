@@ -328,7 +328,7 @@ private:
 			valueKind == RAW)
 		{
 			stream << "{d:";
-			compilePointerBase(p, kind != BYTE_LAYOUT);
+			compilePointerBase(p, !isByteLayout(kind));
 			stream << ",o:";
 			compilePointerOffset(p, LOWEST);
 			stream << "}";
@@ -450,6 +450,10 @@ private:
 	//JS interoperability support
 	std::vector<llvm::StringRef> compileClassesExportedToJs();
 	void addExportedFreeFunctions(std::vector<llvm::StringRef>& namesList, const llvm::NamedMDNode* namedNode);
+	static bool isByteLayout(POINTER_KIND k)
+	{
+		return k==BYTE_LAYOUT;
+	}
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
 	{
