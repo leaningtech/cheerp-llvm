@@ -29,6 +29,7 @@ enum POINTER_KIND {
 	SPLIT_REGULAR,    // two local vars "X" and "Xo".
 	REGULAR,          // pointer object {o: ..., d: ...}.
 	BYTE_LAYOUT,      // slow, and mostly used for unions.
+	SPLIT_BYTE_LAYOUT,
 	UNKNOWN,
 	INDIRECT,
 	RAW               // very fast, and used in asm.js mode.
@@ -184,6 +185,10 @@ public:
 			return SPLIT_REGULAR;
 		else if(kind==SPLIT_REGULAR && p==PREF_REGULAR)
 			return REGULAR;
+		else if(kind==BYTE_LAYOUT && p==PREF_SPLIT_REGULAR)
+			return SPLIT_BYTE_LAYOUT;
+		else if(kind==SPLIT_BYTE_LAYOUT && p==PREF_REGULAR)
+			return BYTE_LAYOUT;
 		else
 			return kind;
 	}

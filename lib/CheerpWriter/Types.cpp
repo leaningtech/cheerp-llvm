@@ -241,14 +241,14 @@ uint32_t CheerpWriter::compileComplexType(Type* t, COMPILE_TYPE_STYLE style, Str
 					usedValuesFromMap++;
 				POINTER_KIND memberPointerKind = PA.getPointerKindForMemberPointer(baseAndIndex);
 				bool hasConstantOffset = PA.getConstantOffsetForMember(baseAndIndex);
-				if((memberPointerKind == REGULAR || memberPointerKind == SPLIT_REGULAR) && hasConstantOffset)
+				if((memberPointerKind == REGULAR || memberPointerKind == SPLIT_REGULAR || memberPointerKind == SPLIT_BYTE_LAYOUT) && hasConstantOffset)
 				{
 					if(init)
 						compilePointerBase(init);
 					else
 						stream << "nullArray";
 				}
-				else if (memberPointerKind == SPLIT_REGULAR)
+				else if (memberPointerKind == SPLIT_REGULAR || memberPointerKind == SPLIT_BYTE_LAYOUT)
 				{
 					if(init)
 						compilePointerBase(init);

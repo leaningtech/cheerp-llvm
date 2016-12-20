@@ -336,7 +336,7 @@ private:
 			stream << "nullObj";
 		}
 		else if (PA.getConstantOffsetForPointer(p) ||
-			valueKind == SPLIT_REGULAR ||
+			(valueKind == SPLIT_REGULAR || valueKind == SPLIT_BYTE_LAYOUT)
 			valueKind == RAW)
 		{
 			stream << "{d:";
@@ -473,7 +473,7 @@ private:
 
 	static bool isByteLayout(POINTER_KIND k)
 	{
-		return k==BYTE_LAYOUT;
+		return k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT;
 	}
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
