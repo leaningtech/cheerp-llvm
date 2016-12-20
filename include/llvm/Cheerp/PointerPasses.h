@@ -100,6 +100,8 @@ public:
 //
 FunctionPass *createPointerArithmeticToArrayIndexingPass();
 
+struct SwitchPHIData;
+
 /**
  * This pass removes REGULAR pointers by duplicating small blocks which immediately return
  */
@@ -107,6 +109,8 @@ class PointerToImmutablePHIRemoval: public FunctionPass
 {
 private:
 	void hoistBlock(BasicBlock* targetBlock);
+	bool mayConvertPHIToSwitch(SwitchPHIData& data, PHINode* phi, uint32_t depth);
+	void convertPHIToSwitch(SwitchPHIData& data);
 public:
 	static char ID;
 	explicit PointerToImmutablePHIRemoval() : FunctionPass(ID) { }
