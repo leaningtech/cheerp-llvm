@@ -2766,7 +2766,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			//This can be a problem if this function or one of the called ones is deoptimized,
 			//as the SROA-ed object will then be materialied with a pessimized hidden type map
 			//which will then be used for all the objects with the same structure
-			stream << "aSlot=";
+			if(!noBoilerplate)
+				stream << "aSlot=";
 
 			StringRef varName = namegen.getName(&I);
 			if(k == REGULAR)
@@ -5353,6 +5354,8 @@ void CheerpWriter::makeJS()
 	if (makeModule)
 		stream << "(function(){" << NewLine;
 
+	if(!noBoilerplate)
+	{
 	// Enable strict mode first
 	stream << "\"use strict\";" << NewLine;
 
@@ -5483,11 +5486,17 @@ void CheerpWriter::makeJS()
 		compileGlobalsInitAsmJS();
 	}
 
+	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
 	// TODO: Use only if necessary
 	// TODO: Use .o instead of .po
-	// TODO: NULL
+	if(!noBoilerplate)
+	{
 	stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
 	stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
+	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
+	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
+	}
 int count = 0;	
 	for ( const Function & F : module.getFunctionList() )
 		if (!F.empty() && F.getSection() != StringRef("asmjs"))
@@ -5530,10 +5539,13 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	if( globalDeps.needHandleVAArg() )
 		compileHandleVAArg();
 
-	stream << "function cheerpIPR(ret){if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){s=b.es;}else{s=1;} return {d:b,o:(ret-b.po)/s};}" << NewLine;
-	stream << "function cheerpIPO(ret){if(!ret)return null;return cheerpGetPtrBase(ret);}" << NewLine;
-	stream << "var mSlot=new DataView(new ArrayBuffer(8));" << NewLine;
-	
+	//Call constructors
+	for (const Function * F : globalDeps.constructors() )
+	{
+		if (F->getSection() != StringRef("asmjs"))
+			stream << namegen.getName(F) << "();" << NewLine;
+	}
+
 	//Load Wast module
 	if (!wasmFile.empty())
 	{

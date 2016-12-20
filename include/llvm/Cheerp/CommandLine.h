@@ -33,5 +33,6 @@ extern llvm::cl::list<std::string> ReservedNames;
 extern llvm::cl::opt<unsigned> CheerpHeapSize;
 extern llvm::cl::opt<bool> BoundsCheck;
 extern llvm::cl::opt<bool> DefinedCheck;
+extern llvm::cl::opt<bool> NoBoilerplate;
 
 #endif //_CHEERP_COMMAND_LINE_H
