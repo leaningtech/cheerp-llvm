@@ -1587,8 +1587,6 @@ assert(false);
 
 	if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && (PA.getPointerKind(p) == SPLIT_REGULAR || PA.getPointerKind(p) == SPLIT_BYTE_LAYOUT))
 	{
-		if(isa<Instruction>(p) && currentFun->hasFnAttribute(Attribute::Recoverable))
-			stream << "a.";
 		stream << namegen.getName(p);
 		return;
 	}
@@ -1599,6 +1597,19 @@ assert(false);
 		stream << ".d";
 }
 
+CheerpWriter::STACKLET_STATUS CheerpWriter::needsStacklet(const llvm::Value* v) const
+{
+	// TODO: Currently arguments always come from the stacklet
+	if(isa<Argument>(v))
+		return NO_STACKLET;//cast<Argument>(v)->getParent()->hasFnAttribute(Attribute::Recoverable) ? STACKLET_NEEDED : NO_STACKLET;
+	const Instruction* I = dyn_cast<Instruction>(v);
+	if(!I)
+		return NO_STACKLET;
+	if(!I->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+		return NO_STACKLET;
+	return registerize.isRecoverable(I) ? STACKLET_NEEDED : STACKLET_NOT_NEEDED;
+}
+
 const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_OFFSET_MODE offsetMode)
 {
 	// If the value has byte layout skip GEPS and BitCasts until the base is found
@@ -1607,6 +1618,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	// If offsetMode is BYTE_LAYOUT_OFFSET_FULL we can treat every GEP in the same way
 	bool findFirstTypeChangingGEP = (offsetMode != BYTE_LAYOUT_OFFSET_FULL);
 	const Value* lastOffset = NULL;
+	const Value* const passedP = p;
 	while ( isBitCast(p) || isGEP(p) )
 	{
 		const User * u = cast<User>(p);
@@ -1753,8 +1765,6 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	}
 	else if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == SPLIT_REGULAR)
 	{
-		if(isa<Instruction>(p) && currentFun->hasFnAttribute(Attribute::Recoverable))
-			stream << "a.";
 		stream << namegen.getSecondaryName(p);
 	}
 	else if(const IntrinsicInst* II=dyn_cast<IntrinsicInst>(p))
@@ -2189,21 +2199,20 @@ void CheerpWriter::compileOperand(const Value* v, PARENT_PRIORITY parentPrio, bo
 		}
 		else
 		{
-			bool needsStacklet = it->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
-			if(needsStacklet)
+			STACKLET_STATUS stackletStatus = needsStacklet(it);
+			if(isa<AllocaInst>(it) && stackletStatus == STACKLET_NEEDED)
 				stream << "a.";
 			stream << namegen.getName(it);
 		}
 	}
 	else if(const Argument* arg=dyn_cast<Argument>(v))
 	{
-		bool needsStacklet = arg->getParent()->hasFnAttribute(Attribute::Recoverable);
-		if(needsStacklet)
-			stream << "a.";
 		stream << namegen.getName(arg);
 	}
 	else if(const InlineAsm* a=dyn_cast<InlineAsm>(v))
 	{
+		if(!a->getConstraintString().empty())
+			a->dump();
 		assert(a->getConstraintString().empty());
 		stream << a->getAsmString();
 	}
@@ -2219,7 +2228,7 @@ bool CheerpWriter::needsPointerKindConversion(const Instruction* phi, const Valu
 {
 	Type* phiType=phi->getType();
 	const Instruction* incomingInst=dyn_cast<Instruction>(incoming);
-	if(!incomingInst)
+	if(!incomingInst && !isa<Argument>(incoming))
 		return true;
 	POINTER_KIND incomingKind = UNKNOWN;
 	POINTER_KIND phiKind = UNKNOWN;
@@ -2229,11 +2238,12 @@ bool CheerpWriter::needsPointerKindConversion(const Instruction* phi, const Valu
 		phiKind = PA.getPointerKind(phi);
 	}
 	return
-		isInlineable(*incomingInst, PA) ||
+		(incomingInst && isInlineable(*incomingInst, PA)) ||
 		((incomingKind == SPLIT_REGULAR) != (phiKind == SPLIT_REGULAR)) ||
-		registerize.getRegisterId(phi)!=registerize.getRegisterId(incomingInst) ||
+		registerize.getRegisterId(phi)!=registerize.getRegisterId(incoming) ||
 		phiKind!=incomingKind ||
-		PA.getConstantOffsetForPointer(phi)!=PA.getConstantOffsetForPointer(incoming);
+		PA.getConstantOffsetForPointer(phi)!=PA.getConstantOffsetForPointer(incoming) ||
+		registerize.isRecoverable(phi)!=registerize.isRecoverable(incomingInst);
 }
 
 bool CheerpWriter::needsPointerKindConversionForBlocks(const BasicBlock* to, const BasicBlock* from,
@@ -2253,7 +2263,7 @@ bool CheerpWriter::needsPointerKindConversionForBlocks(const BasicBlock* to, con
 	private:
 		const PointerAnalyzer& PA;
 		const Registerize& registerize;
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 		}
 		void handlePHI(const Instruction* phi, const Value* incoming, bool selfReferencing) override
@@ -2282,16 +2292,20 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 		CheerpWriter& writer;
 		const BasicBlock* fromBB;
 		const BasicBlock* toBB;
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 			assert(incoming);
 			if(incoming->getType()->isPointerTy() && (writer.PA.getPointerKind(incoming)==SPLIT_REGULAR || writer.PA.getPointerKind(incoming)==SPLIT_BYTE_LAYOUT) && !writer.PA.getConstantOffsetForPointer(incoming))
 			{
+				if(cast<Instruction>(incoming)->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+					writer.stream << "var ";
 				writer.stream << writer.namegen.getSecondaryNameForEdge(incoming, fromBB, toBB);
 				writer.stream << '=';
 				writer.compilePointerOffset(incoming, LOWEST);
 				writer.stream << ';' << writer.NewLine;
 			}
+			if(cast<Instruction>(incoming)->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+				writer.stream << "var ";
 			writer.stream << writer.namegen.getNameForEdge(incoming, fromBB, toBB);
 			writer.stream << '=' << writer.namegen.getName(incoming) << ';' << writer.NewLine;
 		}
@@ -2301,13 +2315,25 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			if(!needsPointerKindConversion(phi, incoming, writer.PA, writer.registerize))
 				return;
 			bool needsStacklet = phi->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
+			STACKLET_STATUS stackletStatus = writer.needsStacklet(phi);
 			Type* phiType=phi->getType();
 			if(phiType->isPointerTy())
 			{
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
 				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k)) && writer.PA.getConstantOffsetForPointer(phi))
 				{
+					switch(stackletStatus)
+					{
+						case STACKLET_NEEDED:
+						case STACKLET_NOT_NEEDED:
+							writer.stream << "var ";
+							break;
+						case NO_STACKLET:
+							break;
+					}
 					writer.stream << writer.namegen.getName(phi) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerBase(incoming);
 				}
@@ -2326,13 +2352,37 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 						writer.stream << writer.namegen.getName(phi->getParent()->getParent(), tmpOffsetReg);
 					}
 					else
-						writer.stream << writer.namegen.getSecondaryName(phi);
+					{
+						switch(stackletStatus)
+						{
+							case STACKLET_NEEDED:
+							case STACKLET_NOT_NEEDED:
+								writer.stream << "var ";
+								break;
+							case NO_STACKLET:
+								break;
+						}
+						writer.stream << writer.namegen.getSecondaryName(phi) << '=';
+						if(stackletStatus == STACKLET_NEEDED)
+							writer.stream << "a." << writer.namegen.getSecondaryName(phi);
+					}
 					writer.stream << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerOffset(incoming, LOWEST);
 					writer.stream << ';' << writer.NewLine;
 					writer.registerize.clearEdgeContext();
+					switch(stackletStatus)
+					{
+						case STACKLET_NEEDED:
+						case STACKLET_NOT_NEEDED:
+							writer.stream << "var ";
+							break;
+						case NO_STACKLET:
+							break;
+					}
 					writer.stream << writer.namegen.getName(phi) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerBase(incoming);
 					if(selfReferencing)
@@ -2344,9 +2394,18 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else
 				{
-					if(needsStacklet)
-						writer.stream << "a.";
+					switch(stackletStatus)
+					{
+						case STACKLET_NEEDED:
+						case STACKLET_NOT_NEEDED:
+							writer.stream << "var ";
+							break;
+						case NO_STACKLET:
+							break;
+					}
 					writer.stream << writer.namegen.getName(phi) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if(k==REGULAR)
 						writer.stream << "aSlot=";
@@ -2357,9 +2416,18 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			}
 			else
 			{
-				if(needsStacklet)
-					writer.stream << "a.";
+				switch(stackletStatus)
+				{
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						writer.stream << "var ";
+						break;
+					case NO_STACKLET:
+						break;
+				}
 				writer.stream << writer.namegen.getName(phi) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					writer.stream << "a." << writer.namegen.getName(phi) << '=';
 				writer.registerize.setEdgeContext(fromBB, toBB);
 				writer.compileOperand(incoming, LOWEST);
 			}
@@ -2483,9 +2551,9 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			if(argKind == SPLIT_REGULAR || argKind == SPLIT_BYTE_LAYOUT ||
 				(argKind == COMPLETE_OBJECT && PA.getPointerKind(cur->get()) == BYTE_LAYOUT))
 			{
-				compilePointerBase(*cur, true);
+				compilePointerBase(*cur, !isByteLayout(argKind));
 				stream << ',';
-				compilePointerOffset(*cur, LOWEST, true);
+				compilePointerOffset(*cur, LOWEST, !isByteLayout(argKind));
 			}
 			else if(argKind == RAW && !asmjs)
 			{
@@ -2694,7 +2762,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			{
 				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
 				stream << ';' << NewLine;
+				STACKLET_STATUS stackletStatus = needsStacklet(&I);
+				switch(stackletStatus)
+				{
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+					case NO_STACKLET:
+						break;
+				}
 				stream << namegen.getSecondaryName(&I) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getSecondaryName(&I) << '=';
 				stream << '0';
 			}
 			else 
@@ -3059,7 +3139,7 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 		bool byteLayoutFromHere = !isByteLayout(PA.getPointerKind(baseOperand));
 		if (byteLayoutFromHere)
 			compileCompleteObject(gep_inst);
-		else if (!TypeSupport::hasByteLayout(targetType) && forEscapingPointer)
+		else if (!TypeSupport::hasByteLayout(targetType) && TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true) && forEscapingPointer)
 		{
 			if(!TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
 			{
@@ -3073,11 +3153,11 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 			compileTypedArrayType(targetType);
 			stream << '(';
 			compilePointerBase( baseOperand );
-			stream << ".buffer,";
+			stream << ".buffer,(";
 			// If this GEP or a previous one passed through an array of immutables generate a regular from
 			// the start of the array and not from the pointed element
 			compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_STOP_AT_ARRAY );
-			stream << '+';
+			stream << ")+";
 			compilePointerBase( baseOperand );
 			stream << ".byteOffset>>0)";
 		}
@@ -3135,7 +3215,7 @@ void CheerpWriter::compileGEPOffset(const llvm::User* gep_inst, PARENT_PRIORITY 
 	bool byteLayout = isByteLayout(PA.getPointerKind(gep_inst));
 	if (byteLayout)
 	{
-		if (TypeSupport::hasByteLayout(targetType))
+		if (TypeSupport::hasByteLayout(targetType) || !TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
 			compilePointerOffset( gep_inst, HIGHEST );
 		else
 		{
@@ -3436,7 +3516,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			{
 				//If the source type is i1, attempt casting from Boolean
 				if(parentPrio >= TERNARY) stream << '(';
-				compileOperand(bi.getOperand(0), TERNARY);
+				compileOperand(bi.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << "?1:0";
 				if(parentPrio >= TERNARY) stream << ')';
 			}
@@ -3659,9 +3739,18 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			else
 			{
 				if(parentPrio > COMPARISON) stream << '(';
+				// It is much more efficient to invert the predicate if we need to check for unorderedness
+				CmpInst::Predicate p = ci.getPredicate();
+				if(CmpInst::isUnordered(ci.getPredicate()))
+				{
+					p = CmpInst::getInversePredicate(ci.getPredicate());
+					stream << "!(";
+				}
 				compileOperand(ci.getOperand(0), COMPARISON);
-				compilePredicate(ci.getPredicate());
+				compilePredicate(p);
 				compileOperand(ci.getOperand(1), COMPARISON);
+				if(CmpInst::isUnordered(ci.getPredicate()))
+					stream << ')';
 				if(parentPrio > COMPARISON) stream << ')';
 			}
 			return COMPILE_OK;
@@ -3771,6 +3860,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			const SelectInst& si = cast<SelectInst>(I);
 			if(si.getType()->isPointerTy() && (PA.getPointerKind(&si) == SPLIT_REGULAR || PA.getPointerKind(&si) == SPLIT_BYTE_LAYOUT))
 			{
+assert(!PA.getConstantOffsetForPointer(&si));
+assert(!isInlineable(I, PA));
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
 				compilePointerOffset(si.getOperand(1), TERNARY);
@@ -3856,7 +3947,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			if(k != COMPLETE_OBJECT)
 			{
 				stream << ';' << NewLine;
+				STACKLET_STATUS stackletStatus = needsStacklet(&I);
+				switch(stackletStatus)
+				{
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+					case NO_STACKLET:
+						break;
+				}
 				stream << namegen.getSecondaryName(&I) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getSecondaryName(&I) << '=';
 				stream << "oSlot";
 			}
 			return COMPILE_OK;
@@ -3980,6 +4083,34 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				}
 				stream << namegen.getName(calledFunc);
 			}
+			else if(const InlineAsm* a = dyn_cast<InlineAsm>(ci.getCalledValue()))
+			{
+				// Replace the placeholders in the string with the actual operands
+				StringRef code = a->getAsmString();
+				if(!a->getConstraintString().empty())
+				{
+					for(uint32_t i=0;i<code.size();i++)
+					{
+						if(code[i] == '$')
+						{
+							i++;
+							if(code[i]=='$')
+								stream << '$';
+							else
+							{
+								const char* curPtr = code.data()+i;
+								char* endPtr = NULL;
+								int opIndex = strtol(curPtr, &endPtr, 10);
+								i += (endPtr - curPtr - 1);
+								compileOperand(I.getOperand(opIndex));
+							}
+						}
+						else
+							stream << code[i];
+					}
+				}
+				else
+					stream << code;
 			else if (asmjs)
 			{
 				//Indirect call, asm.js mode
@@ -4041,7 +4172,20 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						{
 							assert(!isInlineable(ci, PA));
 							stream << ';' << NewLine;
-							stream << namegen.getSecondaryName(&ci) << "=oSlot";
+							STACKLET_STATUS stackletStatus = needsStacklet(&I);
+							switch(stackletStatus)
+							{
+								case STACKLET_NEEDED:
+								case STACKLET_NOT_NEEDED:
+									stream << "var ";
+									break;
+								case NO_STACKLET:
+									break;
+							}
+							stream << namegen.getSecondaryName(&I) << '=';
+							if(stackletStatus == STACKLET_NEEDED)
+								stream << "a." << namegen.getSecondaryName(&I) << '=';
+							stream << "oSlot";
 						}
 						break;
 				}
@@ -4227,7 +4371,25 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "[3+";
 					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]<<24)";
-//					assert(PA.getPointerKind(&li) == REGULAR);
+					if(!pointedType->getPointerElementType()->isFunctionTy() && !I.use_empty())
+					{
+						assert(PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&li) == SPLIT_REGULAR);
+						stream << ';' << NewLine;
+						STACKLET_STATUS stackletStatus = needsStacklet(&I);
+						switch(stackletStatus)
+						{
+							case STACKLET_NEEDED:
+							case STACKLET_NOT_NEEDED:
+								stream << "var ";
+								break;
+							case NO_STACKLET:
+								break;
+						}
+						stream << namegen.getSecondaryName(&I) << '=';
+						if(stackletStatus == STACKLET_NEEDED)
+							stream << "a." << namegen.getSecondaryName(&I) << '=';
+						stream << "oSlot";
+					}
 					return COMPILE_OK;
 				}
 				compilePointerOffset(ptrOp, LOWEST);
@@ -4253,9 +4415,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					assert(!isInlineable(li, PA));
 					stream <<'o';
 					stream << ';' << NewLine;
-					if(I.getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
-						stream << "a.";
+					STACKLET_STATUS stackletStatus = needsStacklet(&li);
+					switch(stackletStatus)
+					{
+						case STACKLET_NEEDED:
+						case STACKLET_NOT_NEEDED:
+							stream << "var ";
+							break;
+						case NO_STACKLET:
+							break;
+					}
 					stream << namegen.getName(&li) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.Name(&li) << '=';
 					compileCompleteObject(ptrOp);
 				}
 			}
@@ -4313,7 +4485,16 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 		if(sourceMapGenerator && !debugLoc.isUnknown())
 			sourceMapGenerator->setDebugLoc(I->getDebugLoc());
 		if(needsStacklet && isa<CallInst>(I))
-			stream << "a.pc=" << currentPC++ << ';';
+		{
+			if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I)->getCalledValue()))
+			{
+				// The alignStack flag is abused to know if the call may block execution
+				if(ia->isAlignStack())
+					stream << "a.pc=" << currentPC++ << ';';
+			}
+			else
+				stream << "a.pc=" << currentPC++ << ';';
+		}
 		if(!I->use_empty())
 		{
 			if(I->getType()->isPointerTy() && I->getOpcode() != Instruction::Call && PA.getPointerKind(I) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(I))
@@ -4321,12 +4502,35 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 				if(needsStacklet)
 					stream << "a.";
 				stream << namegen.getSecondaryName(I) << '=';
+				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
+				switch(stackletStatus)
+				{
+					case NO_STACKLET:
+						break;
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+				}
+				stream << namegen.getSecondaryName(I) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getSecondaryName(I) << '=';
 			}
 			else if(!I->getType()->isVoidTy())
 			{
-				if(needsStacklet)
-					stream << "a.";
+				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
+				switch(stackletStatus)
+				{
+					case NO_STACKLET:
+						break;
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+				}
 				stream << namegen.getName(I) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getName(I) << '=';
 			}
 		}
 		if(I->isTerminator())
@@ -4493,7 +4697,7 @@ void CheerpRenderInterface::renderElseBlockBegin()
 
 void CheerpRenderInterface::renderBlockEnd()
 {
-	writer->stream << '}' << NewLine;
+	writer->stream << '}';
 }
 
 void CheerpRenderInterface::renderBlockPrologue(const BasicBlock* bbTo, const BasicBlock* bbFrom)
@@ -4551,7 +4755,7 @@ void CheerpRenderInterface::renderContinue(int labelId)
 void CheerpRenderInterface::renderLabel(int labelId)
 {
 	if(needsStacklet)
-		writer->stream << "a.";
+		writer->stream << "var ";
 	writer->stream << "label=" << labelId << "|0;" << NewLine;
 }
 
@@ -4564,45 +4768,83 @@ void CheerpRenderInterface::renderIfOnLabel(int labelId, bool first)
 	else
 	{
 		writer->stream << "if(";
-		if(needsStacklet)
-			writer->stream << "a.";
 		writer->stream << "label===" << labelId << "){" << NewLine;
 	}
 }
 
-void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet)
+void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg)
 {
 	stream << name;
 	if(needsStacklet)
 		stream << ':';
 	else
 		stream << '=';
-	if(kind == Registerize::INTEGER)
-		stream << '0';
-	else if(kind == Registerize::DOUBLE)
+	if(isArg)
 	{
-		// NOTE: V8 requires the `.` to identify it as a double in asm.js
-		stream << "-0.";
+		if(kind == Registerize::INTEGER)
+			stream << name << ">>0";
+		else if(kind == Registerize::DOUBLE || kind == Registerize::FLOAT)
+			stream << '+' << name;
+		else
+			stream << name;
 	}
-	else if(kind == Registerize::FLOAT)
-		stream << namegen.getBuiltinName(NameGenerator::Builtin::FROUND) << "(0.)";
 	else
-		stream << "null";
+	{
+		if(kind == Registerize::INTEGER)
+			stream << '0';
+		else if(kind == Registerize::DOUBLE)
+		{
+			// NOTE: V8 requires the `.` to identify it as a double in asm.js
+			stream << "-0.";
+		}
+		else if(kind == Registerize::FLOAT)
+			stream << namegen.getBuiltinName(NameGenerator::Builtin::FROUND) << "(0.)";
+		else
+			stream << "null";
+	}
 }
 
 void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 {
 	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable);
+	if(needsStacklet)
+	{
+		// If the function has no point that can ever need recovery we can bailout immediately
+		bool hasRecoveryPoint = false;
+		for(const BasicBlock& BB: F)
+		{
+			for(const Instruction& I: BB)
+			{
+				if(!isa<CallInst>(I))
+					continue;
+				// This is a recover point unless it is an inline asm without the align stack flag
+				if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue()))
+				{
+					if(!ia->isAlignStack())
+						continue;
+				}
+				hasRecoveryPoint = true;
+				break;
+			}
+			if(hasRecoveryPoint)
+				break;
+		}
+		if(!hasRecoveryPoint)
+			return;
+	}
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
+	if(needsStacklet)
+	{
+		stream << "var a={p:";
+		stream << "p,pc:0,f:" << namegen.getName(&F);
+		firstVar = false;
+	}
 	auto CompileStartVar = [&]()
 	{
 		if(firstVar)
 		{
-			if(needsStacklet)
-				stream << "var a={p:p,pc:0,f:" << namegen.getName(&F) << ',';
-			else
-				stream << "var ";
+			stream << "var ";
 			firstVar = false;
 		}
 		else
@@ -4638,19 +4880,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 		if(regsInfo[regId].needsSecondaryName)
 		{
 			stream << ',';
-			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet);
-		}
-	}
-	// In the stacklet case we need to also save arguments and the function itself
-	if(needsStacklet)
-	{
-		const Function::const_arg_iterator A=F.arg_begin();
-		const Function::const_arg_iterator AE=F.arg_end();
-		for(Function::const_arg_iterator curArg=A;curArg!=AE;++curArg)
-		{
-			stream << ',' << namegen.getName(curArg) << ':' << namegen.getName(curArg);
-			if(curArg->getType()->isPointerTy() && (PA.getPointerKind(curArg) == SPLIT_REGULAR || PA.getPointerKind(curArg) == SPLIT_BYTE_LAYOUT))
-				stream << ',' << namegen.getSecondaryName(curArg) << ':' << namegen.getSecondaryName(curArg);
+			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg);
 		}
 	}
 	CompileEndVar();

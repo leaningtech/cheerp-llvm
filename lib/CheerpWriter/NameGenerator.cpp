@@ -16,6 +16,7 @@
 #include "llvm/IR/Function.h"
 #include <functional>
 #include <set>
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -232,7 +233,7 @@ void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAna
 		const BasicBlock* toBB;
 		NameGenerator& namegen;
 		useLocalVec& thisFunctionLocals;
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 			uint32_t registerId = namegen.registerize.getRegisterIdForEdge(incoming, fromBB, toBB);
 			assert(registerId < thisFunctionLocals.size());
@@ -547,18 +548,29 @@ void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnaly
 		for ( auto arg_it = f.arg_begin(); arg_it != f.arg_end(); ++arg_it )
 		{
 			bool needsTwoNames = needsSecondaryName(arg_it, PA);
-			if ( arg_it->hasName() )
+			uint32_t registerId = registerize.getRegisterId(arg_it);
+			// If the register already has a name, use it
+			// Otherwise assign one as good as possible and assign it to the register as well
+			auto regNameIt = regmap.find(registerId);
+			StringRef primaryName;
+			if(regNameIt != regmap.end())
 			{
-				namemap.emplace( arg_it, filterLLVMName(arg_it->getName(), LOCAL) );
-				if(needsTwoNames)
-					secondaryNamemap.emplace( arg_it, filterLLVMName(arg_it->getName(), LOCAL_SECONDARY) );
+				primaryName = namemap.emplace( arg_it, regNameIt->second ).first->second;
+			}
+			else if ( arg_it->hasName() )
+			{
+				auto& name = namemap.emplace( arg_it, filterLLVMName(arg_it->getName(), LOCAL) ).first->second;
+				regmap.emplace( registerId, name );
+				primaryName = name;
 			}
 			else
 			{
-				namemap.emplace( arg_it, StringRef( "Larg" + std::to_string(arg_it->getArgNo()) ) );
-				if(needsTwoNames)
-					secondaryNamemap.emplace( arg_it, StringRef( "Marg" + std::to_string(arg_it->getArgNo()) ) );
+				auto& name = namemap.emplace( arg_it, StringRef( "Larg" + std::to_string(registerId) ) ).first->second;
+				regmap.emplace( registerId, name );
+				primaryName = name;
 			}
+			if(needsTwoNames)
+				secondaryNamemap.emplace( arg_it, StringRef((primaryName+"o").str()));
 		}
 	}
 
