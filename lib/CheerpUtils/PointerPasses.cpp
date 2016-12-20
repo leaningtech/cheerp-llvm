@@ -476,6 +476,89 @@ FunctionPass *createPointerArithmeticToArrayIndexingPass() { return new PointerA
 void PointerToImmutablePHIRemoval::hoistBlock(BasicBlock* targetBlock)
 {
 	std::unordered_set<BasicBlock*> predBlocks(pred_begin(targetBlock), pred_end(targetBlock));;
+	std::map<llvm::Instruction*, llvm::SmallVector<llvm::PHINode*, 4>> newPHIMap;
+	
+	for(Instruction& I: *targetBlock)
+	{
+		// If the instruction is used in another block we need to create a PHI for it in every successor
+		llvm::SmallVector<Instruction*, 4> outOfBlockUsers;
+		for(Use& U: I.uses())
+		{
+			Instruction* user = cast<Instruction>(U.getUser());
+			if(user->getParent() == targetBlock)
+				continue;
+			outOfBlockUsers.push_back(user);
+		}
+		for(Instruction* user: outOfBlockUsers)
+		{
+llvm::errs() << "OUTOFBLOCK " << *user << "\n";
+			// Figure out the right block in which to insert this PHI
+			BasicBlock* bestDominator = nullptr;
+			TerminatorInst* targetTerm = targetBlock->getTerminator();
+			for(uint32_t j = 0; j < targetTerm->getNumSuccessors(); j++)
+			{
+				BasicBlock* succ = targetTerm->getSuccessor(j);
+				if(succ == user->getParent())
+				{
+					bestDominator = succ;
+					break;
+				}
+/*	succ->getParent()->dump();
+llvm::errs() << "SUCC " << *succ << "\n";
+llvm::errs() << "PARENT " << *user->getParent() << "\n";
+				if(DT->dominates(succ, user->getParent()))
+				{
+llvm::errs() << "DOMINATED FROM " << *succ << "\n";
+					if(!bestDominator || DT->dominates(succ, bestDominator))
+						bestDominator = succ;
+				}*/
+			}
+			if(PHINode* phi = dyn_cast<PHINode>(user))
+			{
+llvm::errs() << "PHI " << *phi << " NUMOP " << phi->getNumOperands() << "\n";
+				for(uint32_t i=0;i<phi->getNumOperands();i++)
+				{
+					Value* op = phi->getOperand(i);
+					if(op != &I)
+						continue;
+					BasicBlock* incomingBlock = phi->getIncomingBlock(i);
+					llvm::errs() << "OP " << *op << "\n";
+					llvm::errs() << "BLOCK " << *incomingBlock << "\n";
+					bool isSuccessor = incomingBlock == targetBlock;
+					if(!isSuccessor)
+					{
+						bestDominator = nullptr;
+					}
+				}
+			}
+			if(!bestDominator)
+			{
+			llvm::errs() << "BAILOUT\n";	
+				for(auto& it1: newPHIMap)
+				{
+					for(auto it2: it1.second)
+					{
+						it2->replaceAllUsesWith(it1.first);
+						if(it2->getParent())
+							it2->eraseFromParent();
+						else
+							delete it2;
+					}
+				}
+				return;
+			}
+			// If the user is already a PHI use it again
+			if(!isa<PHINode>(user))
+			{
+				llvm::errs() << "NEW PHI FOR " << I << "\n";
+				llvm::PHINode* newPHI  = PHINode::Create(I.getType(), predBlocks.size(), "newphiforphiremoval");
+				newPHIMap[&I].push_back(newPHI);
+				assert(bestDominator);
+				newPHI->insertBefore(bestDominator->begin());
+				user->replaceUsesOfWith(&I, newPHI);
+			}
+		}
+	}
 	for(BasicBlock* curBlock: predBlocks)
 	{
 		ValueToValueMapTy valueMap;
@@ -490,8 +573,18 @@ void PointerToImmutablePHIRemoval::hoistBlock(BasicBlock* targetBlock)
 				// Override the map
 				valueMap[phi] = phi->getIncomingValueForBlock(curBlock);
 				mappedI->eraseFromParent();
-				continue;
 			}
+			if(newPHIMap.count(&I))
+			{
+				for(llvm::PHINode* newPHI: newPHIMap[&I])
+				{
+					assert(valueMap.count(&I));
+					newPHI->addIncoming(valueMap[&I], newBlock);
+					llvm::errs() << "ADD INCOMING TO " << *newPHI << "\n";
+				}
+			}
+			if(phi)
+				continue;
 			for(uint32_t i=0;i<I.getNumOperands();i++)
 			{
 				Value* oldOp = mappedI->getOperand(i);
@@ -506,8 +599,325 @@ void PointerToImmutablePHIRemoval::hoistBlock(BasicBlock* targetBlock)
 			if (curTerm->getSuccessor(j) == targetBlock)
 				curTerm->setSuccessor(j, newBlock);
 		}
+		TerminatorInst* targetTerm = targetBlock->getTerminator();
+		for(uint32_t j = 0; j < targetTerm->getNumSuccessors(); j++)
+		{
+			BasicBlock* succ = targetTerm->getSuccessor(j);
+			for(Instruction& I: *succ)
+			{
+				// Iterate over PHIs and fix them
+				PHINode* phi = dyn_cast<PHINode>(&I);
+				if(!phi)
+					break;
+				// PHIs without targetBlock have been inserted above
+				if(phi->getBasicBlockIndex(targetBlock)<0)
+					continue;
+				llvm::Value* oldIncoming = phi->getIncomingValueForBlock(targetBlock);
+				if(Instruction* oldIncomingInst = dyn_cast<Instruction>(oldIncoming))
+				{
+					if(oldIncomingInst->getParent() != targetBlock)
+						continue;
+llvm::errs() << " PHI " << *phi << "\n";
+llvm::errs() << "INST " << *oldIncomingInst << "\n";
+					assert(valueMap.count(oldIncomingInst));
+					oldIncoming = valueMap[oldIncomingInst];
+				}
+				assert(oldIncoming);
+				phi->addIncoming(oldIncoming, newBlock);
+			}
+		}
+	}
+	TerminatorInst* targetTerm = targetBlock->getTerminator();
+	for(uint32_t j = 0; j < targetTerm->getNumSuccessors(); j++)
+	{
+		BasicBlock* succ = targetTerm->getSuccessor(j);
+		for(Instruction& I: *succ)
+		{
+			// Iterate over PHIs and fix them
+			PHINode* phi = dyn_cast<PHINode>(&I);
+			if(!phi)
+				break;
+			// PHIs without targetBlock have been inserted above
+			if(phi->getBasicBlockIndex(targetBlock)<0)
+				continue;
+			phi->removeIncomingValue(targetBlock);
+		}
+	}
+	for(uint32_t j = 0; j < targetTerm->getNumSuccessors(); j++)
+	{
+		BasicBlock* succ = targetTerm->getSuccessor(j);
+	/*	for(auto& it: newPHIMap)
+		{
+			PHINode* newPHI = cast<PHINode>(it.second->clone());
+			newPHI->insertBefore(succ->begin());
+		}*/
+		llvm::errs() << "FIXED BLOCK " << *succ << "\n";
+	}
+	for(Instruction& I: *targetBlock)
+	{
+		for(Use& U: I.uses())
+		{
+			Instruction* user = cast<Instruction>(U.getUser());
+			if(user->getParent() == targetBlock)
+				continue;
+			llvm::errs() << "BAD USE " << *user <<  " FOR " << I << "\n";
+		}
 	}
 	targetBlock->eraseFromParent();
+}
+
+struct SwitchPHIInst
+{
+	llvm::Instruction* inst;
+	std::map<Instruction*, PHINode*> operandsMap;
+};
+
+struct SwitchPHIData
+{
+	std::map<llvm::Instruction*, uint32_t> instMap;
+	std::vector<SwitchPHIInst> instData;
+	std::vector<PHINode*> phis;
+};
+
+bool PointerToImmutablePHIRemoval::mayConvertPHIToSwitch(SwitchPHIData& data, PHINode* phi, uint32_t depth)
+{
+llvm::errs() << "CONVERT " << *phi << "\n";
+	if(data.instMap.count(phi))
+	{
+llvm::errs() << "LOOP " << *phi << "\n";
+		return data.instMap[phi] != 0;
+	}
+	if(depth > 1)
+{
+llvm::errs() << "DEPTH\n";
+		return false;
+}
+	data.instMap.insert(std::make_pair(phi, 0));
+	uint32_t mapSize = data.instMap.size();
+	data.instData.push_back(SwitchPHIInst{phi});
+	// Check if the incoming values are supported
+	for(Value* op: phi->operands())
+	{
+		// Check that all ops do not have side effects (calls cannot be delayed)
+		Instruction* opI = dyn_cast<Instruction>(op);
+		// Constants and arguments are always ok
+		if(!opI)
+			continue;
+		// GEP is ok
+		if(opI->getOpcode() == Instruction::GetElementPtr && opI->getNumOperands()>2)
+			continue;
+		// Alloca is ok if it's in the entry block
+		if(opI->getOpcode() == Instruction::Alloca && opI->getParent() == &phi->getParent()->getParent()->getEntryBlock())
+			continue;
+		if(opI->getOpcode() == Instruction::PHI && mayConvertPHIToSwitch(data, cast<PHINode>(opI), depth+1))
+			continue;
+llvm::errs() << "RETURN FALSE ON " << *op << "\n";
+		return false;
+	}
+	// Mark this PHI itself as being convertable
+	data.instMap[phi] = mapSize;
+	data.phis.push_back(phi);
+	// If there is any PHI user make sure that is also convertable
+	for(User* U: phi->users())
+	{
+		if(!isa<LoadInst>(U) && !isa<StoreInst>(U) && !isa<PHINode>(U))
+{
+llvm::errs() << "RETURN1 FALSE ON " << *U << "\n";
+			return false;
+}
+		PHINode* userPhi = dyn_cast<PHINode>(U);
+		if(!userPhi)
+			continue;
+		if(!mayConvertPHIToSwitch(data, userPhi, depth+1))
+{
+llvm::errs() << "RETURN1 FALSE ON " << *U << "\n";
+			return false;
+}
+	}
+	// Assign an index to every incoming value, but PHIs
+	for(Value* op: phi->operands())
+	{
+		Instruction* opI = dyn_cast<Instruction>(op);
+		// Constants and arguments are always ok
+		if(!opI)
+			continue;
+		if(opI->getOpcode() == Instruction::PHI)
+		{
+			if(!data.instMap.count(opI))
+{
+llvm::errs() << "RETURN3 FALSE ON " << *opI << "\n";
+				return false;
+}
+			continue;
+		}
+		if(data.instMap.count(opI))
+			continue;
+		data.instMap.insert(std::make_pair(opI, data.instData.size()+1));
+		llvm::errs() << data.instMap[opI] << "-1==" << data.instData.size() << "\n";
+		assert(data.instMap[opI]-1==data.instData.size());
+		data.instData.push_back(SwitchPHIInst{opI});
+	}
+	llvm::errs() << "CAN CONVERT " << *phi << "\n";
+	return true;
+}
+
+void PointerToImmutablePHIRemoval::convertPHIToSwitch(SwitchPHIData& data)
+{
+llvm::errs() << "ACTUALLY CONVERT\n";
+	DominatorTree* DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+	struct ReplacedPHIData
+	{
+		PHINode* indexPHI;
+		SmallVector<Instruction*, 4> operandsPHIs;
+	};
+	std::map<PHINode*, ReplacedPHIData> phiNodesMap;
+	for(PHINode* phi: data.phis)
+	{
+		std::map<Instruction*, PHINode*> localOperandsOverride;
+		// For each incoming value check if we need to build a PHI for the operands
+		SmallVector<BasicBlock*, 4> predBlocks(pred_begin(phi->getParent()), pred_end(phi->getParent()));;
+		// Build an int32 PHI that represent the chosen incoming value
+		llvm::PHINode* newPHIIndex = PHINode::Create(llvm::Type::getInt32Ty(phi->getContext()), predBlocks.size(), "newphiforphiindex", phi);
+		auto& newOperandsPHIs = phiNodesMap.insert(std::make_pair(phi, ReplacedPHIData{newPHIIndex})).first->second.operandsPHIs;
+		for(uint32_t i=0;i<phi->getNumOperands();i++)
+		{
+			Value* incoming = phi->getOperand(i);
+			BasicBlock* incomingBlock = phi->getIncomingBlock(i);
+			Instruction* incomingI = dyn_cast<Instruction>(incoming);
+			if(!incomingI)
+			{
+				newPHIIndex->addIncoming(UndefValue::get(newPHIIndex->getType()), incomingBlock);
+				continue;
+			}
+			// If the instruction dominates the block we can use it directly, without any additional PHIs
+			if(DT->dominates(incomingI, phi->getParent()))
+			{
+				newOperandsPHIs.push_back(incomingI);
+				assert(data.instMap.count(incomingI));
+				uint32_t incomingIndex = data.instMap[incomingI] - 1;
+				newPHIIndex->addIncoming(ConstantInt::get(newPHIIndex->getType(), incomingIndex), incomingBlock);
+				continue;
+			}
+			if(PHINode* incomingPHI = dyn_cast<PHINode>(incomingI))
+			{
+llvm::errs() << "INDIRECT PHI " << *incomingPHI << "\n";
+				// Propagate its index
+				assert(phiNodesMap.count(incomingPHI));
+				auto& replacePHIData = phiNodesMap[incomingPHI];
+				newPHIIndex->addIncoming(replacePHIData.indexPHI, incomingBlock);
+				// We need to add PHIs for the operands that the the values coming from this PHI may use
+				for(Instruction* operandToReplace: replacePHIData.operandsPHIs)
+				{
+					if(DT->dominates(operandToReplace, phi->getParent()))
+						continue;
+					llvm::PHINode* newPHI  = PHINode::Create(operandToReplace->getType(), predBlocks.size(), "newphiforindirectphi", phi);
+					BasicBlock* curBlock = phi->getIncomingBlock(i);
+					for(BasicBlock* predBlock: predBlocks)
+					{
+						llvm::Value* newIncoming = predBlock == curBlock ? (Value*)operandToReplace : (Value*)UndefValue::get(operandToReplace->getType());
+						newPHI->addIncoming(newIncoming, predBlock);
+					}
+					localOperandsOverride.insert(std::make_pair(operandToReplace, newPHI));
+				}
+				continue;
+			}
+			llvm::errs() << "NEED OP PHIS " << *incomingI << "\n";
+			assert(data.instMap.count(incomingI));
+			uint32_t incomingIndex = data.instMap[incomingI] - 1;
+			newPHIIndex->addIncoming(ConstantInt::get(newPHIIndex->getType(), incomingIndex), incomingBlock);
+			assert(incomingIndex < data.instData.size());
+			SwitchPHIInst& phiInst = data.instData[incomingIndex];
+			// We need to build a PHI for every operand of this operand
+			for(Value* op: incomingI->operands())
+			{
+				Instruction* opI = dyn_cast<Instruction>(op);
+				if(!opI)
+					continue;
+				llvm::PHINode* newPHI  = PHINode::Create(opI->getType(), predBlocks.size(), "newphiforphiremoval", phi);
+llvm::errs() << "ADDING PHI TO INDIRECT LIST " << *newPHI << "\n";
+				newOperandsPHIs.push_back(newPHI);
+				// This PHI is only used for this specific operand of the incoming value
+				BasicBlock* curBlock = phi->getIncomingBlock(i);
+				for(BasicBlock* predBlock: predBlocks)
+				{
+					llvm::Value* newIncoming = predBlock == curBlock ? (Value*)opI : (Value*)UndefValue::get(opI->getType());
+					newPHI->addIncoming(newIncoming, predBlock);
+				}
+				phiInst.operandsMap.insert(std::make_pair(opI,newPHI));
+			}
+		}
+		SmallVector<Instruction*, 4> toDelete;
+		for(User* U: phi->users())
+		{
+			if(isa<PHINode>(U))
+				continue;
+			llvm::errs() << "CONVERT USER " << *U << "\n";
+			Instruction* I = cast<Instruction>(U);
+			// We need to make a switch for the various cases, start by splitting the block
+			BasicBlock* parentBlock = I->getParent();
+			BasicBlock* tailBlock = parentBlock->splitBasicBlock(I, "phiremovalswitchtail");
+			PHINode* userPHI = nullptr;
+			if(!I->getType()->isVoidTy() && !I->use_empty())
+				userPHI = PHINode::Create(I->getType(), 3, "userphiforremoval", I);
+			// Build all the necessary blocks
+			// TODO: We should only use the indexes which can come from this PHI!
+			SmallVector<BasicBlock*, 4> switchBlocks;
+			// Build a new switch case
+			SwitchInst* sw = SwitchInst::Create(newPHIIndex, tailBlock, 0);
+			for(uint32_t i=0;i<data.instData.size();i++)
+			{
+				SwitchPHIInst& phiInst = data.instData[i];
+				if(isa<PHINode>(phiInst.inst))
+					continue;
+llvm::errs() << "NEED A BLOCK FOR " << *phiInst.inst << "\n";
+				BasicBlock* newBlock = BasicBlock::Create(parentBlock->getContext(), "phiremovalswitch", parentBlock->getParent());
+				// Create a new instruction like the incoming one with replaced operands
+				Instruction* newIncomingInst = nullptr;
+				if(phiInst.operandsMap.empty())
+					newIncomingInst = phiInst.inst;
+				else
+				{
+					newIncomingInst = phiInst.inst->clone();
+					newBlock->getInstList().push_back(newIncomingInst);
+					for(auto& it: phiInst.operandsMap)
+					{
+						if(localOperandsOverride.count(it.second))
+							newIncomingInst->replaceUsesOfWith(it.first,localOperandsOverride[it.second]);
+						else
+							newIncomingInst->replaceUsesOfWith(it.first,it.second);
+					}
+				}
+				// Copy the user and replace the operand
+				Instruction* newUser = I->clone();
+				newBlock->getInstList().push_back(newUser);
+				newUser->replaceUsesOfWith(phi, newIncomingInst);
+				BranchInst::Create(tailBlock, newBlock);
+				sw->addCase(cast<ConstantInt>(ConstantInt::get(newPHIIndex->getType(), i)), newBlock);
+				if(userPHI)
+					userPHI->addIncoming(newUser, newBlock);
+			}
+			// TODO: Replace default dest
+			if(userPHI)
+			{
+				userPHI->addIncoming(UndefValue::get(userPHI->getType()), parentBlock);
+				I->replaceAllUsesWith(userPHI);
+			}
+			TerminatorInst* oldTerminator = parentBlock->getTerminator();
+			oldTerminator->eraseFromParent();
+			parentBlock->getInstList().push_back(sw);
+			toDelete.push_back(I);
+		}
+		for(Instruction* I: toDelete)
+		{
+			I->eraseFromParent();
+		}
+	}
+	for(PHINode* phi: data.phis)
+	{
+		phi->replaceAllUsesWith(UndefValue::get(phi->getType()));
+		phi->eraseFromParent();
+llvm::errs() << "RESIDUAL USES FOR " << *phi << " " << phi->getNumUses() << "\n";
+	}
 }
 
 bool PointerToImmutablePHIRemoval::runOnFunction(Function& F)
@@ -525,14 +935,26 @@ bool PointerToImmutablePHIRemoval::runOnFunction(Function& F)
 			if (! phi )
 				continue;
 			BasicBlock* parentBlock = phi->getParent();
-			if ( parentBlock->getTerminator()->getNumSuccessors() != 0 )
-				continue;
-			if ( parentBlock->size() > 5 )
-				continue;
-			hoistBlock(parentBlock);
+			if ( parentBlock->getTerminator()->getNumSuccessors() == 0 &&  parentBlock->size() <= 5)
+				hoistBlock(parentBlock);
+			else
+			{
+				SwitchPHIData data;
+				bool mayConvert = mayConvertPHIToSwitch(data, phi, 0);
+				if(mayConvert)
+{
+llvm::errs() << "BEFORE CONVERT " << F << "\n";
+					convertPHIToSwitch(data);
+}
+			}
 			Changed = true;
 			break;
 		}
+	}
+	if(Changed)
+	{
+llvm::errs() << "AFTER HOISTING\n";
+		F.dump();
 	}
 	return Changed;
 }
@@ -547,6 +969,7 @@ char PointerToImmutablePHIRemoval::ID = 0;
 void PointerToImmutablePHIRemoval::getAnalysisUsage(AnalysisUsage & AU) const
 {
 	AU.addPreserved<cheerp::GlobalDepsAnalyzer>();
+	AU.addRequired<DominatorTreeWrapperPass>();
 	llvm::Pass::getAnalysisUsage(AU);
 }
 
@@ -751,4 +1174,9 @@ INITIALIZE_PASS_END(DelayAllocas, "DelayAllocas", "Moves allocas as close as pos
 INITIALIZE_PASS_BEGIN(FreeAndDeleteRemoval, "FreeAndDeleteRemoval", "Remove free and delete calls of genericjs objects",
 			false, false)
 INITIALIZE_PASS_END(FreeAndDeleteRemoval, "FreeAndDeleteRemoval", "Remove free and delete calls of genericjs objects",
+			false, false)
+
+INITIALIZE_PASS_BEGIN(PointerToImmutablePHIRemoval, "PointerToImmutablePHIRemoval", "Moves allocas as close as possible to the actual users",
+			false, false)
+INITIALIZE_PASS_END(PointerToImmutablePHIRemoval, "PointerToImmutablePHIRemoval", "Moves allocas as close as possible to the actual users",
 			false, false)
