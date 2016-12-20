@@ -323,7 +323,7 @@ private:
 		{
 			stream << "nullObj";
 		}
-		else if (PA.getConstantOffsetForPointer(p) || valueKind == SPLIT_REGULAR)
+		else if (PA.getConstantOffsetForPointer(p) || (valueKind == SPLIT_REGULAR || valueKind == SPLIT_BYTE_LAYOUT))
 		{
 			stream << "{d:";
 			compilePointerBase(p, !isByteLayout(kind));
@@ -450,7 +450,7 @@ private:
 	void addExportedFreeFunctions(std::vector<llvm::StringRef>& namesList, const llvm::NamedMDNode* namedNode);
 	static bool isByteLayout(POINTER_KIND k)
 	{
-		return k==BYTE_LAYOUT;
+		return k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT;
 	}
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
