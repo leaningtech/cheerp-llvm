@@ -301,6 +301,7 @@ void initializeAllocaArraysPass(PassRegistry&);
 void initializeReplaceNopCastsAndByteSwapsPass(PassRegistry&);
 void initializeTypeOptimizerPass(PassRegistry&);
 void initializeDelayAllocasPass(PassRegistry&);
+void initializePointerToImmutablePHIRemovalPass(PassRegistry&);
 void initializePreExecutePass(PassRegistry&);
 void initializeExpandStructRegsPass(PassRegistry&);
 void initializeFreeAndDeleteRemovalPass(PassRegistry&);
