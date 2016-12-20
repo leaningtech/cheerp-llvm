@@ -139,7 +139,8 @@ public:
 	}
 	PointerKindWrapper(POINTER_KIND k, const llvm::Value* regularCause = NULL):kind(k),regularCause(regularCause)
 	{
-		assert((k!=REGULAR && k!=SPLIT_REGULAR) || regularCause);
+		assert(k!=REGULAR);
+		assert(k!=SPLIT_REGULAR || regularCause);
 	}
 	PointerKindWrapper(const IndirectPointerKindConstraint* constraint):kind(INDIRECT),regularCause(NULL)
 	{
