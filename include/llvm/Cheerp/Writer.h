@@ -398,7 +398,7 @@ private:
 	void compileSignedInteger(const llvm::Value* v, bool forComparison, PARENT_PRIORITY parentPrio);
 	void compileUnsignedInteger(const llvm::Value* v, bool forAsmJSComparison, PARENT_PRIORITY parentPrio);
 
-	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet);
+	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg);
 	void compileMethodLocals(const llvm::Function& F, bool needsLabel);
 	void compileMethod(const llvm::Function& F);
 	/**
@@ -475,6 +475,9 @@ private:
 	{
 		return k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT;
 	}
+
+	enum STACKLET_STATUS { NO_STACKLET = 0, STACKLET_NEEDED, STACKLET_NOT_NEEDED };
+	STACKLET_STATUS needsStacklet(const llvm::Value* v) const;
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
 	{
