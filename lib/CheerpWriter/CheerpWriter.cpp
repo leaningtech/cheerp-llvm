@@ -2416,7 +2416,6 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			// We can avoid assignment from the same register if no pointer kind conversion is required
 			if(!needsPointerKindConversion(phi, incoming, writer.PA, writer.registerize))
 				return;
-			bool needsStacklet = phi->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
 			STACKLET_STATUS stackletStatus = writer.needsStacklet(phi);
 			Type* phiType=phi->getType();
 			if(phiType->isPointerTy())
@@ -4940,21 +4939,6 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
 	if(needsStacklet)
-	{
-		stream << "var a={p:";
-		stream << "p,pc:0,f:" << namegen.getName(&F);
-		firstVar = false;
-	}
-	auto CompileStartVar = [&]()
-	{
-		if(firstVar)
-		{
-			stream << "var ";
-			firstVar = false;
-		}
-		else
-			stream << ",";
-	};
 	auto CompileEndVar = [&]()
 	{
 		if(!firstVar)
@@ -4987,6 +4971,59 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 			stream << ',';
 			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg);
 		}
+	}
+	// Now we have all the needed locals in localsFound
+	// Declare are all used locals in the beginning
+	bool firstVar = true;
+	if(needsStacklet)
+	{
+		stream << "var a={p:";
+		stream << "p,pc:0,f:" << namegen.getName(&F);
+		firstVar = false;
+	}
+	auto CompileStartVar = [&]()
+	{
+		if(firstVar)
+		{
+			stream << "var ";
+			firstVar = false;
+		}
+		else
+			stream << ",";
+	};
+	auto CompileEndVar = [&]()
+	{
+		if(!firstVar)
+		{
+			if(needsStacklet)
+				stream << "};";
+			else
+				stream << ';';
+		}
+		stream << NewLine;
+	};
+	for(LocalState& l: localsFound)
+	{
+		if(l.state == NOT_DONE)
+			continue;
+		CompileStartVar();
+		assert(!l.name.empty());
+		compileMethodLocal(l.name, l.kind, needsStacklet, l.isArg);
+		if(l.state == SECONDARY_NAME_DONE)
+		{
+			assert(!l.secondaryName.empty());
+			compileMethodLocal(l.secondaryName, Registerize::INTEGER, needsStacklet, l.isArg);
+		}
+	}
+	if(needsLabel)
+	{
+		CompileStartVar();
+		stream << "label";
+		if(needsStacklet)
+			stream << ':';
+		else
+			stream << '=';
+		stream << '0';
 	}
 	CompileEndVar();
 }
