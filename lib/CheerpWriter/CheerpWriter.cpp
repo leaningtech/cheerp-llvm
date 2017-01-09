@@ -1741,8 +1741,42 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 					// This case also handles the first index
 					if (!skipUntilBytelayout && (offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT))
 					{
-						compileOperand( indices[i], MUL_DIV );
-						stream << '*' << targetData.getTypeAllocSize(curType->getSequentialElementType()) << '+';
+						uint32_t typeSize = targetData.getTypeAllocSize(curType->getSequentialElementType());
+						assert(typeSize>0);
+						if(typeSize == 1)
+							compileOperand( indices[i] );
+						else if((typeSize & (typeSize - 1)) == 0)
+						{
+							// Power of 2, using bitshift will return already an integer so we can save a cast
+							uint32_t shift = 0;
+							while(typeSize)
+							{
+								typeSize>>=1;
+								shift++;
+							}
+							shift--;
+							stream << '(';
+							compileOperand( indices[i], SHIFT );
+							stream << "<<" << shift << ')';
+						}
+						else
+						{
+							if(useMathImul)
+								stream << "Math.imul(";
+							else
+								stream << '(';
+							compileOperand( indices[i] useMathImul ? LOWEST : MUL_DIV);
+							if(useMathImul)
+								stream << ',';
+							else
+								stream << '*';
+							stream << typeSize;
+							if(useMathImul)
+								stream << ')';
+							else
+								stream << "|0)";
+						}
+						stream << '+';
 					}
 					curType = curType->getSequentialElementType();
 				}
