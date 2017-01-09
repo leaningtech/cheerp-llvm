@@ -3061,7 +3061,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					compilePointerBase(ptrOp);
 					stream << "[1+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8";
+					stream << "|0]=__tmp__>>8";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isIntegerTy(24))
@@ -3081,15 +3081,15 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					compilePointerBase(ptrOp);
 					stream << "[1+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8;" << NewLine;
+					stream << "|0]=__tmp__>>8;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[2+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>16;" << NewLine;
+					stream << "|0]=__tmp__>>16;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[3+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>24";
+					stream << "|0]=__tmp__>>24";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isFloatTy())
@@ -3106,15 +3106,15 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					compilePointerBase(ptrOp);
 					stream << "[1+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8;" << NewLine;
+					stream << "|0]=__tmp__>>8;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[2+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>16;" << NewLine;
+					stream << "|0]=__tmp__>>16;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[3+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>24";
+					stream << "|0]=__tmp__>>24";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isDoubleTy())
@@ -3131,32 +3131,32 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					compilePointerBase(ptrOp);
 					stream << "[1+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8;" << NewLine;
+					stream << "|0]=__tmp__>>8;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[2+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>16;" << NewLine;
+					stream << "|0]=__tmp__>>16;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[3+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>24;" << NewLine;
+					stream << "|0]=__tmp__>>24;" << NewLine;
 					stream << "var __tmp__=mSlot.getInt32(4,true);" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[4+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__;" << NewLine;
+					stream << "|0]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[5+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8;" << NewLine;
+					stream << "|0]=__tmp__>>8;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[6+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>16;" << NewLine;
+					stream << "|0]=__tmp__>>16;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[7+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>24";
+					stream << "|0]=__tmp__>>24";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isPointerTy())
@@ -3182,15 +3182,15 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					compilePointerBase(ptrOp);
 					stream << "[1+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>8;" << NewLine;
+					stream << "|0]=__tmp__>>8;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[2+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>16;" << NewLine;
+					stream << "|0]=__tmp__>>16;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[3+";
 					compilePointerOffset(ptrOp, ADD_SUB);
-					stream << "]=__tmp__>>24";
+					stream << "|0]=__tmp__>>24";
 					return COMPILE_OK;
 				}
 				compilePointerOffset(ptrOp, LOWEST);
