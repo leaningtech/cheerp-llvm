@@ -4972,7 +4972,45 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg);
 		}
 	}
+	for(auto& it: compiledTmpPHIs)
+	{
+		// Pretend the secondary name is a separate variable here
+		localsFound.emplace_back(LocalState());
+		localsFound.back().name = it.first;
+		localsFound.back().kind = it.second;
+		localsFound.back().isArg = false;
+		localsFound.back().state = NAME_DONE;
+	}
 	// Now we have all the needed locals in localsFound
+	if(needsStacklet)
+	{
+		// If the total number of locals is > 8 we need to create a special object to store the stacklet
+		uint32_t localsCount = 3; // p, pc, f
+		for(LocalState& l: localsFound)
+		{
+			if(l.state == NOT_DONE)
+				continue;
+			localsCount += l.state == SECONDARY_NAME_DONE ? 2 : 1;
+		}
+		if(localsCount>8)
+		{
+			// We need to use a function to create the object and avoid a V8 slowpath
+			// We will pass to the function the p parameter and all the recoverable arguments
+			stream << "var a=new createStacklet" << namegen.getName(&F) << "(p";
+			for(LocalState& l: localsFound)
+			{
+				if(l.state == NOT_DONE || !l.isArg)
+					continue;
+				stream << ',' << l.name;
+				if(l.state == SECONDARY_NAME_DONE)
+					stream << ',' << l.secondaryName;
+			}
+			stream << ");" << NewLine;
+			deferredStacklets.insert(std::make_pair(&F,std::move(localsFound)));
+			assert(localsFound.empty());
+			return;
+		}
+	}
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
 	if(needsStacklet)
@@ -5012,6 +5050,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 		if(l.state == SECONDARY_NAME_DONE)
 		{
 			assert(!l.secondaryName.empty());
+			stream << ',';
 			compileMethodLocal(l.secondaryName, Registerize::INTEGER, needsStacklet, l.isArg);
 		}
 	}
@@ -5824,6 +5863,39 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 
 	if ( globalDeps.needCreatePointerArray() )
 		compileArrayPointerType();
+
+	for ( auto& it: deferredStacklets )
+	{
+		stream << "function createStacklet" << namegen.getName(it.first) << "(p";
+		for(const LocalState& l: it.second)
+		{
+			if(l.state == NOT_DONE || !l.isArg)
+				continue;
+			stream << ',' << l.name;
+			if(l.state == SECONDARY_NAME_DONE)
+				stream << ',' << l.secondaryName;
+		}
+		stream << ")" << NewLine;
+		stream << '{' << NewLine;
+		stream << "this.p=p;" << NewLine;
+		stream << "this.pc=0;" << NewLine;
+		stream << "this.f=" << namegen.getName(it.first) << ';' << NewLine;
+		for(const LocalState& l: it.second)
+		{
+			if(l.state == NOT_DONE)
+				continue;
+			stream << "this.";
+			compileMethodLocal(l.name, l.kind, false, l.isArg);
+			stream << ';' << NewLine;
+			if(l.state == SECONDARY_NAME_DONE)
+			{
+				stream << "this.";
+				compileMethodLocal(l.secondaryName, Registerize::INTEGER, false, l.isArg);
+				stream << ';' << NewLine;
+			}
+		}
+		stream << '}' << NewLine;
+	}
 	
 	//Compile the closure creation helper
 	if ( globalDeps.needCreateClosure() )

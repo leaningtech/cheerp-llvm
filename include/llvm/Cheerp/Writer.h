@@ -176,6 +176,21 @@ private:
 	// Support for source maps
 	SourceMapGenerator* sourceMapGenerator;
 	std::map<llvm::StringRef, llvm::DISubprogram> functionToDebugInfoMap;
+
+	// Support for locals in deferred stacklets
+	enum LOCAL_STATE { NOT_DONE, NAME_DONE, SECONDARY_NAME_DONE };
+	struct LocalState
+	{
+		LocalState():state(NOT_DONE)
+		{
+		}
+		llvm::StringRef name;
+		llvm::StringRef secondaryName;
+		LOCAL_STATE state;
+		Registerize::REGISTER_KIND kind;
+		bool isArg;
+	};
+	std::map<const llvm::Function*, const std::vector<LocalState>> deferredStacklets;
 	const NewLineHandler NewLine;
 
 	// Flag to signal if we should take advantage of native JavaScript math functions
