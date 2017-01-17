@@ -199,7 +199,8 @@ class StructType : public CompositeType {
     SCDB_IsLiteral = 4,
     SCDB_IsSized = 8,
     SCDB_ByteLayout = 16,
-    SCDB_DirectBase = 32
+    SCDB_DirectBase = 32,
+    SCDB_AsmJS = 64
   };
 
   /// SymbolTableEntry - For a named struct that actually has a name, this is a
@@ -259,6 +260,11 @@ public:
   //// instead of objects on NBA
   bool hasByteLayout() const { return getSubclassData() & SCDB_ByteLayout; }
   void setByteLayout() { setSubclassData(getSubclassData() | SCDB_ByteLayout); }
+
+  /// hasAsmJS - Return true if this type should be used in the asm.js module
+  //// in Cheerp
+  bool hasAsmJS() const { return getSubclassData() & SCDB_AsmJS; }
+  void setAsmJS() { setSubclassData(getSubclassData() | SCDB_AsmJS); }
 
   bool hasDirectBase() const { return getSubclassData() & SCDB_DirectBase; }
   StructType* getDirectBase() const { return hasDirectBase()?cast<StructType>(ContainedTys[NumContainedTys-1]):NULL; }

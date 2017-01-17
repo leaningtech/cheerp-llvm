@@ -147,6 +147,7 @@ namespace lltok {
     kw_type,
     kw_opaque,
     kw_bytelayout,
+    kw_asmjs,
 
     kw_comdat,
 

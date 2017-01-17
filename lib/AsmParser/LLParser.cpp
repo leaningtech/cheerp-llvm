@@ -2001,6 +2001,9 @@ bool LLParser::ParseStructDefinition(SMLoc TypeLoc, StringRef Name,
   // Read if the type has byte layout
   bool hasByteLayout = EatIfPresent(lltok::kw_bytelayout);
 
+  // Read if the type is asmjs
+  bool hasAsmJS = EatIfPresent(lltok::kw_asmjs);
+
   // If the type starts with '<', then it is either a packed struct or a vector.
   bool isPacked = EatIfPresent(lltok::less);
 
@@ -2035,6 +2038,8 @@ bool LLParser::ParseStructDefinition(SMLoc TypeLoc, StringRef Name,
     DirectBaseTy ? cast<StructType>(DirectBaseTy) : NULL);
   if (hasByteLayout)
     STy->setByteLayout();
+  if (hasAsmJS)
+    STy->setAsmJS();
   ResultTy = STy;
   return false;
 }
