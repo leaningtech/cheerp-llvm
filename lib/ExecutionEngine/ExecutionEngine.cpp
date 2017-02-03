@@ -97,7 +97,7 @@ public:
     void *RawMemory = MemoryAllocator.Allocate(
       RoundUpToAlignment(sizeof(GVMemoryBlock),
                          TD.getPreferredAlignment(GV))
-      + GVSize,
+      + GVSize + 4,
       8);
     new(RawMemory) GVMemoryBlock(GV);
     return static_cast<char*>(RawMemory) + sizeof(GVMemoryBlock);
@@ -268,7 +268,7 @@ const GlobalValue *ExecutionEngine::getGlobalValueAtAddress(void *Addr) {
   // Check if the address is in the middle of the global
   Type *ElTy = I->second->getType()->getElementType();
   size_t GVSize = (size_t)getDataLayout()->getTypeAllocSize(ElTy);
-  if (uintptr_t(Addr) < (uintptr_t(I->first)+GVSize))
+  if (uintptr_t(Addr) <= (uintptr_t(I->first)+GVSize))
     return I->second;
   return 0;
 }
