@@ -93,7 +93,6 @@ TEST_F(ExecutionEngineTest, ReverseGlobalMapping) {
   Engine->updateGlobalMapping(G1, nullptr);
   EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem1))
     << "Removing one mapping doesn't affect a different one.";
-  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem2));
   Engine->updateGlobalMapping(G2, &Mem2);
   EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem1));
   EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem2))
