@@ -3999,14 +3999,24 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			const SelectInst& si = cast<SelectInst>(I);
 			if(si.getType()->isPointerTy() && (PA.getPointerKind(&si) == SPLIT_REGULAR || PA.getPointerKind(&si) == SPLIT_BYTE_LAYOUT))
 			{
-assert(!PA.getConstantOffsetForPointer(&si));
-assert(!isInlineable(I, PA));
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
 				compilePointerOffset(si.getOperand(1), TERNARY);
 				stream << ':';
 				compilePointerOffset(si.getOperand(2), TERNARY);
 				stream << ';' << NewLine;
+				STACKLET_STATUS stackletStatus = needsStacklet(&si);
+				switch(stackletStatus)
+				{
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+					case NO_STACKLET:
+						break;
+				}
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getName(&si) << '=';
 				stream << namegen.getName(&si) << '=';
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
