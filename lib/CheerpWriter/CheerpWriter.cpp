@@ -589,17 +589,15 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 
 void CheerpWriter::compileFree(const Value* obj)
 {
-	//TODO: Clean up class related data structures
-	stream << "if(";
-	compilePointerBase(obj);
-	stream << ".buffer==heap)__asm.";
-	Function* Free = module.getFunction("free");
-	if (Free)
-		stream << namegen.getName(Free) << '(';
-	else
-		stream << "__dummy(";
-	compilePointerOffset(obj, PARENT_PRIORITY::LOWEST);
-	stream << ')';
+	if(PA.getPointerKind(obj) == REGULAR || PA.getPointerKind(obj) == SPLIT_REGULAR)
+	{
+		stream << "_cheerpjFree(";
+		//TODO: Clean up class related data structures
+		compilePointerBase(obj);
+		stream << ',';
+		compilePointerOffset(obj, LOWEST);
+		stream << ')';
+	}
 }
 
 CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(ImmutableCallSite callV, const Function * func)
@@ -859,7 +857,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 		compileOperand(*it, LOWEST);
 		return COMPILE_OK;
 	}
-	else if(ident=="free" || ident=="_ZdlPv" || ident=="_ZdaPv" || intrinsicId==Intrinsic::cheerp_deallocate)
+	else if(/*ident=="free" || */ident=="_ZdlPv" || ident=="_ZdaPv" || intrinsicId==Intrinsic::cheerp_deallocate)
 	{
 		if (asmjs || TypeSupport::isAsmJSPointer((*it)->getType()))
 		{
