@@ -157,6 +157,8 @@ std::vector<StringRef> CheerpWriter::compileClassesExportedToJs()
 					stream << ",";
 				stream << 'a' << i;
 			}
+			if(f->hasFnAttribute(Attribute::Recoverable))
+				stream << ",p";
 			stream << "){" << NewLine << "return ";
 			compileOperand(f);
 			stream << '(';
@@ -172,6 +174,12 @@ std::vector<StringRef> CheerpWriter::compileClassesExportedToJs()
 				if(i!=0)
 					stream << ",";
 				stream << 'a' << i;
+			}
+			if(f->hasFnAttribute(Attribute::Recoverable))
+			{
+				if(f->arg_size())
+					stream << ",";
+				stream << "p";
 			}
 			stream << ");" << NewLine << "};" << NewLine;
 
