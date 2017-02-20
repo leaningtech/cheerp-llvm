@@ -142,7 +142,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
 					return nextInst->getOperand(0)==&I;
-				return isa<ReturnInst>(nextInst);
+				return false;//isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Invoke:
 			case Instruction::Ret:

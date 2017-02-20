@@ -3049,6 +3049,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				}
 				else if(pointedType->isIntegerTy(16))
 				{
+					//bool avoidTmp = isa<ConstantInt>(valOp) || (isa<Instruction>(valOp) && isInlineable(cast<Instruction>(valOp), PA));
 					stream << "var __tmp__=";
 					compileOperand(valOp);
 					stream << ";" << NewLine;
