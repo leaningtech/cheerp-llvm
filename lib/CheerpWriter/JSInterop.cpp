@@ -136,6 +136,8 @@ std::vector<StringRef> CheerpWriter::compileClassesExportedToJs()
 					stream << ",";
 				stream << 'a' << i;
 			}
+			if(f->hasFnAttribute(Attribute::Recoverable))
+				stream << ",p";
 			stream << "){" << NewLine << "return ";
 			compileOperand(f);
 			stream << '(';
@@ -145,6 +147,8 @@ std::vector<StringRef> CheerpWriter::compileClassesExportedToJs()
 				stream << "{d:this.d,o:0}";
 			for(uint32_t i=0;i<f->arg_size()-1;i++)
 				stream << ",a" << i;
+			if(f->hasFnAttribute(Attribute::Recoverable))
+				stream << ",p";
 			stream << ");" << NewLine << "};" << NewLine;
 
 			assert( globalDeps.isReachable(f) );
