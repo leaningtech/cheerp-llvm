@@ -632,18 +632,33 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 void CheerpWriter::compileFree(const Value* obj)
 {
 	// Only arrays of primitives can be backed by the linear heap
-	if(!TypeSupport::isTypedArrayType(obj->getType()->getPointerElementType(), /*forceTypedArray*/ true))
-		return;
-	stream << "if(";
-	compilePointerBase(obj);
-	stream << ".buffer==__heap)__asm.";
-	Function* Free = module.getFunction("free");
-	if (Free)
-		stream << namegen.getName(Free) << '(';
-	else
-		stream << "__dummy(";
-	compilePointerOffset(obj, PARENT_PRIORITY::LOWEST);
-	stream << ')';
+	bool needsLinearCheck = TypeSupport::isTypedArrayType(obj->getType()->getPointerElementType(), /*forceTypedArray*/ true));
+	if(needsLinearCheck)
+	{
+		stream << "if(";
+		compilePointerBase(obj);
+		stream << ".buffer==__heap){__asm.";
+		Function* Free = module.getFunction("free");
+		if (Free)
+			stream << namegen.getName(Free) << '(';
+		else
+			stream << "__dummy(";
+		compilePointerOffset(obj, PARENT_PRIORITY::LOWEST);
+		stream << ")}";
+	}
+	if(PA.getPointerKind(obj) == REGULAR || PA.getPointerKind(obj) == SPLIT_REGULAR)
+	{
+		if(needsLinearCheck)
+			stream << "else{";
+		stream << "_cheerpjFree(";
+		//TODO: Clean up class related data structures
+		compilePointerBase(obj);
+		stream << ',';
+		compilePointerOffset(obj, LOWEST);
+		stream << ')';
+		if(needsLinearCheck)
+			stream << "}";
+	}
 }
 
 void CheerpWriter::compileEscapedString(raw_ostream& stream, StringRef str, bool forJSON)

@@ -84,6 +84,13 @@ bool ReplaceNopCastsAndByteSwaps::processBasicBlock(BasicBlock& BB)
 				IL->LowerIntrinsicCall(II);
 				Changed = true;
 			}
+#if 0
+			else if(II->getIntrinsicID() == Intrinsic::cheerp_deallocate)
+			{
+				II->eraseFromParent();
+				Changed = true;
+			}
+#endif
 		}
 	}
 	
