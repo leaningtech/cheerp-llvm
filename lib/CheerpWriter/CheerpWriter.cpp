@@ -1478,7 +1478,7 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 
 	if(isBitCast(p) && (!isa<Instruction>(p) || isInlineable(*cast<Instruction>(p), PA) || forEscapingPointer))
 	{
-		compileBitCastBase(cast<User>(p), forEscapingPointer);
+		compileBitCastBase(cast<User>(p)->getOperand(0), p->getType(), forEscapingPointer);
 		return;
 	}
 
@@ -1649,7 +1649,7 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	}
 	else if(isBitCast(p) && (!isa<Instruction>(p) || isInlineable(*cast<Instruction>(p), PA) || forEscapingPointer))
 	{
-		compileBitCastOffset(cast<User>(p), parentPrio);
+		compileBitCastOffset(cast<User>(p)->getOperand(0), p->getType(), parentPrio);
 	}
 	else if (const ConstantInt* CI = PA.getConstantOffsetForPointer(p))
 	{
