@@ -456,6 +456,7 @@ private:
 		{
 		}
 		void addByte(uint8_t b) override;
+		void addRunTimeBytes(const llvm::Constant* C) override;
 	};
 	struct BinaryBytesWriter: public LinearMemoryHelper::ByteListener
 	{

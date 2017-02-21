@@ -1302,6 +1302,7 @@ Instruction *InstCombiner::visitCallSite(CallSite CS) {
   if (Function *CalleeF = dyn_cast<Function>(Callee))
     // If the call and callee calling conventions don't match, this call must
     // be unreachable, as the call is undefined.
+#if 0
     if (CalleeF->getCallingConv() != CS.getCallingConv() &&
         // Only do this for calls to a function with a body.  A prototype may
         // not actually end up matching the implementation's calling conv for a
@@ -1324,6 +1325,7 @@ Instruction *InstCombiner::visitCallSite(CallSite CS) {
                                     Constant::getNullValue(CalleeF->getType()));
       return nullptr;
     }
+#endif
 
   if (isa<ConstantPointerNull>(Callee) || isa<UndefValue>(Callee)) {
     // If CS does not return void then replaceAllUsesWith undef.

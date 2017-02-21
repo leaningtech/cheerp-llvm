@@ -540,7 +540,7 @@ PointerType * DynamicAllocInfo::computeCastedType() const
 		getTypeForUse);
 	
 	// If there are no casts, use i8*
-	if ( call->user_end() == firstNonNull )
+	if ( call->user_end() == firstNonNull || call->getParent()->getParent()->getSection() == "bytelayout")
 	{
 		return cast<PointerType>(Type::getInt8PtrTy(call->getContext()));
 	}

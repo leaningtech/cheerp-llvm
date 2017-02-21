@@ -460,20 +460,20 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 	}
 
 	
-	if (info.useTypedArray())
+	if(BYTE_LAYOUT == result)
+	{
+		stream << "new DataView(new ArrayBuffer(((";
+		compileArraySize(info, /* shouldPrint */true, /* inBytes */true);
+		// Round up the size to make sure that any typed array can be initialized from the buffer
+		stream << ")+ 7) & (~7)))";
+	}
+	else if (info.useTypedArray())
 	{
 		stream << "new ";
 		compileTypedArrayType(t);
 		stream << '(';
 		compileArraySize(info, /* shouldPrint */true);
 		stream << ')';
-	}
-	else if(BYTE_LAYOUT == result)
-	{
-		stream << "new DataView(new ArrayBuffer(((";
-		compileArraySize(info, /* shouldPrint */true, /* inBytes */true);
-		// Round up the size to make sure that any typed array can be initialized from the buffer
-		stream << ")+ 7) & (~7)))";
 	}
 	else if (info.useCreateArrayFunc() )
 	{
@@ -546,7 +546,11 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 			if(needsDowncastArray)
 				stream << ".a";
 			else
+			{
+				// TODO: Should be conditional
+				stream << ',' << targetData.getTypeAllocSize(t);
 				stream << ']';
+			}
 		}
 	}
 	else
@@ -754,7 +758,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 	}
 	else if(intrinsicId==Intrinsic::cheerp_pointer_base)
 	{
-		compilePointerBase(*it, true);
+		compilePointerBase(*it, false);
 		return COMPILE_OK;
 	}
 	else if(intrinsicId==Intrinsic::cheerp_pointer_offset)
@@ -1286,6 +1290,11 @@ void CheerpWriter::compileEqualPointersComparison(const llvm::Value* lhs, const 
 	else if(lhsKind == BYTE_LAYOUT || rhsKind == BYTE_LAYOUT)
 	{
 		assert(PA.getPointerKind(lhs) != COMPLETE_OBJECT);
+		if(!(PA.getPointerKind(rhs) != COMPLETE_OBJECT))
+		{
+lhs->dump();
+rhs->dump();
+		}
 		assert(PA.getPointerKind(rhs) != COMPLETE_OBJECT);
 		compilePointerBase(lhs);
 		stream << compareString;
@@ -1428,6 +1437,20 @@ void CheerpWriter::compileCompleteObject(const Value* p, const Value* offset)
 
 		stream << ']';
 	}
+	else if(kind == BYTE_LAYOUT)
+	{
+		if(!isOffsetConstantZero)
+		{
+llvm::errs() << "FAIL FOR " << *p << "\n";
+currentFun->dump();
+		}
+		assert(isOffsetConstantZero);
+		// Horrible hack, we hope that the pointer is actually REGULAR
+		compileOperand(p);
+		stream << ".d[";
+		compileOperand(p);
+		stream << ".o]";
+	}
 	else
 	{
 		compileOperand(p);
@@ -1435,6 +1458,8 @@ void CheerpWriter::compileCompleteObject(const Value* p, const Value* offset)
 		if(!isOffsetConstantZero)
 		{
 			llvm::errs() << "Can not access a " << kind << " pointer with non zero offset:" << *offset << "\n";
+currentFun->dump();
+assert(false);
 			llvm::report_fatal_error("Unsupported code found, please report a bug", false);
 		}
 	}
@@ -1569,6 +1594,12 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 		return;
 	}
 
+	if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && PA.getPointerKind(p) == BYTE_LAYOUT && forEscapingPointer)
+	{
+		compileBitCastBase(p, p->getType(), forEscapingPointer);
+		return;
+	}
+
 	if(isa<ConstantPointerNull>(p))
 	{
 		stream << "nullArray";
@@ -1578,6 +1609,7 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 	if(PA.getPointerKind(p) == COMPLETE_OBJECT)
 	{
 		llvm::errs() << "compilePointerBase with COMPLETE_OBJECT pointer:" << *p << '\n' << "In function: " << *currentFun << '\n';
+assert(false);
 		llvm::report_fatal_error("Unsupported code found, please report a bug", false);
 	}
 
@@ -1693,6 +1725,8 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	{
 		if(const ConstantInt* CI=PA.getConstantOffsetForPointer(p))
 		{
+			if(CI->getZExtValue())
+			{
 			if(useMathImul)
 				stream << namegen.getBuiltinName(NameGenerator::Builtin::IMUL);
 			stream << '(';
@@ -1702,10 +1736,13 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 			else
 				stream << '*';
 			stream << targetData.getTypeAllocSize(p->getType()->getPointerElementType()) << ')';
+			}
+			else
+				stream << '0';
 		}
 		else
 		{
-			compileCompleteObject(p);
+			compileOperand(p);
 			stream << ".o";
 		}
 	}
@@ -1749,6 +1786,10 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	else if(isBitCast(p) && (!isa<Instruction>(p) || isInlineable(*cast<Instruction>(p), PA) || forEscapingPointer))
 	{
 		compileBitCastOffset(cast<User>(p)->getOperand(0), p->getType(), parentPrio);
+	}
+	else if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && byteLayout && isa<Argument>(p) && forEscapingPointer)
+	{
+		compileBitCastOffset(p, p->getType());
 	}
 	else if (const ConstantInt* CI = PA.getConstantOffsetForPointer(p))
 	{
@@ -1914,15 +1955,25 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 	else if(isa<ConstantArray>(c))
 	{
 		const ConstantArray* d=cast<ConstantArray>(c);
+		if(TypeSupport::hasByteLayout(c->getType()))
+		{
+			// Populate a DataView with a byte buffer
+			stream << "new DataView(new Int8Array([";
+			compileConstantAsBytes(c, true);
+			stream << "]).buffer)";
+			return;
+		}
 		stream << '[';
 		assert(d->getType()->getNumElements() == d->getNumOperands());
 		compileConstantArrayMembers(d);
+		// TODO: This should be conditional
+		stream << ',' << targetData.getTypeAllocSize(d->getType()->getArrayElementType());
 		stream << ']';
 	}
 	else if(isa<ConstantStruct>(c))
 	{
 		const ConstantStruct* d=cast<ConstantStruct>(c);
-		if(cast<StructType>(c->getType())->hasByteLayout())
+		if(TypeSupport::hasByteLayout(c->getType()))
 		{
 			// Populate a DataView with a byte buffer
 			stream << "new DataView(new Int8Array([";
@@ -2307,7 +2358,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			if(phiType->isPointerTy())
 			{
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
-				if((k==REGULAR || k==SPLIT_REGULAR) && writer.PA.getConstantOffsetForPointer(phi))
+				if((k==REGULAR || k==SPLIT_REGULAR || k==BYTE_LAYOUT) && writer.PA.getConstantOffsetForPointer(phi))
 				{
 					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
@@ -2444,8 +2495,26 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			// If it's indirect we use a kind good for any argument of a given type at a given position
 			if (!F)
 			{
-				TypeAndIndex typeAndIndex(tp->getPointerElementType(), opCount, TypeAndIndex::ARGUMENT);
-				argKind = PA.getPointerKindForArgumentTypeAndIndex(typeAndIndex);
+				if(TypeSupport::isImmutableType(tp->getPointerElementType()) && currentFun->getSection() == StringRef("bytelayout"))
+				{
+					const Value* calledVal = callV.getCalledValue();
+					if(isa<BitCastInst>(calledVal))
+						calledVal = cast<User>(calledVal)->getOperand(0);
+					if(!isa<LoadInst>(calledVal))
+						argKind = BYTE_LAYOUT;
+					else if(PA.getPointerKind(cast<User>(calledVal)->getOperand(0)) == BYTE_LAYOUT)
+						argKind = BYTE_LAYOUT;
+					else
+					{
+						TypeAndIndex typeAndIndex(tp->getPointerElementType(), opCount, TypeAndIndex::ARGUMENT);
+						argKind = PA.getPointerKindForArgumentTypeAndIndex(typeAndIndex);
+					}
+				}
+				else
+				{
+					TypeAndIndex typeAndIndex(tp->getPointerElementType(), opCount, TypeAndIndex::ARGUMENT);
+					argKind = PA.getPointerKindForArgumentTypeAndIndex(typeAndIndex);
+				}
 			}
 			else if (arg_it != F->arg_end())
 				argKind = PA.getPointerKind(arg_it);
@@ -2657,14 +2726,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				stream << "=0";
 				stream << ';' << NewLine;
 				stream << namegen.getName(ai) << '=';
+				Type* elementType = ai->getAllocatedType();
 				stream << '[';
-				compileType(ai->getAllocatedType(), LITERAL_OBJ, varName);
+				compileType(elementType, LITERAL_OBJ, varName);
+				// TODO: Should be conditional
+				stream << ',' << targetData.getTypeAllocSize(elementType);
+				if(elementType->isArrayTy())
+					elementType = elementType->getArrayElementType();
 				stream << ']';
 			}
 			else if(k == BYTE_LAYOUT)
 			{
 				stream << "{d:";
-				compileType(ai->getAllocatedType(), LITERAL_OBJ, varName);
+				stream << "new DataView(new ArrayBuffer(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7)))";
 				stream << ",o:0}";
 			}
 			else 
@@ -2776,21 +2850,44 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				//Optimize stores of single values from unions
 				compilePointerBase(ptrOp);
 				Type* pointedType=ptrOp->getType()->getPointerElementType();
-				if(pointedType->isIntegerTy(8))
+				if(pointedType->isPointerTy() && !pointedType->getPointerElementType()->isFunctionTy() && PA.getPointerKind(valOp) == COMPLETE_OBJECT)
+				{
+					// Special support for client pointers, we cannot map them to integers because they would not be freed
+					stream << "['a'+(";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << ")]=";
+					compileOperand(valOp);
+					return COMPILE_OK;
+				}
+				if(pointedType->isIntegerTy(8) || pointedType->isIntegerTy(1))
 					stream << ".setInt8(";
 				else if(pointedType->isIntegerTy(16))
 					stream << ".setInt16(";
+				else if(pointedType->isIntegerTy(24))
+					stream << ".setInt24(";
 				else if(pointedType->isIntegerTy(32))
 					stream << ".setInt32(";
 				else if(pointedType->isFloatTy())
 					stream << ".setFloat32(";
 				else if(pointedType->isDoubleTy())
 					stream << ".setFloat64(";
+				else if(pointedType->isPointerTy() && pointedType->getPointerElementType()->isFunctionTy())
+					stream << ".setFunctionPointer(";
+				else if(pointedType->isPointerTy())
+					stream << ".setPointer(";
 				compilePointerOffset(ptrOp, LOWEST);
 				stream << ',';
 
 				//Special case compilation of operand, the default behavior use =
-				compileOperand(valOp, LOWEST);
+				if(pointedType->isPointerTy() && PA.getPointerKind(valOp) != COMPLETE_OBJECT)
+				{
+					if(PA.getPointerKind(valOp) == BYTE_LAYOUT)
+						compilePointerAs(valOp, BYTE_LAYOUT);
+					else
+						compilePointerAs(valOp, REGULAR);
+				}
+				else
+					compileOperand(valOp, LOWEST);
 				if(!pointedType->isIntegerTy(8))
 					stream << ",true";
 				stream << ')';
@@ -2875,6 +2972,11 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 			compileCompleteObject(gep_inst);
 		else if (!TypeSupport::hasByteLayout(targetType) && forEscapingPointer)
 		{
+			if(!TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
+			{
+				llvm::errs() << "GEP FAIL FOR " << *gep_inst << "\n";
+				currentFun->dump();
+			}
 			assert(TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true));
 			// Forge an appropiate typed array
 			assert (!TypeSupport::hasByteLayout(targetType));
@@ -2946,6 +3048,11 @@ void CheerpWriter::compileGEPOffset(const llvm::User* gep_inst, PARENT_PRIORITY 
 			compilePointerOffset( gep_inst, HIGHEST );
 		else
 		{
+			if(!TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
+			{
+currentFun->dump();
+llvm::errs() << "FAIL GEP OFFSET " << *gep_inst << "\n";
+			}
 			assert(TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true));
 			// If this GEP or a previous one passed through an array of immutables generate a regular from
 			// the start of the array and not from the pointed element
@@ -3032,9 +3139,9 @@ void CheerpWriter::compileGEP(const llvm::User* gep_inst, POINTER_KIND kind)
 		}
 
 		stream << "{d:";
-		compilePointerBase( gep_inst, true);
+		compilePointerBase( gep_inst, kind != BYTE_LAYOUT);
 		stream << ",o:";
-		compilePointerOffset( gep_inst, LOWEST, true);
+		compilePointerOffset( gep_inst, LOWEST, kind != BYTE_LAYOUT);
 		stream << '}';
 	}
 }
@@ -3825,16 +3932,33 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				//Optimize loads of single values from unions
 				compilePointerBase(ptrOp);
 				Type* pointedType=ptrOp->getType()->getPointerElementType();
-				if(pointedType->isIntegerTy(8))
+				if(pointedType->isPointerTy() && !pointedType->getPointerElementType()->isFunctionTy() && PA.getPointerKind(&li) == COMPLETE_OBJECT)
+				{
+					// Special support for client pointers, we cannot map them to integers because they would not be freed
+					stream << "['a'+(";
+					compilePointerOffset(ptrOp, LOWEST);
+					stream << ")]";
+					return COMPILE_OK;
+				}
+				if(pointedType->isIntegerTy(8) || pointedType->isIntegerTy(1))
 					stream << ".getInt8(";
 				else if(pointedType->isIntegerTy(16))
 					stream << ".getInt16(";
+				else if(pointedType->isIntegerTy(24))
+					stream << ".getInt24(";
 				else if(pointedType->isIntegerTy(32))
 					stream << ".getInt32(";
 				else if(pointedType->isFloatTy())
 					stream << ".getFloat32(";
 				else if(pointedType->isDoubleTy())
 					stream << ".getFloat64(";
+				else if(pointedType->isPointerTy() && pointedType->getPointerElementType()->isFunctionTy())
+					stream << ".getFunctionPointer(";
+				else if(pointedType->isPointerTy())
+				{
+//					assert(PA.getPointerKind(&li) == REGULAR);
+					stream << ".getPointer(";
+				}
 				compilePointerOffset(ptrOp, LOWEST);
 				if(!pointedType->isIntegerTy(8))
 					stream << ",true";
@@ -4361,12 +4485,20 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 		}
 		else if(k == BYTE_LAYOUT)
 		{
-			stream << "{d:";
-			if(C->getType()->isPointerTy())
-				compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
+			if(!PA.getConstantOffsetForPointer(&G))
+				stream << "{d:";
+			//if(C->getType()->isPointerTy())
+			//	compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
+			if(!C->getType()->isStructTy())
+			{
+				stream << "new DataView(new Int8Array([";
+				compileConstantAsBytes(C, true);
+				stream << "]).buffer)";
+			}
 			else
 				compileOperand(C, LOWEST);
-			stream << ",o:0}";
+			if(!PA.getConstantOffsetForPointer(&G))
+				stream << ",o:0}";
 		}
 		else if(k == SPLIT_REGULAR)
 		{
@@ -4374,7 +4506,8 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 			if(C->getType()->isPointerTy())
 				compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
 			else
-				compileOperand(C, LOWEST);
+			// TODO: Should be conditional
+			stream << ',' << targetData.getTypeAllocSize(C->getType());
 			stream << ']';
 			stream << ';' << NewLine;
 			stream << "var " << namegen.getSecondaryName(&G);
@@ -4939,12 +5072,19 @@ void CheerpWriter::makeJS()
 		compileGlobalsInitAsmJS();
 	}
 
+	// TODO: Use only if necessary
+	// TODO: Use .o instead of .po
+	// TODO: NULL
+	stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
+	stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
+int count = 0;	
 	for ( const Function & F : module.getFunctionList() )
 		if (!F.empty() && F.getSection() != StringRef("asmjs"))
 		{
 #ifdef CHEERP_DEBUG_POINTERS
 			dumpAllPointers(F, PA);
 #endif //CHEERP_DEBUG_POINTERS
+llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 			compileMethod(F);
 		}
 	for ( const GlobalVariable & GV : module.getGlobalList() )
@@ -4978,6 +5118,11 @@ void CheerpWriter::makeJS()
 	//Compile handleVAArg if needed
 	if( globalDeps.needHandleVAArg() )
 		compileHandleVAArg();
+
+	stream << "DataView.prototype.setPointer = function(offset, p, le){this.setInt32(offset,cheerpPointerBaseInt(p.d)+p.o,le);}" << NewLine;
+	stream << "DataView.prototype.setFunctionPointer = function(offset, f, le){this.setInt32(offset,cheerpPointerBaseInt(f),le);}" << NewLine;
+	stream << "DataView.prototype.getPointer = function(offset, le){var ret=this.getInt32(offset,le);if(!ret)return nullObj;var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(b.byteLength){s=1}else if(Array.isArray(b)){if(!b.es)debugger;s=b.es;}else{s=1} return {d:b,o:(ret-b.po)/s};}" << NewLine;
+	stream << "DataView.prototype.getFunctionPointer = function(offset, le){var ret=this.getInt32(offset,le);return ret?cheerpGetPtrBase(ret):null;}" << NewLine;
 	
 	//Load Wast module
 	if (!wasmFile.empty())
@@ -5224,6 +5369,54 @@ void CheerpWriter::JSBytesWriter::addByte(uint8_t byte)
 		stream << ',';
 	stream << (int)byte;
 	first = false;
+}
+
+void CheerpWriter::JSBytesWriter::addRunTimeBytes(const llvm::Constant* c)
+{
+	if(const Function* f=dyn_cast<Function>(c))
+	{
+		if(!first)
+			stream << ',';
+		// This is almost too ugly to be true
+		stream << "(cheerpPointerBaseInt(";
+		compileOperand(f);
+		stream << ")>>0)&255,";
+		stream << "(cheerpPointerBaseInt(";
+		compileOperand(f);
+		stream << ")>>8)&255,";
+		stream << "(cheerpPointerBaseInt(";
+		compileOperand(f);
+		stream << ")>>16)&255,";
+		stream << "(cheerpPointerBaseInt(";
+		compileOperand(f);
+		stream << ")>>24)&255";
+	}
+	else if(isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
+	{
+		if(!first)
+			stream << ',';
+		// This is almost too ugly to be true
+		stream << "(cheerpPI(";
+		compilePointerBase(c);
+		stream << ',';
+		compilePointerOffset(c, LOWEST);
+		stream << ")>>0)&255,";
+		stream << "(cheerpPI(";
+		compilePointerBase(c);
+		stream << ',';
+		compilePointerOffset(c, LOWEST);
+		stream << ")>>8)&255,";
+		stream << "(cheerpPI(";
+		compilePointerBase(c);
+		stream << ',';
+		compilePointerOffset(c, LOWEST);
+		stream << ")>>16)&255,";
+		stream << "(cheerpPI(";
+		compilePointerBase(c);
+		stream << ',';
+		compilePointerOffset(c, LOWEST);
+		stream << ")>>24)&255";
+	}
 }
 
 void CheerpWriter::AsmJSGepWriter::addValue(const llvm::Value* v, uint32_t size)
