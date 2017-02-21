@@ -323,7 +323,7 @@ private:
 		else if (PA.getConstantOffsetForPointer(p) || valueKind == SPLIT_REGULAR)
 		{
 			stream << "{d:";
-			compilePointerBase(p, true);
+			compilePointerBase(p, kind != BYTE_LAYOUT);
 			stream << ",o:";
 			compilePointerOffset(p, LOWEST);
 			stream << "}";
