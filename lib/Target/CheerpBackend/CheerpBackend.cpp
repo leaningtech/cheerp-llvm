@@ -135,7 +135,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
   PM.add(createIndirectCallOptimizerPass());
   //PM.add(createAllocaArraysPass());
   //PM.add(cheerp::createAllocaArraysMergingPass());
-  PM.add(createDelayAllocasPass());
+//  PM.add(createDelayAllocasPass());
   PM.add(new CheerpWritePass(o));
   return false;
 }

@@ -2641,6 +2641,33 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 			assert(I.getNumSuccessors()==0);
 			Value* retVal = ri.getReturnValue();
 
+			// Free all allocas
+			// TODO: What about allocas not in the first block?
+			if(ri.getParent()->getParent()->getName() != "cheerpjFree")
+			{
+				for(const Instruction& I: ri.getParent()->getParent()->getEntryBlock())
+				{
+					if(const AllocaInst* AI = dyn_cast<AllocaInst>(&I))
+					{
+						POINTER_KIND k = PA.getPointerKind(AI);
+						if(k == COMPLETE_OBJECT)
+						{
+							stream << "_cheerpjFree(";
+							compileCompleteObject(AI);
+							stream << ",0);" << NewLine;
+						}
+						else if(k == SPLIT_REGULAR || k == REGULAR)
+						{
+							stream << "_cheerpjFree(";
+							compilePointerBase(AI);
+							stream << ',';
+							compilePointerOffset(AI, LOWEST);
+							stream << ");" << NewLine;
+						}
+					}
+				}
+			}
+
 			if (asmjs)
 			{
 				compileStackRet();
@@ -2649,6 +2676,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 				//       reachable. In this way we trick it.
 				stream << "if (1) ";
 			}
+
 			if(retVal)
 			{
 				Registerize::REGISTER_KIND kind = registerize.getRegKindFromType(retVal->getType(), asmjs);
@@ -2783,7 +2811,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			{
 				stream << "=0";
 				stream << ';' << NewLine;
-				stream << namegen.getName(ai) << '=';
+				STACKLET_STATUS stackletStatus = needsStacklet(&I);
+				switch(stackletStatus)
+				{
+					case STACKLET_NEEDED:
+					case STACKLET_NOT_NEEDED:
+						stream << "var ";
+						break;
+					case NO_STACKLET:
+						break;
+				}
+				stream << namegen.getName(&I) << '=';
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << namegen.getName(ai) << '=';
 				Type* elementType = ai->getAllocatedType();
 				stream << '[';
 				compileType(elementType, LITERAL_OBJ, varName);
