@@ -506,7 +506,7 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 		bool asmjs = I->getParent()->getParent()->getSection()==StringRef("asmjs");
 		uint32_t chosenRegister = -1;
 		REGISTER_KIND kind = getRegKindFromType(I->getType(), asmjs);
-		if(isa<Argument>(I))
+		if(isa<Argument>(I) || isa<AllocaInst>(I))
 		{
 			registers.push_back(RegisterRange(range.range, kind, cheerp::needsSecondaryName(I, PA), range.needsRecover, /*isArg*/true));
 			chosenRegister = registers.size()-1;
