@@ -1897,7 +1897,7 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 		if(parentPrio >= TERNARY)
 			stream << ')';
 	}
-	else if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == SPLIT_REGULAR)
+	else if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && (PA.getPointerKind(p) == SPLIT_REGULAR || PA.getPointerKind(p) == SPLIT_BYTE_LAYOUT))
 	{
 		stream << namegen.getSecondaryName(p);
 	}
