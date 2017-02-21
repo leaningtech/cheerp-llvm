@@ -125,7 +125,7 @@ public:
 	static bool isClientType(llvm::Type* t)
 	{
 		if ( llvm::StructType * st = llvm::dyn_cast<llvm::StructType>(t) )
-			return st->hasName() && st->getName().startswith("class._ZN6client");
+			return st->hasName() && (st->getName().startswith("class._ZN6client") || st->getName()=="struct._Z16cheerp_clientptr");
 		else 
 			return false;
 	}
