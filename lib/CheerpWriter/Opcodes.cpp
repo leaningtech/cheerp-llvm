@@ -69,6 +69,15 @@ void CheerpWriter::compilePtrToInt(const llvm::Value* v)
 	Type* pointedType = v->getType()->getPointerElementType();
 	// Multiplying by the size is only required for pointer subtraction, which implies that the type is sized
 	uint64_t typeSize = pointedType->isSized() ? targetData.getTypeAllocSize(pointedType) : 0;
+	// Create the pointer base offset on demand
+	stream << "cheerpPI(";
+	compilePointerBase(v);
+	stream << ',';
+	compilePointerOffset(v, LOWEST);
+	stream << ')';
+/*	stream << "cheerpPointerBaseInt(";
+	compilePointerBase(v);
+	stream << ")+";
 	if (PA.getPointerKind(v) == RAW)
 	{
 		compileRawPointer(v);
@@ -91,7 +100,9 @@ void CheerpWriter::compilePtrToInt(const llvm::Value* v)
 		}
 	}
 	else
+	{
 		compilePointerOffset(v, LOWEST);
+	}*/
 	stream << ')';
 }
 
@@ -126,6 +137,8 @@ void CheerpWriter::compileBitCast(const llvm::User* bc_inst, POINTER_KIND kind)
 		if(PA.getConstantOffsetForPointer(bc_inst))
 			compilePointerBase(bc_inst);
 		else if(PA.getPointerKind(bc_inst->getOperand(0)) == REGULAR && !isa<Argument>(bc_inst->getOperand(0)))
+			compileOperand(bc_inst->getOperand(0));
+		else if(PA.getPointerKind(bc_inst->getOperand(0)) == BYTE_LAYOUT)
 			compileOperand(bc_inst->getOperand(0));
 		else
 		{

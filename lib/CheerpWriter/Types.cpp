@@ -346,6 +346,7 @@ uint32_t CheerpWriter::compileClassTypeRecursive(const std::string& baseName, St
 
 void CheerpWriter::compileClassConstructor(StructType* T)
 {
+T->dump();
 	assert(T->getNumElements() > V8MaxLiteralProperties);
 	stream << "function ";
 	stream << namegen.getConstructorName(T) << "(){" << NewLine;
@@ -376,12 +377,12 @@ void CheerpWriter::compileArrayClassType(Type* T)
 	stream << "for(var __i__=start;__i__<end;__i__++)" << NewLine;
 	stream << "ret[__i__]=";
 	compileType(T, LITERAL_OBJ, "ret[__i__]");
-	stream << ';' << NewLine << "return ret;" << NewLine << '}' << NewLine;
+	stream << ';' << NewLine << "ret[end]=" << targetData.getTypeAllocSize(T) << ';' << NewLine << "return ret;" << NewLine << '}' << NewLine;
 }
 
 void CheerpWriter::compileArrayPointerType()
 {
-	stream << "function createPointerArray(ret,start,end,elem){for(var __i__=start;__i__<end;__i__++)ret[__i__]=elem;return ret;}"
+	stream << "function createPointerArray(ret,start,end,elem){for(var __i__=start;__i__<end;__i__++)ret[__i__]=elem;ret[end]=4;return ret;}"
 		<< NewLine;
 }
 

@@ -65,6 +65,11 @@ const char* Registerize::getPassName() const
 uint32_t Registerize::getRegisterId(const llvm::Instruction* I) const
 {
 	assert(RegistersAssigned);
+	if(!registersMap.count(I))
+	{
+		llvm::errs() << "FAIL FOR " << *I << "\n";
+		I->getParent()->getParent()->dump();
+	}
 	assert(registersMap.count(I));
 	uint32_t regId = registersMap.find(I)->second;
 	if(!edgeContext.isNull())
@@ -113,6 +118,7 @@ void Registerize::assignRegistersToInstructions(Function& F, cheerp::PointerAnal
 {
 	if (F.empty())
 		return;
+//llvm::errs() << "REGS " << F.getName() << "\n";
 	if (NoRegisterize)
 	{
 		// Do a fake run and assign every instruction to a different register

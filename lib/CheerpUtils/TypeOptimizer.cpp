@@ -240,8 +240,10 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 			// This is useful for an idiom used by C++ graphics code to have a vector both accessible as named elements and as an array
 			// union { struct { double x,y,z; }; double elemets[3]; };
 			auto it=baseTypesForByteLayout.find(st);
-			assert(it!=baseTypesForByteLayout.end());
-			if(it->second == NULL)
+			// TODO: The line below does not make much sense
+			if(it==baseTypesForByteLayout.end())
+				break;
+			if(it->second == NULL || it->second->isPointerTy())
 				break;
 			// Check that the struct fits exactly N values of the base type
 			uint32_t structSize = DL->getTypeAllocSize(st);
