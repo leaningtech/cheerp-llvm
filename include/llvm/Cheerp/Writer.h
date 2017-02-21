@@ -337,7 +337,7 @@ private:
 			valueKind == RAW)
 		{
 			stream << "{d:";
-			compilePointerBase(p, true);
+			compilePointerBase(p, kind != BYTE_LAYOUT);
 			stream << ",o:";
 			compilePointerOffset(p, LOWEST);
 			stream << "}";
