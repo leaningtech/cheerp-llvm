@@ -142,8 +142,8 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
   PM.add(cheerp::createPointerAnalyzerPass());
   PM.add(cheerp::createAllocaMergingPass());
   PM.add(createIndirectCallOptimizerPass());
-  PM.add(createAllocaArraysPass());
-  PM.add(cheerp::createAllocaArraysMergingPass());
+  //PM.add(createAllocaArraysPass());
+  //PM.add(cheerp::createAllocaArraysMergingPass());
   PM.add(createDelayAllocasPass());
   PM.add(createRemoveFwdBlocksPass());
   // Keep this pass last, it is going to remove stores to memory from the LLVM visible code, so further optimizing afterwards will break

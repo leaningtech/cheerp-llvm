@@ -59,23 +59,29 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 		for(uint32_t i=0;i<bitWidth;i+=8)
 			listener->addByte((val>>i)&255);
 	}
+	else if(const ConstantAggregateZero* Z = dyn_cast<ConstantAggregateZero>(c))
+	{
+		uint32_t size = targetData.getTypeAllocSize(Z->getType());
+		for (uint32_t i = 0; i < size; i++)
+			listener->addByte(0);
+	}
+	else if(isBitCast(c))
+	{
+		compileConstantAsBytes(cast<Constant>(cast<User>(c)->getOperand(0)), first);
+	}
+	else if(isa<Function>(c) || isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
+	{
+		listener->addRunTimeBytes(c);
+	}
+	else if(dyn_cast<ConstantPointerNull>(c))
+	{
+		listener->addByte(0);
+		listener->addByte(0);
+		listener->addByte(0);
+		listener->addByte(0);
+	}
 	else if (asmjs)
 	{
-		if(const ConstantAggregateZero* Z = dyn_cast<ConstantAggregateZero>(c))
-		{
-			assert(offset==0);
-			uint32_t size = targetData.getTypeAllocSize(Z->getType());
-			for (uint32_t i = 0; i < size; i++)
-				listener->addByte(0);
-		}
-		else if(dyn_cast<ConstantPointerNull>(c))
-		{
-			assert(offset==0);
-			listener->addByte(0);
-			listener->addByte(0);
-			listener->addByte(0);
-			listener->addByte(0);
-		}
 		else if(const Function* F = dyn_cast<Function>(c))
 		{
 			assert(offset==0);
