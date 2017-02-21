@@ -440,8 +440,8 @@ private:
 	void compilePtrToInt(const llvm::Value* v);
 	void compileSubtraction(const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio);
 	void compileBitCast(const llvm::User* bc_inst, POINTER_KIND kind);
-	void compileBitCastBase(const llvm::User* bi, bool forEscapingPointer);
-	void compileBitCastOffset(const llvm::User* bi, PARENT_PRIORITY parentPrio);
+	void compileBitCastBase(const llvm::Value* op, llvm::Type* dstType, bool forEscapingPointer);
+	void compileBitCastOffset(const llvm::Value* op, llvm::Type* dstType, PARENT_PRIORITY parentPrio);
 	void compileSelect(const llvm::User* select, const llvm::Value* cond, const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio);
 
 	//JS interoperability support

@@ -138,11 +138,11 @@ void CheerpWriter::compileBitCast(const llvm::User* bc_inst, POINTER_KIND kind)
 	}
 }
 
-void CheerpWriter::compileBitCastBase(const llvm::User* bi, bool forEscapingPointer)
+void CheerpWriter::compileBitCastBase(const llvm::Value* op, llvm::Type* dstType, bool forEscapingPointer)
 {
-	Type* dst=bi->getType();
+	Type* dst=dstType;
 	//Special case unions
-	if(PA.getPointerKind(bi->getOperand(0)) == BYTE_LAYOUT && forEscapingPointer)
+	if(PA.getPointerKind(op) == BYTE_LAYOUT && forEscapingPointer)
 	{
 		//Find the type
 		llvm::Type* elementType = dst->getPointerElementType();
@@ -153,29 +153,23 @@ void CheerpWriter::compileBitCastBase(const llvm::User* bi, bool forEscapingPoin
 			stream << "new ";
 			compileTypedArrayType(pointedType);
 			stream << '(';
-			if(isa<AllocaInst>(bi->getOperand(0)))
-				compileCompleteObject(bi->getOperand(0));
-			else
-				compilePointerBase(bi->getOperand(0));
+			compilePointerBase(op);
 			stream << ".buffer";
-			if(!isa<AllocaInst>(bi->getOperand(0)))
-			{
-				stream << ',';
-				compilePointerOffset(bi->getOperand(0), LOWEST, false);
-			}
+			stream << ',';
+			compilePointerOffset(op, LOWEST, forEscapingPointer);
 			stream << ')';
 			return;
 		}
 	}
 
-	compilePointerBase(bi->getOperand(0), forEscapingPointer);
+	compilePointerBase(op, forEscapingPointer);
 }
 
-void CheerpWriter::compileBitCastOffset(const llvm::User* bi, PARENT_PRIORITY parentPrio)
+void CheerpWriter::compileBitCastOffset(const llvm::Value* op, llvm::Type* dstType, PARENT_PRIORITY parentPrio)
 {
-	Type* dst=bi->getType();
+	Type* dst=dstType;
 	//Special case unions
-	if(PA.getPointerKind(bi->getOperand(0)) == BYTE_LAYOUT)
+	if(PA.getPointerKind(op) == BYTE_LAYOUT)
 	{
 		//Find the type
 		llvm::Type* elementType = dst->getPointerElementType();
@@ -188,7 +182,7 @@ void CheerpWriter::compileBitCastOffset(const llvm::User* bi, PARENT_PRIORITY pa
 		}
 	}
 
-	compilePointerOffset(bi->getOperand(0), parentPrio, true);
+	compilePointerOffset(op, parentPrio, true);
 }
 
 void CheerpWriter::compileSelect(const llvm::User* select, const llvm::Value* cond, const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio)
