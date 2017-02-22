@@ -2756,7 +2756,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 
 			// Free all allocas
 			// TODO: What about allocas not in the first block?
-			if(ri.getParent()->getParent()->getName() != "cheerpjFree")
+			// TODO: noBoilerplate is used here to exclude Java code
+			if(!noBoilerplate && ri.getParent()->getParent()->getName() != "cheerpjFree")
 			{
 				for(const Instruction& I: ri.getParent()->getParent()->getEntryBlock())
 				{
