@@ -30,6 +30,8 @@
 #include "llvm/Cheerp/ResolveAliases.h"
 #include "llvm/Cheerp/SourceMaps.h"
 #include "llvm/Cheerp/CommandLine.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Transforms/Scalar.h"
 
 using namespace llvm;
 
@@ -131,9 +133,10 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
   PM.add(createAllocateArrayLoweringPass());
   PM.add(createResolveAliasesPass());
 //  PM.add(createFreeAndDeleteRemovalPass());
-  PM.add(cheerp::createGlobalDepsAnalyzerPass());
   PM.add(createPointerArithmeticToArrayIndexingPass());
   PM.add(createPointerToImmutablePHIRemovalPass());
+  PM.add(llvm::createPromoteMemoryToRegisterPass());
+  PM.add(cheerp::createGlobalDepsAnalyzerPass());
   PM.add(cheerp::createRegisterizePass(!NoJavaScriptMathFround, NoRegisterize));
   PM.add(cheerp::createPointerAnalyzerPass());
   PM.add(cheerp::createAllocaMergingPass());
