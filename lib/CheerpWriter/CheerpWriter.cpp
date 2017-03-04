@@ -2963,7 +2963,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				{
 					compilePointerBase(ptrOp);
 					// Special support for client pointers, we cannot map them to integers because they would not be freed
-					stream << "['a'+(";
+					stream << "['l'+(";
 					compilePointerOffset(ptrOp, LOWEST);
 					stream << ")]=";
 					compileOperand(valOp);
@@ -4334,7 +4334,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				{
 					compilePointerBase(ptrOp);
 					// Special support for client pointers, we cannot map them to integers because they would not be freed
-					stream << "['a'+(";
+					stream << "['l'+(";
 					compilePointerOffset(ptrOp, LOWEST);
 					stream << ")]";
 					return COMPILE_OK;
