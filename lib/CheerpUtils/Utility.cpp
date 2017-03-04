@@ -391,7 +391,15 @@ char TypeSupport::getPrefixCharForMember(const PointerAnalyzer& PA, llvm::Struct
 	else if(elementType->isFloatTy() || elementType->isDoubleTy())
 		return 'd';
 	else
-		return 'a';
+	{
+		// Pointers to immutables with CO kind are suspect as they may either be real objects casted to i8* or they may be numbers
+		// In which case they screw up the typing of 'a' members
+		TypeAndIndex baseAndIndex(st, memberIndex, TypeAndIndex::STRUCT_MEMBER);
+		if(elementType->isPointerTy() && isImmutableType(elementType->getPointerElementType()) && PA.getPointerKindForMemberPointer(baseAndIndex)==COMPLETE_OBJECT)
+			return 'x';
+		else
+			return 'a';
+	}
 }
 
 bool TypeSupport::isJSExportedType(StructType* st, const Module& m)
