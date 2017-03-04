@@ -552,7 +552,7 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 			else
 			{
 				// TODO: Should be conditional
-				stream << ',' << targetData.getTypeAllocSize(t);
+				stream << ",null," << targetData.getTypeAllocSize(t);
 				stream << ']';
 			}
 		}
@@ -1959,7 +1959,7 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 		assert(d->getType()->getNumElements() == d->getNumOperands());
 		compileConstantArrayMembers(d);
 		// TODO: This should be conditional
-		stream << ',' << targetData.getTypeAllocSize(d->getType()->getArrayElementType());
+		stream << ",null," << targetData.getTypeAllocSize(d->getType()->getArrayElementType());
 		stream << ']';
 	}
 	else if(isa<ConstantStruct>(c))
@@ -2829,7 +2829,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				stream << '[';
 				compileType(elementType, LITERAL_OBJ, varName);
 				// TODO: Should be conditional
-				stream << ',' << targetData.getTypeAllocSize(elementType);
+				stream << ",null," << targetData.getTypeAllocSize(elementType);
 				if(elementType->isArrayTy())
 					elementType = elementType->getArrayElementType();
 				stream << ']';
@@ -5246,7 +5246,7 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 				compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
 			else
 			// TODO: Should be conditional
-			stream << ',' << targetData.getTypeAllocSize(C->getType());
+			stream << ",null," << targetData.getTypeAllocSize(C->getType());
 			stream << ']';
 			stream << ';' << NewLine;
 			stream << "var " << namegen.getSecondaryName(&G);
