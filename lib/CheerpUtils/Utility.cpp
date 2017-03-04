@@ -96,7 +96,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 		// Never inline if the source is REGULAR (forces conversion to CO)
 		if(PA.getPointerKind(I.getOperand(0))==REGULAR)
 			return false;
-		return !hasMoreThan1Use;
+		return true;
 	}
 	else if(const IntrinsicInst* II=dyn_cast<IntrinsicInst>(&I))
 	{
