@@ -127,7 +127,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			if(PA.getPointerKind(I.getOperand(0)) == REGULAR)
 				return false;
 
-			return !hasMoreThan1Use;
+			return true;
 		}
 
 		// Split regular, regular, and byte layout are always inlined.
