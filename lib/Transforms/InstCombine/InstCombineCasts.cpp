@@ -1802,6 +1802,36 @@ Instruction *InstCombiner::visitBitCast(BitCastInst &CI) {
   if (DestTy == Src->getType())
     return ReplaceInstUsesWith(CI, Src);
 
+  // A bitcast which is only used by gep x, 0, ... can be removed if it does not
+  // really change the layout of the memory
+  // TODO: Generalize this, now we check the subcase of casting a struct to a direct base
+  if (Src->getType()->getPointerElementType()->isStructTy() && DestTy->getPointerElementType()->isStructTy()) {
+    StructType *SrcStructTy = cast<StructType>(Src->getType()->getPointerElementType());
+    StructType *DstStructTy = cast<StructType>(DestTy->getPointerElementType());
+    bool destIsDirectBase = false;
+    while (StructType* directBase = SrcStructTy->getDirectBase()) {
+      if (DstStructTy == directBase) {
+        destIsDirectBase = true;
+        break;
+      }
+      SrcStructTy = directBase;
+    }
+    if (destIsDirectBase) {
+      bool isAllGepsWith0FirstIndex = true;
+      for(User* U: CI.users()) {
+        if(!isa<GetElementPtrInst>(U) || !isa<ConstantInt>(U->getOperand(1)) || cast<ConstantInt>(U->getOperand(1))->getZExtValue() !=0 ) {
+          isAllGepsWith0FirstIndex = false;
+          break;
+        }
+      }
+      if(isAllGepsWith0FirstIndex) {
+        // HACK: Make replaceAllUsesWith happy, we are changing the type but it's safe
+        CI.mutateType(Src->getType());
+        return ReplaceInstUsesWith(CI, Src);
+      }
+    }
+  }
+
   if (PointerType *DstPTy = dyn_cast<PointerType>(DestTy)) {
     PointerType *SrcPTy = cast<PointerType>(SrcTy);
     Type *DstElTy = DstPTy->getElementType();
