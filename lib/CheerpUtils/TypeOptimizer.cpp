@@ -412,6 +412,23 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 						mergedInts.push_back(std::make_pair(newTypes.size(), 32 - it->getBitWidth()));
 					}
 				}
+				else if(StructType* memberSt=dyn_cast<StructType>(rewrittenType))
+				{
+					bool fieldEscapes = escapingFields.count(std::make_pair(directBase, i));
+					// TODO: highint structs may still be at first slot, they should become directbases
+					if(!fieldEscapes && i!=0)
+					{
+						membersMapping.push_back(std::make_pair(newTypes.size(), -1));
+						// We want to merged this structure in the parent, we abuse the merged array architecture
+						for(uint32_t i=0;i<memberSt->getNumElements();i++)
+						{
+							newTypes.push_back(memberSt->getElementType(i));
+						}
+						// Use -1 to encode that the structure has disappeared
+						hasMergedArrays = true;
+						continue;
+					}
+				}
 				membersMapping.push_back(std::make_pair(newTypes.size(), 0));
 				// Add the new type
 				newTypes.push_back(rewrittenType);
@@ -677,6 +694,23 @@ std::pair<Constant*, uint8_t> TypeOptimizer::rewriteConstant(Constant* C)
 					newElements[membersMappingIt->second[i].first] = ConstantInt::get(IntType, finalValue);
 				}
 			}
+			else if(hasMergedArrays && membersMappingIt->second[i].second == 0xffffffff)
+			{
+				if(ConstantStruct* CS = dyn_cast<ConstantStruct>(newElement))
+				{
+					for(uint32_t i=0;i<CS->getNumOperands();i++)
+						newElements.push_back(CS->getOperand(i));
+				}
+				else
+				{
+					assert(isa<ConstantAggregateZero>(newElement));
+					assert(isa<StructType>(newElement->getType()));
+					ConstantAggregateZero* Zero = cast<ConstantAggregateZero>(newElement);
+					uint32_t numElements = cast<StructType>(newElement->getType())->getNumElements();
+					for(uint32_t i=0;i<numElements;i++)
+						newElements.push_back(Zero->getElementValue(i));
+				}
+			}
 			else
 				newElements.push_back(newElement);
 		}
@@ -811,12 +845,12 @@ uint8_t TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Typ
 	{
 		if(addToLastIndex)
 		{
-			if(insertionPoint)
-				newIndexes.back() = BinaryOperator::Create(Instruction::Add, newIndexes.back(), V, "", insertionPoint);
+			if(isa<ConstantInt>(newIndexes.back()) && isa<ConstantInt>(V))
+				newIndexes.back() = ConstantExpr::getAdd(cast<Constant>(newIndexes.back()), cast<Constant>(V));
 			else
 			{
-				assert(isa<ConstantInt>(newIndexes.back()) && isa<ConstantInt>(V));
-				newIndexes.back() = ConstantExpr::getAdd(cast<Constant>(newIndexes.back()), cast<Constant>(V));
+				assert(insertionPoint);
+				newIndexes.back() = BinaryOperator::Create(Instruction::Add, newIndexes.back(), V, "", insertionPoint);
 			}
 		}
 		else
@@ -942,7 +976,10 @@ uint8_t TypeOptimizer::rewriteGEPIndexes(SmallVector<Value*, 4>& newIndexes, Typ
 				bool isMergedInt = mappedElementType->isIntegerTy();
 				// If mappedMember.second is not zero, also add a new index that can be eventually incremented later
 				// For merged integers we don't add the offset here, but return it. It will need to be applied by the following loads/stores
-				if(isMergedInt)
+				// For collapsed inner structs (mapped to -1) we let following indexes add directly to the current one
+				if(mappedMember.second==0xffffffff)
+					addToLastIndex = true;
+				else if(isMergedInt)
 					integerOffset += mappedMember.second;
 				else if(mappedMember.second)
 				{
