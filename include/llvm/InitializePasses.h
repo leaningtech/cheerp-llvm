@@ -426,6 +426,7 @@ void initializeDelayAllocasPass(PassRegistry&);
 void initializePreExecutePass(PassRegistry&);
 void initializeExpandStructRegsPass(PassRegistry&);
 void initializeFreeAndDeleteRemovalPass(PassRegistry&);
+void initializeGEPOptimizerPass(PassRegistry&);
 
 } // end namespace llvm
 
