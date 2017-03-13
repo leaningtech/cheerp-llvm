@@ -40,7 +40,10 @@ void Registerize::getAnalysisUsage(AnalysisUsage & AU) const
 bool Registerize::runOnModule(Module & M)
 {
 	for (Function& F: M)
+	{
+		// In asm.js functions we distinguish between FLOAT and DOUBLE
 		computeLiveRangeForAllocas(F);
+	}
 	return false;
 }
 
@@ -377,7 +380,8 @@ uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges, const Po
 		// Move on if a register is already assigned
 		if(registersMap.count(I))
 			continue;
-		uint32_t chosenRegister=findOrCreateRegister(registers, range, getRegKindFromType(I->getType()));
+		bool asmjs = I->getParent()->getParent()->getSection()==StringRef("asmjs");
+		uint32_t chosenRegister=findOrCreateRegister(registers, range, getRegKindFromType(I->getType(), asmjs));
 		registersMap[I] = chosenRegister;
 	}
 	return registers.size();
@@ -385,6 +389,7 @@ uint32_t Registerize::assignToRegisters(const LiveRangesTy& liveRanges, const Po
 
 void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm::SmallVector<RegisterRange, 4>& registers, const PointerAnalyzer& PA)
 {
+	bool asmjs = I.getParent()->getParent()->getSection()==StringRef("asmjs");
 	uint32_t chosenRegister=0xffffffff;
 	const InstructionLiveRange& PHIrange=liveRanges.find(&I)->second;
 	// A PHI may already have an assigned register if it's an operand to another PHI
@@ -403,7 +408,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 				continue;
 			uint32_t operandRegister=registersMap[usedI];
 			if(addRangeToRegisterIfPossible(registers[operandRegister], PHIrange,
-							getRegKindFromType(usedI->getType())))
+							getRegKindFromType(usedI->getType(), asmjs)))
 			{
 				chosenRegister=operandRegister;
 				break;
@@ -412,7 +417,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 	}
 	// If a register has not been chosen yet, find or create a new one
 	if(chosenRegister==0xffffffff)
-		chosenRegister=findOrCreateRegister(registers, PHIrange, getRegKindFromType(I.getType()));
+		chosenRegister=findOrCreateRegister(registers, PHIrange, getRegKindFromType(I.getType(), asmjs));
 	registersMap[&I]=chosenRegister;
 	// Iterate again on the operands and try to map as many as possible into the same register
 	for(Value* op: I.operands())
@@ -426,7 +431,7 @@ void Registerize::handlePHI(Instruction& I, const LiveRangesTy& liveRanges, llvm
 			continue;
 		const InstructionLiveRange& opRange=liveRanges.find(usedI)->second;
 		bool spaceFound=addRangeToRegisterIfPossible(registers[chosenRegister], opRange,
-								getRegKindFromType(usedI->getType()));
+								getRegKindFromType(usedI->getType(), asmjs));
 		if (spaceFound)
 		{
 			// Update the mapping
@@ -448,12 +453,19 @@ uint32_t Registerize::findOrCreateRegister(llvm::SmallVector<RegisterRange, 4>& 
 	return registers.size()-1;
 }
 
-Registerize::REGISTER_KIND Registerize::getRegKindFromType(llvm::Type* t)
+Registerize::REGISTER_KIND Registerize::getRegKindFromType(const llvm::Type* t, bool asmjs)
 {
 	if(t->isIntegerTy())
 		return INTEGER;
+	// We distinguish between FLOAT and DOUBLE only in asm.js functions
+	else if(asmjs && t->isFloatTy())
+		return FLOAT;
 	else if(t->isFloatingPointTy())
 		return DOUBLE;
+	// Pointers in asm.js are just integers
+	else if(asmjs)
+		return INTEGER;
+	// NOTE: the Void type is considered an OBJECT
 	else
 		return OBJECT;
 }
