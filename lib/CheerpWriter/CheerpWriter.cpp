@@ -650,7 +650,7 @@ void CheerpWriter::compileFree(const Value* obj)
 	{
 		if(needsLinearCheck)
 			stream << "else{";
-		stream << "_cheerpjFree(";
+		stream << "cheerpjFree(";
 		//TODO: Clean up class related data structures
 		compilePointerBase(obj);
 		stream << ',';
@@ -2953,13 +2953,13 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 						POINTER_KIND k = PA.getPointerKind(AI);
 						if(k == COMPLETE_OBJECT)
 						{
-							stream << "_cheerpjFree(";
+							stream << "cheerpjFree(";
 							compileCompleteObject(AI);
 							stream << ",0);" << NewLine;
 						}
 						else if(k == SPLIT_REGULAR || k == REGULAR)
 						{
-							stream << "_cheerpjFree(";
+							stream << "cheerpjFree(";
 							compilePointerBase(AI);
 							stream << ',';
 							compilePointerOffset(AI, LOWEST);
