@@ -1740,8 +1740,11 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 					if (!skipUntilBytelayout && (offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT))
 					{
 						uint32_t typeSize = targetData.getTypeAllocSize(curType->getSequentialElementType());
+						bool isZero = false;
 						assert(typeSize>0);
-						if(typeSize == 1)
+						if(isa<ConstantInt>(indices[i]) && cast<ConstantInt>(indices[i])->getZExtValue() == 0)
+							isZero = true;
+						else if(typeSize == 1)
 							compileOperand( indices[i] );
 						else if((typeSize & (typeSize - 1)) == 0)
 						{
@@ -1774,7 +1777,8 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 							else
 								stream << "|0)";
 						}
-						stream << '+';
+						if(!isZero)
+							stream << '+';
 					}
 					curType = curType->getSequentialElementType();
 				}
