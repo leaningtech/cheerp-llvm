@@ -344,6 +344,7 @@ public:
 		SymbolTraits( std::move(st) )
 	{
 		value_.assign(1, SymbolTraits::first_symbol );
+		while(!SymbolTraits::is_valid( value_ )) advance();
 	}
 	
 	explicit name_iterator(llvm::StringRef s, SymbolTraits st) : 
