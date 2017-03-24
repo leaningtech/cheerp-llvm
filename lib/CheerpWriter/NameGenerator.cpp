@@ -299,7 +299,11 @@ void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAna
 		if ( std::find(gda.constructors().begin(), gda.constructors().end(), &f ) != gda.constructors().end() )
 			++nUses;
 
-		allGlobalValues.emplace( nUses, &f );
+		// HACK: Horrible but useful for now
+		if(f.hasFnAttribute(Attribute::Recoverable))
+			namemap.emplace( &f, filterLLVMName( f.getName(), GLOBAL ) );
+		else
+			allGlobalValues.emplace( nUses, &f );
 
 		/**
 		 * TODO, some cheerp-internals functions are actually generated even with an empty IR.
