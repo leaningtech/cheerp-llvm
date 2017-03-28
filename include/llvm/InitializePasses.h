@@ -301,6 +301,7 @@ void initializeReplaceNopCastsAndByteSwapsPass(PassRegistry&);
 void initializeTypeOptimizerPass(PassRegistry&);
 void initializeDelayAllocasPass(PassRegistry&);
 void initializePreExecutePass(PassRegistry&);
+void initializeExpandStructRegsPass(PassRegistry&);
 }
 
 #endif
