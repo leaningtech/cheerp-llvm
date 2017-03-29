@@ -398,7 +398,7 @@ private:
 	void compileUnsignedInteger(const llvm::Value* v, PARENT_PRIORITY parentPrio);
 
 	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg);
-	void compileMethodLocals(const llvm::Function& F, bool needsLabel);
+	void compileMethodLocals(const llvm::Function& F, bool needsLabel, bool forceNoStacklet);
 	void compileMethod(const llvm::Function& F);
 	/**
 	 * Helper structure for compiling globals

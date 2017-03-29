@@ -4996,9 +4996,9 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	}
 }
 
-void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
+void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel, bool forceNoStacklet)
 {
-	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable);
+	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable) && !forceNoStacklet;
 	if(needsStacklet)
 	{
 		// If the function has no point that can ever need recovery we can bailout immediately
@@ -5128,6 +5128,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel)
 		}
 		stream << NewLine;
 	};
+	// In the stacklet case
 	for(LocalState& l: localsFound)
 	{
 		if(l.state == NOT_DONE)
@@ -5204,7 +5205,9 @@ void CheerpWriter::compileMethod(const Function& F)
 	}
 	if(F.size()==1)
 	{
-		compileMethodLocals(F, false);
+		compileMethodLocals(F, false, /*forceNoStacklet*/false);
+		if(needsStacklet)
+			compileMethodLocals(F, false, /*forceNoStacklet*/true);
 		compileBB(*F.begin());
 	}
 	else
@@ -5214,7 +5217,9 @@ void CheerpWriter::compileMethod(const Function& F)
 		CheerpRenderInterface ri(this, NewLine,
 			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
 			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
-		compileMethodLocals(F, rl->needsLabel());
+		compileMethodLocals(F, rl->needsLabel(), /*forceNoStacklet*/false);
+		if(needsStacklet)
+			compileMethodLocals(F, false, /*forceNoStacklet*/true);
 		rl->Render(&ri);
 	}
 	if (asmjs)
