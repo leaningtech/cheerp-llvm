@@ -2633,6 +2633,11 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
     return false; // The called function could have undefined behavior or
                   // side-effects, even if marked readnone nounwind.
   }
+  case Instruction::GetElementPtr:
+  {
+    // Cheerp: Although they are just arithmetic normally, they access fields in NBA
+    return TD && TD->isByteAddressable();
+  }
   case Instruction::VAArg:
   case Instruction::Alloca:
   case Instruction::Invoke:
