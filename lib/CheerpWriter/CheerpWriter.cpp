@@ -2344,9 +2344,6 @@ void CheerpWriter::compileOperand(const Value* v, PARENT_PRIORITY parentPrio, bo
 		}
 		else
 		{
-			STACKLET_STATUS stackletStatus = needsStacklet(it);
-			if(isa<AllocaInst>(it) && stackletStatus == STACKLET_NEEDED)
-				stream << "a.";
 			stream << namegen.getName(it);
 		}
 	}
@@ -2442,15 +2439,11 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			assert(incoming);
 			if(incoming->getType()->isPointerTy() && (writer.PA.getPointerKind(incoming)==SPLIT_REGULAR || writer.PA.getPointerKind(incoming)==SPLIT_BYTE_LAYOUT) && !writer.PA.getConstantOffsetForPointer(incoming))
 			{
-				if(cast<Instruction>(incoming)->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
-					writer.stream << "var ";
 				writer.stream << writer.namegen.getSecondaryNameForEdge(incoming, fromBB, toBB);
 				writer.stream << '=';
 				writer.compilePointerOffset(incoming, LOWEST);
 				writer.stream << ';' << writer.NewLine;
 			}
-			if(cast<Instruction>(incoming)->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
-				writer.stream << "var ";
 			writer.stream << writer.namegen.getNameForEdge(incoming, fromBB, toBB);
 			writer.stream << '=' << writer.namegen.getName(incoming) << ';' << writer.NewLine;
 		}
@@ -2466,18 +2459,6 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
 				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k)) && writer.PA.getConstantOffsetForPointer(phi))
 				{
-					switch(stackletStatus)
-					{
-						case STACKLET_NEEDED:
-						case STACKLET_NOT_NEEDED:
-							writer.stream << "var ";
-							break;
-						case NO_STACKLET:
-							break;
-					}
-					writer.stream << writer.namegen.getName(phi) << '=';
-					if(stackletStatus == STACKLET_NEEDED)
-						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerBase(incoming);
 				}
@@ -2498,15 +2479,6 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					}
 					else
 					{
-						switch(stackletStatus)
-						{
-							case STACKLET_NEEDED:
-							case STACKLET_NOT_NEEDED:
-								writer.stream << "var ";
-								break;
-							case NO_STACKLET:
-								break;
-						}
 						writer.stream << writer.namegen.getSecondaryName(phi) << '=';
 						if(stackletStatus == STACKLET_NEEDED)
 							writer.stream << "a." << writer.namegen.getSecondaryName(phi);
@@ -2524,18 +2496,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					}
 					writer.stream << ';' << writer.NewLine;
 					writer.registerize.clearEdgeContext();
-					switch(stackletStatus)
-					{
-						case STACKLET_NEEDED:
-						case STACKLET_NOT_NEEDED:
-							writer.stream << "var ";
-							break;
-						case NO_STACKLET:
-							break;
-					}
-					writer.stream << writer.namegen.getName(phi) << '=';
 					if(stackletStatus == STACKLET_NEEDED)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
+					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if (incomingKind == RAW)
 						writer.compileHeapForType(cast<PointerType>(phiType)->getPointerElementType());
@@ -2550,18 +2513,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else
 				{
-					switch(stackletStatus)
-					{
-						case STACKLET_NEEDED:
-						case STACKLET_NOT_NEEDED:
-							writer.stream << "var ";
-							break;
-						case NO_STACKLET:
-							break;
-					}
-					writer.stream << writer.namegen.getName(phi) << '=';
 					if(stackletStatus == STACKLET_NEEDED)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
+					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if(k==REGULAR)
 						writer.stream << "aSlot=";
@@ -2572,18 +2526,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			}
 			else
 			{
-				switch(stackletStatus)
-				{
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						writer.stream << "var ";
-						break;
-					case NO_STACKLET:
-						break;
-				}
-				writer.stream << writer.namegen.getName(phi) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					writer.stream << "a." << writer.namegen.getName(phi) << '=';
+				writer.stream << writer.namegen.getName(phi) << '=';
 				writer.registerize.setEdgeContext(fromBB, toBB);
 				writer.compileOperand(incoming, LOWEST);
 			}
@@ -2950,18 +2895,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				stream << "=0";
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&I);
-				switch(stackletStatus)
-				{
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-					case NO_STACKLET:
-						break;
-				}
 				stream << namegen.getName(&I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
-					stream << namegen.getName(ai) << '=';
+					stream << "a." << namegen.getName(ai) << '=';
 				Type* elementType = ai->getAllocatedType();
 				stream << '[';
 				compileType(elementType, LITERAL_OBJ, varName);
@@ -2982,18 +2918,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&I);
-				switch(stackletStatus)
-				{
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-					case NO_STACKLET:
-						break;
-				}
-				stream << namegen.getSecondaryName(&I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getSecondaryName(&I) << '=';
+				stream << namegen.getSecondaryName(&I) << '=';
 				stream << '0';
 			}
 			else 
@@ -4082,15 +4009,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				compilePointerOffset(si.getOperand(2), TERNARY);
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&si);
-				switch(stackletStatus)
-				{
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-					case NO_STACKLET:
-						break;
-				}
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getName(&si) << '=';
 				stream << namegen.getName(&si) << '=';
@@ -4173,18 +4091,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			{
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&I);
-				switch(stackletStatus)
-				{
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-					case NO_STACKLET:
-						break;
-				}
-				stream << namegen.getSecondaryName(&I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getSecondaryName(&I) << '=';
+				stream << namegen.getSecondaryName(&I) << '=';
 				stream << "oSlot";
 			}
 			return COMPILE_OK;
@@ -4379,19 +4288,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						{
 							assert(!isInlineable(ci, PA));
 							stream << ';' << NewLine;
-							STACKLET_STATUS stackletStatus = needsStacklet(&I);
-							switch(stackletStatus)
-							{
-								case STACKLET_NEEDED:
-								case STACKLET_NOT_NEEDED:
-									stream << "var ";
-									break;
-								case NO_STACKLET:
-									break;
-							}
-							stream << namegen.getSecondaryName(&I) << '=';
 							if(stackletStatus == STACKLET_NEEDED)
 								stream << "a." << namegen.getSecondaryName(&I) << '=';
+							stream << namegen.getSecondaryName(&I) << '=';
 							stream << "oSlot";
 						}
 						break;
@@ -4581,18 +4480,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						assert(PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&li) == SPLIT_REGULAR);
 						stream << ';' << NewLine;
 						STACKLET_STATUS stackletStatus = needsStacklet(&I);
-						switch(stackletStatus)
-						{
-							case STACKLET_NEEDED:
-							case STACKLET_NOT_NEEDED:
-								stream << "var ";
-								break;
-							case NO_STACKLET:
-								break;
-						}
-						stream << namegen.getSecondaryName(&I) << '=';
 						if(stackletStatus == STACKLET_NEEDED)
 							stream << "a." << namegen.getSecondaryName(&I) << '=';
+						stream << namegen.getSecondaryName(&I) << '=';
 						stream << "oSlot";
 					}
 					return COMPILE_OK;
@@ -4628,15 +4518,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						stream <<'o';
 						stream << ';' << NewLine;
 						STACKLET_STATUS stackletStatus = needsStacklet(&li);
-						switch(stackletStatus)
-						{
-							case STACKLET_NEEDED:
-							case STACKLET_NOT_NEEDED:
-								stream << "var ";
-								break;
-							case NO_STACKLET:
-								break;
-						}
 						stream << namegen.getName(&li) << '=';
 						if(stackletStatus == STACKLET_NEEDED)
 							stream << "a." << namegen.Name(&li) << '=';
@@ -4726,19 +4607,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 		{
 			if(I->getType()->isPointerTy() && I->getOpcode() != Instruction::Call && PA.getPointerKind(I) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(I))
 			{
-				if(needsStacklet)
-					stream << "a.";
-				stream << namegen.getSecondaryName(I) << '=';
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
-				switch(stackletStatus)
-				{
-					case NO_STACKLET:
-						break;
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-				}
 				stream << namegen.getSecondaryName(I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getSecondaryName(I) << '=';
@@ -4746,19 +4615,9 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 			else if(!I->getType()->isVoidTy())
 			{
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
-				switch(stackletStatus)
-				{
-					case NO_STACKLET:
-						break;
-					case STACKLET_NEEDED:
-					case STACKLET_NOT_NEEDED:
-						stream << "var ";
-						break;
-				}
 				stream << namegen.getName(I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getName(I) << '=';
-			}
 		}
 		if(I->isTerminator())
 		{
