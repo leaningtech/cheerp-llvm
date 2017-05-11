@@ -41,8 +41,8 @@ private:
 	bool asmjs;
 	bool needsStacklet;
 	void renderCondition(const BasicBlock* B, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio);
-	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, CHEERP_MODE cheerpMode, STACKLET_MODE stackletMode):
-		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET)
+	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, const std::set<uint32_t>& usedPCs, CHEERP_MODE cheerpMode, STACKLET_MODE stackletMode):
+		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET),usedPCs(usedPCs)
 public:
 	{
 	}
@@ -69,6 +69,7 @@ public:
 	void renderContinue(int labelId);
 	void renderLabel(int labelId);
 	void renderIfOnLabel(int labelId, bool first);
+	const std::set<uint32_t>& usedPCs;
 };
 
 void CheerpWriter::handleBuiltinNamespace(const char* identifier, llvm::ImmutableCallSite callV)
@@ -4199,6 +4200,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 								char* endPtr = NULL;
 								int opIndex = strtol(curPtr, &endPtr, 10);
 								i += (endPtr - curPtr - 1);
+								if(a->isAlignStack())
+									opIndex++;
 								compileOperand(I.getOperand(opIndex));
 							}
 						}
@@ -4556,7 +4559,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 	}
 }
 
-void CheerpWriter::compileBB(const BasicBlock& BB)
+void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& usedPCs)
 {
 	bool needsStacklet = BB.getParent()->hasFnAttribute(Attribute::Recoverable);
 	BasicBlock::const_iterator I=BB.begin();
@@ -4587,10 +4590,14 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 			{
 				// The alignStack flag is abused to know if the call may block execution
 				if(ia->isAlignStack())
-					stream << "a.pc=" << currentPC++ << ';';
+				{
+					llvm::Value* lastOperand = I->getOperand(0);
+					assert(lastOperand->getType()->isIntegerTy(32));
+					stream << "a.pc=" << cast<ConstantInt>(lastOperand)->getZExtValue() << ';';
+				}
 			}
 			else
-				stream << "a.pc=" << currentPC++ << ';';
+				stream << "a.pc=" << getNextPC(usedPCs) << ';';
 		}
 		if(!I->use_empty())
 		{
@@ -4653,7 +4660,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB)
 
 void CheerpRenderInterface::renderBlock(const BasicBlock* bb)
 {
-	writer->compileBB(*bb);
+	writer->compileBB(*bb, usedPCs);
 }
 
 void CheerpRenderInterface::renderCondition(const BasicBlock* bb, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio)
@@ -4901,7 +4908,7 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	}
 }
 
-void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel, bool forceNoStacklet)
+void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet)
 {
 	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable) && !forceNoStacklet;
 	if(needsStacklet)
@@ -4919,12 +4926,11 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel, bool 
 				{
 					if(!ia->isAlignStack())
 						continue;
+					assert(isa<ConstantInt>(I.getOperand(0)));
+					usedPCs.insert(cast<ConstantInt>(I.getOperand(0))->getZExtValue());
 				}
 				hasRecoveryPoint = true;
-				break;
 			}
-			if(hasRecoveryPoint)
-				break;
 		}
 		if(!hasRecoveryPoint)
 			return;
@@ -5061,6 +5067,13 @@ void CheerpWriter::compileMethodLocals(const Function& F, bool needsLabel, bool 
 	CompileEndVar();
 }
 
+uint32_t CheerpWriter::getNextPC(const std::set<uint32_t>& usedPCs)
+{
+	while(usedPCs.count(currentPC))
+		currentPC++;
+	return currentPC++;
+}
+
 void CheerpWriter::compileMethod(const Function& F)
 {
 	bool asmjs = F.getSection() == StringRef("asmjs");
@@ -5108,14 +5121,15 @@ void CheerpWriter::compileMethod(const Function& F)
 	{
 		compileParamTypeAnnotationsAsmJS(&F);
 	}
+	std::set<uint32_t> usedPCs;
 	if(F.size()==1)
 	{
-		compileMethodLocals(F, false, /*forceNoStacklet*/false);
+		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
 		if(needsStacklet)
-			compileMethodLocals(F, false, /*forceNoStacklet*/true);
+			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
 		if (asmjs)
 			compileStackFrame();
-		compileBB(*F.begin());
+		compileBB(*F.begin(), usedPCs);
 	}
 	else
 	{
@@ -5124,9 +5138,9 @@ void CheerpWriter::compileMethod(const Function& F)
 		CheerpRenderInterface ri(this, NewLine,
 			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
 			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
-		compileMethodLocals(F, rl->needsLabel(), /*forceNoStacklet*/false);
+		compileMethodLocals(F, usedPCs, rl->needsLabel(), /*forceNoStacklet*/false);
 		if(needsStacklet)
-			compileMethodLocals(F, false, /*forceNoStacklet*/true);
+			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
 		if (asmjs)
 			compileStackFrame();
 		rl->Render(&ri);
