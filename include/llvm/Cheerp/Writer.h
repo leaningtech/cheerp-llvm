@@ -32,6 +32,10 @@
 
 struct Relooper;
 
+struct Relooper;
+
+class CheerpRenderInterface;
+
 namespace cheerp
 {
 
@@ -148,6 +152,7 @@ const static int V8MaxLiteralProperties = 8;
 
 class CheerpWriter
 {
+	friend class ::CheerpRenderInterface;
 public:
 	enum PARENT_PRIORITY { LOWEST = 0, TERNARY, LOGICAL_OR, LOGICAL_AND, BIT_OR, BIT_XOR, BIT_AND, COMPARISON, SHIFT, ADD_SUB, MUL_DIV, HIGHEST };
 private:
@@ -397,8 +402,8 @@ private:
 	void compileSignedInteger(const llvm::Value* v, bool forComparison, PARENT_PRIORITY parentPrio);
 	void compileUnsignedInteger(const llvm::Value* v, PARENT_PRIORITY parentPrio);
 
-	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg);
-	void compileMethodLocals(const llvm::Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet);
+	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg, bool stackletSync);
+	void compileMethodLocals(const llvm::Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync);
 	void compileMethod(const llvm::Function& F);
 	/**
 	 * Helper structure for compiling globals
@@ -472,6 +477,7 @@ private:
 
 	enum STACKLET_STATUS { NO_STACKLET = 0, STACKLET_NEEDED, STACKLET_NOT_NEEDED };
 	STACKLET_STATUS needsStacklet(const llvm::Value* v) const;
+	std::pair<Relooper*, const llvm::BasicBlock*> buildRelooper(const llvm::Function& F, std::set<const llvm::BasicBlock*>* usedBlocks);
 	uint32_t getNextPC(const std::set<uint32_t>& usedPCs);
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener

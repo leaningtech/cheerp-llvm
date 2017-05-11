@@ -37,13 +37,15 @@ public:
 	enum CHEERP_MODE { GENERICJS, ASMJS };
 	enum STACKLET_MODE { NO_STACKET, NEEDS_STACKLET };
 private:
+	std::map<const BasicBlock*, uint32_t> blockPCs;
 	CheerpWriter* writer;
 	const NewLineHandler& NewLine;
 	bool asmjs;
 	bool needsStacklet;
 	void renderCondition(const BasicBlock* B, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio);
 	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, const std::set<uint32_t>& usedPCs, CHEERP_MODE cheerpMode, STACKLET_MODE stackletMode):
-		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET),usedPCs(usedPCs)
+		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET),
+		hasLandingPad(false),isLandingPad(false),ignoreUsed(false),usedPCs(usedPCs)
 public:
 	{
 	}
@@ -70,6 +72,10 @@ public:
 	void renderContinue(int labelId);
 	void renderLabel(int labelId);
 	void renderIfOnLabel(int labelId, bool first);
+	bool hasLandingPad;
+	bool isLandingPad;
+	bool ignoreUsed;
+	std::set<const llvm::BasicBlock*> usedBlocks;
 	const std::set<uint32_t>& usedPCs;
 };
 
@@ -2842,41 +2848,65 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 		case Instruction::Invoke:
 		{
 			const InvokeInst& ci = cast<InvokeInst>(I);
-
 			//TODO: Support unwind
 			//For now, pretend it's a regular call
-			if(ci.getCalledFunction())
+			const Function * calledFunc = ci.getCalledFunction();
+			if(calledFunc)
 			{
 				//Direct call
-				COMPILE_INSTRUCTION_FEEDBACK cf=handleBuiltinCall(&ci, ci.getCalledFunction());
-				assert(cf!=COMPILE_EMPTY);
-				if(cf==COMPILE_OK)
+				COMPILE_INSTRUCTION_FEEDBACK cf=handleBuiltinCall(&ci, calledFunc);
+				if(cf!=COMPILE_UNSUPPORTED)
+					return cf;
+				stream << namegen.getName(calledFunc);
+			}
+			else if(const InlineAsm* a = dyn_cast<InlineAsm>(ci.getCalledValue()))
+			{
+				// Replace the placeholders in the string with the actual operands
+				StringRef code = a->getAsmString();
+				if(!a->getConstraintString().empty())
 				{
-					stream << ';' << NewLine;
-					//Only consider the normal successor for PHIs here
-					//For each successor output the variables for the phi nodes
-					compilePHIOfBlockFromOtherBlock(ci.getNormalDest(), I.getParent());
-					return COMPILE_OK;
+					for(uint32_t i=0;i<code.size();i++)
+					{
+						if(code[i] == '$')
+						{
+							i++;
+							if(code[i]=='$')
+								stream << '$';
+							else
+							{
+								const char* curPtr = code.data()+i;
+								char* endPtr = NULL;
+								int opIndex = strtol(curPtr, &endPtr, 10);
+								i += (endPtr - curPtr - 1);
+								if(a->isAlignStack())
+									opIndex++;
+								compileOperand(I.getOperand(opIndex));
+							}
+						}
+						else
+							stream << code[i];
+					}
 				}
 				else
-					stream << namegen.getName(ci.getCalledFunction());
+					stream << code;
 			}
 			else
 			{
 				//Indirect call
-				compileOperand(ci.getCalledValue());
+				compilePointerAs(ci.getCalledValue(), COMPLETE_OBJECT);
 			}
 
-			compileMethodArgs(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands(),&ci, /*forceBoolean*/ false);
+			if(!isa<InlineAsm>(ci.getCalledValue()))
+				compileMethodArgs(ci.op_begin(),ci.op_begin()+ci.getNumArgOperands(),&ci, /*forceBoolean*/ false);
+
 			stream << ';' << NewLine;
 			//Only consider the normal successor for PHIs here
 			//For each successor output the variables for the phi nodes
-			compilePHIOfBlockFromOtherBlock(ci.getNormalDest(), I.getParent());
 			return COMPILE_OK;
 		}
 		case Instruction::Resume:
 		{
-			//TODO: support exceptions
+			stream << "a.pc=-1;return";
 			return COMPILE_OK;
 		}
 		case Instruction::Br:
@@ -2973,10 +3003,9 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 		}
 		case Instruction::LandingPad:
 		{
-			//TODO: Support exceptions
-			stream << " alert('Exceptions not supported')";
+			stream << "b";
 			//Do not continue block
-			return COMPILE_UNSUPPORTED;
+			return COMPILE_OK;
 		}
 		case Instruction::InsertValue:
 		{
@@ -4677,9 +4706,10 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 		const DebugLoc& debugLoc = I->getDebugLoc();
 		if(sourceMapGenerator && !debugLoc.isUnknown())
 			sourceMapGenerator->setDebugLoc(I->getDebugLoc());
-		if(needsStacklet && isa<CallInst>(I))
+		if(needsStacklet && (isa<CallInst>(I) || isa<InvokeInst>(I)))
 		{
-			if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I)->getCalledValue()))
+			const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I)->getCalledValue() : cast<InvokeInst>(I)->getCalledValue();
+			if(const InlineAsm* ia = dyn_cast<InlineAsm>(calledValue))
 			{
 				// The alignStack flag is abused to know if the call may block execution
 				if(ia->isAlignStack())
@@ -4753,7 +4783,24 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 
 void CheerpRenderInterface::renderBlock(const BasicBlock* bb)
 {
+	if(ignoreUsed && usedBlocks.count(bb))
+	{
+		writer->stream << "a.f=" << writer->namegen.getName(writer->currentFun) << ';';
+		assert(blockPCs.count(bb));
+		writer->stream << "a.pc=" << blockPCs.find(bb)->second << ';';
+		writer->stream << "buildContinuations(a, true);currentThread.state='READY';throw 'CheerpJContinue';";
+		return;
+	}
+	if(hasLandingPad)
+	{
+		// TODO: Only for blocks which are reached from the outline exception handler
+		uint32_t blockPC = writer->getNextPC(usedPCs);
+		blockPCs.insert(std::make_pair(bb, blockPC));
+		writer->stream << "a.pc=" << blockPC << ';';
+	}
 	writer->compileBB(*bb, usedPCs);
+	if(!isLandingPad)
+		usedBlocks.insert(bb);
 }
 
 void CheerpRenderInterface::renderCondition(const BasicBlock* bb, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio)
@@ -4971,14 +5018,23 @@ void CheerpRenderInterface::renderIfOnLabel(int labelId, bool first)
 	}
 }
 
-void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg)
+void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg, bool stackletSync)
 {
 	stream << name;
-	if(needsStacklet)
+	if(needsStacklet && !stackletSync)
 		stream << ':';
 	else
 		stream << '=';
-	if(isArg)
+	if(stackletSync)
+	{
+		if(kind == Registerize::INTEGER)
+			stream << "a." << name << ">>0";
+		else if(kind == Registerize::DOUBLE || kind == Registerize::FLOAT)
+			stream << '+' << "a." << name;
+		else
+			stream << "a." << name;
+	}
+	else if(isArg)
 	{
 		if(kind == Registerize::INTEGER)
 			stream << name << ">>0";
@@ -5003,7 +5059,7 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	}
 }
 
-void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet)
+void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync)
 {
 	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable) && !forceNoStacklet;
 	if(needsStacklet)
@@ -5014,10 +5070,11 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		{
 			for(const Instruction& I: BB)
 			{
-				if(!isa<CallInst>(I))
+				if(!isa<CallInst>(I) && !isa<InvokeInst>(I))
 					continue;
 				// This is a recover point unless it is an inline asm without the align stack flag
-				if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue()))
+                                const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I).getCalledValue() : cast<InvokeInst>(I).getCalledValue();
+                                if(const InlineAsm* ia = dyn_cast<InlineAsm>(calledValue))
 				{
 					if(!ia->isAlignStack())
 						continue;
@@ -5076,7 +5133,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		localsFound.back().state = NAME_DONE;
 	}
 	// Now we have all the needed locals in localsFound
-	if(needsStacklet)
+	if(needsStacklet && !stackletSync)
 	{
 		// If the total number of locals is > 8 we need to create a special object to store the stacklet
 		uint32_t localsCount = 3; // p, pc, f
@@ -5107,7 +5164,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 	}
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
-	if(needsStacklet)
+	if(needsStacklet && !stackletSync)
 	{
 		stream << "var a={p:";
 		stream << "p,pc:0,f:" << namegen.getName(&F);
@@ -5127,7 +5184,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 	{
 		if(!firstVar)
 		{
-			if(needsStacklet)
+			if(needsStacklet && !stackletSync)
 				stream << "};";
 			else
 				stream << ';';
@@ -5141,25 +5198,123 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 			continue;
 		CompileStartVar();
 		assert(!l.name.empty());
-		compileMethodLocal(l.name, l.kind, needsStacklet, l.isArg);
+		compileMethodLocal(l.name, l.kind, needsStacklet, l.isArg, stackletSync);
 		if(l.state == SECONDARY_NAME_DONE)
 		{
 			assert(!l.secondaryName.empty());
 			stream << ',';
-			compileMethodLocal(l.secondaryName, Registerize::INTEGER, needsStacklet, l.isArg);
+			compileMethodLocal(l.secondaryName, Registerize::INTEGER, needsStacklet, l.isArg, stackletSync);
 		}
 	}
 	if(needsLabel)
 	{
 		CompileStartVar();
 		stream << "label";
-		if(needsStacklet)
+		if(needsStacklet && !stackletSync)
 			stream << ':';
 		else
 			stream << '=';
 		stream << '0';
 	}
 	CompileEndVar();
+}
+
+std::pair<Relooper*, const BasicBlock*> CheerpWriter::buildRelooper(const Function& F, std::set<const BasicBlock*>* usedBlocks)
+{
+	//TODO: Support exceptions
+	Function::const_iterator B=F.begin();
+	Function::const_iterator BE=F.end();
+	//First run, create the corresponding relooper blocks
+	std::map<const BasicBlock*, /*relooper::*/Block*> relooperMap;
+	int BlockId = 0;
+	for(;B!=BE;++B)
+	{
+		//Decide if this block should be duplicated instead
+		//of actually directing the control flow to reach it
+		//Currently we just check if the block ends with a return
+		//and its small enough. This should simplify some control flows.
+		bool isSplittable = B->size()<3 && isa<ReturnInst>(B->getTerminator());
+		Block* rlBlock = new Block(&(*B), isSplittable, BlockId++);
+		relooperMap.insert(make_pair(&(*B),rlBlock));
+	}
+
+	B=F.begin();
+	BE=F.end();
+	//Second run, add the branches
+	const llvm::BasicBlock* landingPad = nullptr;
+	for(;B!=BE;++B)
+	{
+		if(usedBlocks && usedBlocks->count(&(*B)))
+			continue;
+		if(B->isLandingPad())
+		{
+			assert(!landingPad);
+			landingPad = &(*B);
+		}
+		const TerminatorInst* term=B->getTerminator();
+		uint32_t defaultBranchId=-1;
+		//Find out which branch id is the default
+		if(isa<BranchInst>(term))
+		{
+			const BranchInst* bi=cast<BranchInst>(term);
+			if(bi->isUnconditional())
+				defaultBranchId = 0;
+			else
+				defaultBranchId = 1;
+		}
+		else if(isa<SwitchInst>(term))
+		{
+#ifndef NDEBUG
+			const SwitchInst* si=cast<SwitchInst>(term);
+#endif
+			assert(si->getDefaultDest()==si->getSuccessor(0));
+			defaultBranchId = 0;
+		}
+		else if(isa<InvokeInst>(term))
+		{
+#ifndef NDEBUG
+			const InvokeInst* ii=cast<InvokeInst>(term);
+#endif
+			assert(ii->getNormalDest()==ii->getSuccessor(0));
+			defaultBranchId = 0;
+		}
+		else if(term->getNumSuccessors())
+		{
+			//Only a problem if there are successors
+			term->dump();
+			llvm::report_fatal_error("Unsupported code found, please report a bug", false);
+		}
+
+		for(uint32_t i=0;i<term->getNumSuccessors();i++)
+		{
+			if(term->getSuccessor(i)->isLandingPad())
+				continue;
+			auto it = relooperMap.find(term->getSuccessor(i));
+			assert(it != relooperMap.end());
+			Block* target = it->second;
+			//Use -1 for the default target
+			assert(relooperMap.count(&(*B)));
+			bool ret=relooperMap[&(*B)]->AddBranchTo(target, (i==defaultBranchId)?-1:i);
+
+			if(ret==false) //More than a path for a single block can only happen for switch
+			{
+				assert(isa<SwitchInst>(term));
+			}
+		}
+	}
+
+	B=F.begin();
+	BE=F.end();
+	//Third run, add the block to the relooper and run it
+	Relooper* rl=new Relooper(BlockId);
+	for(;B!=BE;++B)
+	{
+		assert(relooperMap.count(&(*B)));
+		rl->AddBlock(relooperMap[&(*B)]);
+	}
+	assert(relooperMap.count(usedBlocks ? landingPad : &F.getEntryBlock()));
+	rl->Calculate(relooperMap[usedBlocks ? landingPad : &F.getEntryBlock()]);
+	return std::make_pair(rl, landingPad);
 }
 
 uint32_t CheerpWriter::getNextPC(const std::set<uint32_t>& usedPCs)
@@ -5219,52 +5374,124 @@ void CheerpWriter::compileMethod(const Function& F)
 	std::set<uint32_t> usedPCs;
 	if(F.size()==1)
 	{
-		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
+		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false);
 		if(needsStacklet)
-			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
+			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false);
 		compileBB(*F.begin(), usedPCs);
+		if (asmjs)
+		{
+			// TODO: asm.js needs a final return statement.
+			// for now we are putting one at the end of every method, even
+			// if there is already one
+			compileStackRet();
+			stream << "return";
+			if(!F.getReturnType()->isVoidTy())
+			{
+				Registerize::REGISTER_KIND kind = registerize.getRegKindFromType(F.getReturnType(), true);
+				switch(kind)
+				{
+					case Registerize::INTEGER:
+						stream << " 0";
+						break;
+					case Registerize::FLOAT:
+						stream << " " << namegen.getBuiltinName(NameGenerator::Builtin::FROUND) << "(0.)";
+						break;
+					case Registerize::DOUBLE:
+						stream << " 0.";
+						break;
+					case Registerize::OBJECT:
+						llvm::errs() << "OBJECT register kind should not appear in asm.js functions\n";
+						llvm::report_fatal_error("please report a bug");
+						break;
+				}
+			}
+			stream << ';' << NewLine;
+		}
+		stream << '}' << NewLine;
 	}
 	else
 	{
-		Relooper* rl = runRelooperOnFunction(F, PA, registerize);
-		Relooper* rl = runRelooperOnFunction(F);
+		std::pair<Relooper*, const llvm::BasicBlock*> rl=buildRelooper(F, PA, registerize, nullptr);
+		compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/true, /*stackletSync*/false);
+		if(needsStacklet)
+			compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/false);
 		CheerpRenderInterface ri(this, NewLine,
 			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
 			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
-		compileMethodLocals(F, usedPCs, rl->needsLabel(), /*forceNoStacklet*/false);
-		if(needsStacklet)
-			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true);
-		rl->Render(&ri);
-	}
-	if (asmjs)
-	{
-		// TODO: asm.js needs a final return statement.
-		// for now we are putting one at the end of every method, even
-		// if there is already one
-		stream << "return";
-		if(!F.getReturnType()->isVoidTy())
+		if(rl.second)
+			ri.hasLandingPad = true;
+		rl.first->Render(&ri);
+		if (asmjs)
 		{
-			Registerize::REGISTER_KIND kind = registerize.getRegKindFromType(F.getReturnType(), true);
-			switch(kind)
+			// TODO: asm.js needs a final return statement.
+			// for now we are putting one at the end of every method, even
+			// if there is already one
+			compileStackRet();
+			stream << "return";
+			if(!F.getReturnType()->isVoidTy())
 			{
-				case Registerize::INTEGER:
-					stream << " 0";
-					break;
-				case Registerize::FLOAT:
-					stream << " " << namegen.getBuiltinName(NameGenerator::Builtin::FROUND) << "(0.)";
-					break;
-				case Registerize::DOUBLE:
-					stream << " 0.";
-					break;
-				case Registerize::OBJECT:
-					llvm::errs() << "OBJECT register kind should not appear in asm.js functions\n";
-					llvm::report_fatal_error("please report a bug");
-					break;
+				Registerize::REGISTER_KIND kind = registerize.getRegKindFromType(F.getReturnType(), true);
+				switch(kind)
+				{
+					case Registerize::INTEGER:
+						stream << " 0";
+						break;
+					case Registerize::FLOAT:
+						stream << " " << namegen.getBuiltinName(NameGenerator::Builtin::FROUND) << "(0.)";
+						break;
+					case Registerize::DOUBLE:
+						stream << " 0.";
+						break;
+					case Registerize::OBJECT:
+						llvm::errs() << "OBJECT register kind should not appear in asm.js functions\n";
+						llvm::report_fatal_error("please report a bug");
+						break;
+				}
 			}
+			stream << ';' << NewLine;
 		}
-		stream << ';' << NewLine;
+		stream << '}' << NewLine;
+		if(rl.second)
+		{
+			stream << "function " << namegen.getName(&F) << "E(a,b){" << NewLine;
+			stream << "a.f=" << namegen.getName(&F) << "E;" << NewLine;
+			std::pair<Relooper*, const llvm::BasicBlock*> rl2=buildRelooper(F, &ri.usedBlocks);
+			compileMethodLocals(F, usedPCs, rl2.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/true);
+			stream << "var pc=a.pc;" << NewLine;
+			// PHI sync up, pretty bad but works
+			bool firstSyncUp = true;
+
+			if (rl.second->getFirstNonPHI()!=&rl.second->front())
+			{
+				for(const BasicBlock& BB: F)
+				{
+					// If the block terminates with an invoke
+					if(const InvokeInst* II = dyn_cast<InvokeInst>(BB.getTerminator()))
+					{
+						if(const InlineAsm* ia = dyn_cast<InlineAsm>(II->getCalledValue()))
+						{
+							// For asm code that requires recovery
+							if(ia->isAlignStack() && needsPointerKindConversionForBlocks(rl.second, &BB))
+							{
+								if(!firstSyncUp)
+									stream << "else ";
+								stream << "if(pc===" << cast<ConstantInt>(II->getOperand(0))->getZExtValue() << "){";
+								compilePHIOfBlockFromOtherBlock(rl.second, &BB);
+								stream << '}' << NewLine;
+								firstSyncUp = false;
+							}
+						}
+					}
+				}
+			}
+			ri.isLandingPad = true;
+			ri.ignoreUsed = true;
+			rl2.first->Render(&ri);
+			stream << '}' << NewLine;
+			stream << "var " << namegen.getName(&F) << "EE=" << namegen.getName(&F) << "E;" << NewLine;
+		}
 	}
-	stream << '}' << NewLine;
+
 	currentFun = NULL;
 }
 
@@ -5992,12 +6219,12 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 			if(l.state == NOT_DONE)
 				continue;
 			stream << "this.";
-			compileMethodLocal(l.name, l.kind, false, l.isArg);
+			compileMethodLocal(l.name, l.kind, false, l.isArg, /*stackletSync*/false);
 			stream << ';' << NewLine;
 			if(l.state == SECONDARY_NAME_DONE)
 			{
 				stream << "this.";
-				compileMethodLocal(l.secondaryName, Registerize::INTEGER, false, l.isArg);
+				compileMethodLocal(l.secondaryName, Registerize::INTEGER, false, l.isArg, /*stackletSync*/false);
 				stream << ';' << NewLine;
 			}
 		}
