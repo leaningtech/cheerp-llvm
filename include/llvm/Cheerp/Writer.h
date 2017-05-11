@@ -398,7 +398,7 @@ private:
 	void compileUnsignedInteger(const llvm::Value* v, PARENT_PRIORITY parentPrio);
 
 	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg);
-	void compileMethodLocals(const llvm::Function& F, bool needsLabel, bool forceNoStacklet);
+	void compileMethodLocals(const llvm::Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet);
 	void compileMethod(const llvm::Function& F);
 	/**
 	 * Helper structure for compiling globals
@@ -472,6 +472,7 @@ private:
 
 	enum STACKLET_STATUS { NO_STACKLET = 0, STACKLET_NEEDED, STACKLET_NOT_NEEDED };
 	STACKLET_STATUS needsStacklet(const llvm::Value* v) const;
+	uint32_t getNextPC(const std::set<uint32_t>& usedPCs);
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
 	{
@@ -561,7 +562,7 @@ public:
 	{
 	}
 	void makeJS();
-	void compileBB(const llvm::BasicBlock& BB);
+	void compileBB(const llvm::BasicBlock& BB, const std::set<uint32_t>& usedPCs);
 	void compileConstant(const llvm::Constant* c, PARENT_PRIORITY parentPrio = HIGHEST);
 	void compileOperand(const llvm::Value* v, PARENT_PRIORITY parentPrio = HIGHEST, bool allowBooleanObjects = false);
 	void compilePHIOfBlockFromOtherBlock(const llvm::BasicBlock* to, const llvm::BasicBlock* from);
