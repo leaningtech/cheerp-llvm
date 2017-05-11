@@ -1368,11 +1368,13 @@ Instruction *InstCombiner::visitCallSite(CallSite CS) {
     }
   }
 
+#if 0
   if (isa<InlineAsm>(Callee) && !CS.doesNotThrow()) {
     // Inline asm calls cannot throw - mark them 'nounwind'.
     CS.setDoesNotThrow();
     Changed = true;
   }
+#endif
 
   // Try to optimize the call if possible, we require DataLayout for most of
   // this.  None of these calls are seen as possibly dead so go ahead and

@@ -226,15 +226,19 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 			doUpAndMark(blocksState, useBB, &A);
 		}
 	}
+	bool hasLandingPad = false;
 	for(BasicBlock& BB: F)
 	{
+		if(BB.isLandingPad())
+			hasLandingPad = true;
 		for(Instruction& I: BB)
 		{
-			if(needsRecover && isa<CallInst>(I))
+			if(needsRecover && (isa<CallInst>(I) || isa<InvokeInst>(I)))
 			{
 				bool isRecoverPoint = true;
 				// For InlineAsm we use the stack align flag to signal if recovery is necessary
-				if(const InlineAsm* ia = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue()))
+				const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I).getCalledValue() : cast<InvokeInst>(I).getCalledValue();
+				if(const InlineAsm* ia = dyn_cast<InlineAsm>(calledValue))
 				{
 					if(!ia->isAlignStack())
 						isRecoverPoint = false;
@@ -261,6 +265,15 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 				}
 				doUpAndMark(blocksState, useBB, &I);
 			}
+		}
+	}
+	if(hasLandingPad)
+	{
+		// TODO: Only blocks reachable from the outline handler should end up here
+		for(BasicBlock& BB: F)
+		{
+			assert(instIdMap.count(BB.getTerminator()));
+			recoverPoints.insert(instIdMap.find(BB.getTerminator())->second);
 		}
 	}
 	// Remove verbose debugging output
