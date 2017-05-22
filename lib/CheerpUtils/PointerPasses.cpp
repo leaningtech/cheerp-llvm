@@ -423,7 +423,7 @@ bool PointerArithmeticToArrayIndexing::runOnFunction(Function& F)
 				phiMap.insert(std::make_pair(phi, newVal));
 				continue;
 			}
-			Changed |= PHIVisitor(phiMap, toRemove).visitPHI(phi);
+			//Changed |= PHIVisitor(phiMap, toRemove).visitPHI(phi);
 		}
 	}
 	for(auto& it: phiMap)
