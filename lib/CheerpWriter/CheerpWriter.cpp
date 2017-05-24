@@ -2149,14 +2149,31 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else if(k==SPLIT_REGULAR)
 				{
-					writer.stream << writer.namegen.getSecondaryName(phi) << '=';
-					writer.registerize.setEdgeContext(fromBB, toBB);
-					writer.compilePointerOffset(incoming, LOWEST);
-					writer.stream << ';' << writer.NewLine;
-					writer.registerize.clearEdgeContext();
-					writer.stream << writer.namegen.getName(phi) << '=';
-					writer.registerize.setEdgeContext(fromBB, toBB);
-					writer.compilePointerBase(incoming);
+					if(PA.getPointerKind(incoming) == SPLIT_REGULAR && (isa<GetElementPtrInst>(incoming) && cast<User>(incoming)->getNumOperands() > 2 && !PA.getConstantOffsetForPointer(incoming)))
+					{
+						writer.stream << "var __tmp1__=";
+						writer.registerize.setEdgeContext(fromBB, toBB);
+						writer.compilePointerOffset(incoming, LOWEST);
+						writer.stream << ';' << writer.NewLine;
+						writer.registerize.clearEdgeContext();
+						writer.stream << writer.namegen.getName(phi) << '=';
+						writer.registerize.setEdgeContext(fromBB, toBB);
+						writer.compilePointerBase(incoming);
+						writer.stream << ';' << writer.NewLine;
+						writer.registerize.clearEdgeContext();
+						writer.stream << writer.namegen.getSecondaryName(phi) << "=__tmp1__";
+					}
+					else
+					{
+						writer.stream << writer.namegen.getSecondaryName(phi) << '=';
+						writer.registerize.setEdgeContext(fromBB, toBB);
+						writer.compilePointerOffset(incoming, LOWEST);
+						writer.stream << ';' << writer.NewLine;
+						writer.registerize.clearEdgeContext();
+						writer.stream << writer.namegen.getName(phi) << '=';
+						writer.registerize.setEdgeContext(fromBB, toBB);
+						writer.compilePointerBase(incoming);
+					}
 				}
 				else
 				{
