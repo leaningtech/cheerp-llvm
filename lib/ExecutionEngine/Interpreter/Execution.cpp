@@ -912,7 +912,7 @@ void Interpreter::visitSwitchInst(SwitchInst &I) {
 
 void Interpreter::visitIndirectBrInst(IndirectBrInst &I) {
   ExecutionContext &SF = ECStack.back();
-  void *Dest = GVTOP(getOperandValue(I.getAddress(), SF));
+  void *Dest = GVTORP(getOperandValue(I.getAddress(), SF));
   SwitchToNewBasicBlock((BasicBlock*)Dest, SF);
 }
 
@@ -980,7 +980,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
                     << " bytes) x " << NumElements << " (Total: " << MemToAlloc
                     << ") at " << uintptr_t(Memory) << '\n');
 
-  GenericValue Result = PTOGV(Memory);
+  GenericValue Result = RPTOGV(Memory);
   assert(Result.PointerVal && "Null pointer returned by allocator!");
   SetValue(&I, Result, SF);
 
@@ -1041,7 +1041,7 @@ void Interpreter::visitGetElementPtrInst(GetElementPtrInst &I) {
 void Interpreter::visitLoadInst(LoadInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  GenericValue *Ptr = (GenericValue*)GVTOP(SRC);
+  GenericValue *Ptr = (GenericValue*)GVTORP(SRC);
   GenericValue Result;
   LoadValueFromMemory(Result, Ptr, I.getType());
   SetValue(&I, Result, SF);
@@ -1053,12 +1053,12 @@ void Interpreter::visitStoreInst(StoreInst &I) {
   ExecutionContext &SF = ECStack.back();
   GenericValue Val = getOperandValue(I.getOperand(0), SF);
   GenericValue SRC = getOperandValue(I.getPointerOperand(), SF);
-  StoreValueToMemory(Val, (GenericValue *)GVTOP(SRC),
+  StoreValueToMemory(Val, (GenericValue *)GVTORP(SRC),
                      I.getOperand(0)->getType());
   if (StoreListener)
   {
     assert(ForPreExecute);
-    StoreListener(GVTOP(SRC));
+    StoreListener(GVTORP(SRC));
   }
   if (I.isVolatile() && PrintVolatile)
     dbgs() << "Volatile store: " << I;
@@ -1088,7 +1088,7 @@ void Interpreter::visitCallSite(CallSite CS) {
       assert(bitcast);
       Value* ap = bitcast->getOperand(0);
 	GenericValue GV = getOperandValue(ap, SF);
-      StoreValueToMemory(ArgIndex, (GenericValue *)GVTOP(GV),
+      StoreValueToMemory(ArgIndex, (GenericValue *)GVTORP(GV),
                      int32Ty);
       return;
     }
@@ -1752,7 +1752,7 @@ void Interpreter::visitVAArgInst(VAArgInst &I) {
   GenericValue VAList = getOperandValue(I.getOperand(0), SF);
   GenericValue Result;
   Type* int32Ty = Type::getInt32Ty(I.getContext());
-  LoadValueFromMemory(Result, (GenericValue *)GVTOP(VAList), int32Ty);
+  LoadValueFromMemory(Result, (GenericValue *)GVTORP(VAList), int32Ty);
   uint32_t value = Result.IntVal.getZExtValue();
   uint16_t stackFrame = value>>16;
   uint16_t argNum = value&0xFFFF;
@@ -1781,7 +1781,7 @@ void Interpreter::visitVAArgInst(VAArgInst &I) {
   // lower 16 bit
   GenericValue ArgIndex;
   ArgIndex.IntVal = APInt(32, (stackFrame<<16) | (++argNum)) ;
-  StoreValueToMemory(ArgIndex, (GenericValue *)GVTOP(VAList),
+  StoreValueToMemory(ArgIndex, (GenericValue *)GVTORP(VAList),
                      int32Ty);
 }
 
@@ -2096,7 +2096,7 @@ GenericValue Interpreter::getOperandValue(Value *V, ExecutionContext &SF) {
   } else if (Constant *CPV = dyn_cast<Constant>(V)) {
     return getConstantValue(CPV);
   } else if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
-    return PTOGV(getPointerToGlobal(GV));
+    return RPTOGV(getPointerToGlobal(GV));
   } else {
     return SF.Values[V];
   }
