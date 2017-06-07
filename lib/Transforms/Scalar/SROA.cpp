@@ -949,7 +949,7 @@ private:
       if (BitCastInst* BC = dyn_cast<BitCastInst>(I)) {
         assert(UsedI->getType()->isPointerTy());
         Type* UsedTy = UsedI->getType()->getPointerElementType();
-        if (!DL.isByteAddressable() && UsedTy->isStructTy() && cast<StructType>(UsedTy)->hasByteLayout())
+        if (!DL.isByteAddressable() && I->getParent()->getParent()->getSection() != StringRef("asmjs") && UsedTy->isStructTy() && cast<StructType>(UsedTy)->hasByteLayout())
           return BC;
       }
 
@@ -999,7 +999,7 @@ private:
     }
 
     // Cheerp: PHIs and selects are only safe to work on if we can create GEPs from all incoming pointer
-    if (!DL.isByteAddressable()) {
+    if (!DL.isByteAddressable() && I.getParent()->getParent()->getSection() != StringRef("asmjs")) {
       // Check if the PHI or select can be unconditionally loaded between the first load/store in the BB
       SmallPtrSet<User*, 4> users(I.users().begin(), I.users().end());
       Instruction* firstUser = NULL;
@@ -1857,8 +1857,8 @@ static Value *getAdjustedPtr(IRBuilderTy &IRB, const DataLayout &DL, Value *Ptr,
   // On the off chance we were targeting i8*, guard the bitcast here.
   if (Ptr->getType() != PointerTy)
   {
-    // Cheerp: We don't accept a unsafe cast
-    if(!DL.isByteAddressable())
+    // Cheerp: We don't accept a unsafe cast, unless we are in asm.js mode
+    if(!DL.isByteAddressable() && IRB.GetInsertBlock()->getParent()->getSection() != StringRef("asmjs"))
       return NULL;
     Ptr = IRB.CreateBitCast(Ptr, PointerTy, NamePrefix + "sroa_cast");
   }
@@ -2897,7 +2897,7 @@ private:
         OurPtr = &NewAI;
       CallInst *New = IRB.CreateMemSet(
           OurPtr, II.getValue(), Size,
-          getSliceAlign(), II.isVolatile(), NULL, NULL, NULL, DL.isByteAddressable());
+          getSliceAlign(), II.isVolatile(), NULL, NULL, NULL, DL.isByteAddressable() || IRB.GetInsertBlock()->getParent()->getSection() == StringRef("asmjs"));
       (void)New;
       DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;
@@ -3075,7 +3075,7 @@ private:
       Constant *Size = ConstantInt::get(SizeTy, NewEndOffset - NewBeginOffset);
       CallInst *New = IRB.CreateMemCpy(
           IsDest ? OurPtr : OtherPtr, IsDest ? OtherPtr : OurPtr, Size,
-          MinAlign(SliceAlign, OtherAlign), II.isVolatile(), NULL, NULL, NULL, NULL, DL.isByteAddressable());
+          MinAlign(SliceAlign, OtherAlign), II.isVolatile(), NULL, NULL, NULL, NULL, DL.isByteAddressable() || IRB.GetInsertBlock()->getParent()->getSection() == StringRef("asmjs"));
       (void)New;
       DEBUG(dbgs() << "          to: " << *New << "\n");
       return false;
