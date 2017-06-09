@@ -1079,7 +1079,7 @@ void Interpreter::visitCallSite(CallSite CS) {
       GenericValue ArgIndex;
       ArgIndex.UIntPairVal.first = ECStack.size() - 1;
       ArgIndex.UIntPairVal.second = 0;
-      SetValue(CS.getInstruction(), ArgIndex, SF);
+      SetValue(cast<Instruction>(CS->getOperand(0))->getOperand(0), ArgIndex, SF);
       return;
     }
     case Intrinsic::vaend:    // va_end is a noop for the interpreter
@@ -1759,6 +1759,7 @@ void Interpreter::visitVAArgInst(VAArgInst &I) {
 
   // Move the pointer to the next vararg.
   ++VAList.UIntPairVal.second;
+  SetValue(I.getOperand(0), VAList, SF);
 }
 
 void Interpreter::visitExtractElementInst(ExtractElementInst &I) {
