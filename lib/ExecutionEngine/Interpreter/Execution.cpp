@@ -1076,10 +1076,18 @@ void Interpreter::visitCallSite(CallSite CS) {
     case Intrinsic::not_intrinsic:
       break;
     case Intrinsic::vastart: { // va_start
+      // The allocated space for the va_list is a pointer, so 32 bit.
+      // We store the stack index in the higher 16 bit, and the vararg index in the
+      // lower 16 bit
       GenericValue ArgIndex;
-      ArgIndex.UIntPairVal.first = ECStack.size() - 1;
-      ArgIndex.UIntPairVal.second = 0;
-      SetValue(cast<Instruction>(CS->getOperand(0))->getOperand(0), ArgIndex, SF);
+      Type* int32Ty = Type::getInt32Ty(F->getContext());
+      ArgIndex.IntVal = APInt(32,(ECStack.size() - 1)<<16);
+      Instruction* bitcast = dyn_cast<Instruction>(CS.getInstruction()->getOperand(0));
+      assert(bitcast);
+      Value* ap = bitcast->getOperand(0);
+	GenericValue GV = getOperandValue(ap, SF);
+      StoreValueToMemory(ArgIndex, (GenericValue *)GVTOP(GV),
+                     int32Ty);
       return;
     }
     case Intrinsic::vaend:    // va_end is a noop for the interpreter
@@ -1735,12 +1743,20 @@ void Interpreter::visitBitCastInst(BitCastInst &I) {
 void Interpreter::visitVAArgInst(VAArgInst &I) {
   ExecutionContext &SF = ECStack.back();
 
-  // Get the incoming valist parameter.  LLI treats the valist as a
-  // (ec-stack-depth var-arg-index) pair.
+  // Get the incoming valist parameter.
+  // The allocated space for the va_list is a pointer, so 32 bit.
+  // We store the stack index in the higher 16 bit, and the vararg index in the
+  // lower 16 bit
   GenericValue VAList = getOperandValue(I.getOperand(0), SF);
+  GenericValue Result;
+  Type* int32Ty = Type::getInt32Ty(I.getContext());
+  LoadValueFromMemory(Result, (GenericValue *)GVTOP(VAList), int32Ty);
+  uint32_t value = Result.IntVal.getZExtValue();
+  uint16_t stackFrame = value>>16;
+  uint16_t argNum = value&0xFFFF;
   GenericValue Dest;
-  GenericValue Src = ECStack[VAList.UIntPairVal.first]
-                      .VarArgs[VAList.UIntPairVal.second];
+  GenericValue Src = ECStack[stackFrame]
+                      .VarArgs[argNum];
   Type *Ty = I.getType();
   switch (Ty->getTypeID()) {
   case Type::IntegerTyID:
@@ -1758,8 +1774,13 @@ void Interpreter::visitVAArgInst(VAArgInst &I) {
   SetValue(&I, Dest, SF);
 
   // Move the pointer to the next vararg.
-  ++VAList.UIntPairVal.second;
-  SetValue(I.getOperand(0), VAList, SF);
+  // The allocated space for the va_list is a pointer, so 32 bit.
+  // We store the stack index in the higher 16 bit, and the vararg index in the
+  // lower 16 bit
+  GenericValue ArgIndex;
+  ArgIndex.IntVal = APInt(32, (stackFrame<<16) | (++argNum)) ;
+  StoreValueToMemory(ArgIndex, (GenericValue *)GVTOP(VAList),
+                     int32Ty);
 }
 
 void Interpreter::visitExtractElementInst(ExtractElementInst &I) {
