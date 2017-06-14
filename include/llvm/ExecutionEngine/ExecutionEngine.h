@@ -178,6 +178,7 @@ protected:
   std::string getMangledName(const GlobalValue *GV);
 
   void (*StoreListener)(void* Addr);
+  void (*AllocaListener)(Type* Ty, uint32_t Size, void* Addr);
 
 public:
   /// lock - This lock protects the ExecutionEngine and MCJIT classes. It must
@@ -519,6 +520,10 @@ public:
   /// InstallStoreListener - Listener to invoke on each store
   void InstallStoreListener(void (*P)(void* Addr)) {
     StoreListener = P;
+  }
+  /// InstallAllocaListener - Listener to invoke on each alloca
+  void InstallAllocaListener(void (*P)(Type* Ty, uint32_t Size, void* Addr)) {
+    AllocaListener = P;
   }
 
 protected:
