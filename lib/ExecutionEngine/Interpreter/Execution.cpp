@@ -986,6 +986,9 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
 
   if (I.getOpcode() == Instruction::Alloca)
     ECStack.back().Allocas.add(Memory);
+
+  if (AllocaListener)
+    AllocaListener(Ty, MemToAlloc, Memory);
 }
 
 // getElementOffset - The workhorse for getelementptr.

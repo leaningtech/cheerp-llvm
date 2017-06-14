@@ -55,7 +55,8 @@ void JITEventListener::anchor() {}
 ExecutionEngine::ExecutionEngine(std::unique_ptr<Module> M)
   : EEState(*this),
     LazyFunctionCreator(nullptr),
-    StoreListener(nullptr) {
+    StoreListener(nullptr),
+    AllocaListener(nullptr) {
   CompilingLazily         = false;
   GVCompilationDisabled   = false;
   SymbolSearchingDisabled = false;
