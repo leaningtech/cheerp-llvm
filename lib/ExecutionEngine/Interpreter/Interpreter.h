@@ -115,6 +115,10 @@ class Interpreter : public ExecutionEngine, public InstVisitor<Interpreter> {
   bool ForPreExecute;
 
   bool CleanAbort;
+
+  // Structure that stores the mapping between functions and function pointer
+  // addresses used in the interpreter
+  FunctionProxy::ProxyMap ProxyMap;
 public:
   explicit Interpreter(std::unique_ptr<Module> M, bool preExecute);
   ~Interpreter();
@@ -228,7 +232,7 @@ private:  // Helper functions
   void SwitchToNewBasicBlock(BasicBlock *Dest, ExecutionContext &SF);
 
   void *getPointerToFunction(Function *F) override { 
-	  return FunctionProxy::getProxy(F);
+	  return FunctionProxy::getProxy(ProxyMap, F);
   }
 
   void initializeExecutionEngine() { }
