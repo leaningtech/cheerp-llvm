@@ -1140,8 +1140,8 @@ void Interpreter::visitCallSite(CallSite CS) {
   GenericValue SRC = getOperandValue(SF.Caller.getCalledValue(), SF);
   if (SF.Caller.getCalledFunction() == nullptr)
   {
-    FunctionProxy* proxy = static_cast<FunctionProxy*>(GVTOP(SRC));
-    callFunction(proxy->getFunction(), ArgVals);
+    void* faddr = GVTOP(SRC);
+    callFunction(FunctionAddresses.getFunction(faddr), ArgVals);
   }
   else
   {
