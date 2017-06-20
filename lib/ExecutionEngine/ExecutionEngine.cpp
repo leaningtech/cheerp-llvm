@@ -54,6 +54,8 @@ void JITEventListener::anchor() {}
 
 ExecutionEngine::ExecutionEngine(std::unique_ptr<Module> M)
   : EEState(*this),
+    MemoryAllocator(new DirectAllocator()),
+    FunctionAddresses(new DirectFunctionMap()),
     LazyFunctionCreator(nullptr),
     StoreListener(nullptr),
     AllocaListener(nullptr) {
@@ -87,7 +89,7 @@ class GVMemoryBlock : public CallbackVH {
 public:
   /// \brief Returns the address the GlobalVariable should be written into.  The
   /// GVMemoryBlock object prefixes that.
-  static char *Create(VirtualAllocator &MemoryAllocator,
+  static char *Create(VirtualAllocatorBase &MemoryAllocator,
           const GlobalVariable *GV, const DataLayout& TD) {
     Type *ElTy = GV->getType()->getElementType();
     size_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
@@ -110,14 +112,14 @@ public:
 }  // anonymous namespace
 
 GenericValue ExecutionEngine::RPTOGV(void *P) {
-  return GenericValue(MemoryAllocator.toVirtual(P));
+  return GenericValue(MemoryAllocator->toVirtual(P));
 }
 void* ExecutionEngine::GVTORP(const GenericValue &GV) {
-  return MemoryAllocator.toReal(GV.PointerVal);
+  return MemoryAllocator->toReal(GV.PointerVal);
 }
 
 char *ExecutionEngine::getMemoryForGV(const GlobalVariable *GV) {
-  return GVMemoryBlock::Create(MemoryAllocator, GV, *getDataLayout());
+  return GVMemoryBlock::Create(*MemoryAllocator, GV, *getDataLayout());
 }
 
 void ExecutionEngine::addObjectFile(std::unique_ptr<object::ObjectFile> O) {
