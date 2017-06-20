@@ -1028,7 +1028,7 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
 
   // Allocate enough memory to hold the type...
-  void *Memory = MemoryAllocator.Allocate(MemToAlloc, 8);
+  void *Memory = MemoryAllocator->Allocate(MemToAlloc, 8);
 
   LLVM_DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize
                     << " bytes) x " << NumElements << " (Total: " << MemToAlloc
@@ -1194,7 +1194,7 @@ void Interpreter::visitCallSite(CallSite CS) {
   if (SF.Caller.getCalledFunction() == nullptr)
   {
     void* faddr = GVTOP(SRC);
-    callFunction(FunctionAddresses.getFunction(faddr), ArgVals);
+    callFunction(FunctionAddresses->getFunction(faddr), ArgVals);
   }
   else
   {
