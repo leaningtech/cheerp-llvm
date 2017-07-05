@@ -43,10 +43,10 @@ private:
 	bool asmjs;
 	bool needsStacklet;
 	void renderCondition(const BasicBlock* B, int branchId, CheerpWriter::PARENT_PRIORITY parentPrio);
+public:
 	CheerpRenderInterface(CheerpWriter* w, const NewLineHandler& n, const std::set<uint32_t>& usedPCs, CHEERP_MODE cheerpMode, STACKLET_MODE stackletMode):
 		writer(w),NewLine(n),asmjs(cheerpMode == ASMJS),needsStacklet(stackletMode == NEEDS_STACKLET),
 		hasLandingPad(false),isLandingPad(false),ignoreUsed(false),usedPCs(usedPCs)
-public:
 	{
 	}
 	void renderBlock(const BasicBlock* BB);
@@ -538,7 +538,7 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 		
 		uint32_t numElem = compileArraySize(info, /* shouldPrint */false);
 		
-		assert((REGULAR == result || SPLIT_REGULAR == result || isByteLayout(result) || numElem <= 1);
+		assert((REGULAR == result || SPLIT_REGULAR == result || isByteLayout(result)) || numElem <= 1);
 
 		if((REGULAR == result || SPLIT_REGULAR == result) && !needsDowncastArray)
 			stream << '[';
@@ -1773,7 +1773,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 								stream << "Math.imul(";
 							else
 								stream << '(';
-							compileOperand( indices[i] useMathImul ? LOWEST : MUL_DIV);
+							compileOperand( indices[i], useMathImul ? LOWEST : MUL_DIV);
 							if(useMathImul)
 								stream << ',';
 							else
@@ -1884,7 +1884,7 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	}
 	else if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && byteLayout && isa<Argument>(p) && forEscapingPointer)
 	{
-		compileBitCastOffset(p, p->getType());
+		compileBitCastOffset(p, p->getType(), HIGHEST);
 	}
 	else if (const ConstantInt* CI = PA.getConstantOffsetForPointer(p))
 	{
@@ -2054,7 +2054,8 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 		{
 			// Populate a DataView with a byte buffer
 			stream << "new Uint8Array([";
-			compileConstantAsBytes(c, true);
+			JSBytesWriter bytesWriter(*this);
+			linearHelper.compileConstantAsBytes(c, /*asmjs*/false, &bytesWriter);
 			stream << "])";
 			return;
 		}
@@ -2072,7 +2073,7 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 		{
 			// Populate a DataView with a byte buffer
 			stream << "new Uint8Array([";
-			JSBytesWriter bytesWriter(stream);
+			JSBytesWriter bytesWriter(*this);
 			linearHelper.compileConstantAsBytes(c, /*asmjs*/false, &bytesWriter);
 			stream << "])";
 			return;
@@ -4226,6 +4227,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				}
 				else
 					stream << code;
+			}
 			else if (asmjs)
 			{
 				//Indirect call, asm.js mode
@@ -4288,6 +4290,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						{
 							assert(!isInlineable(ci, PA));
 							stream << ';' << NewLine;
+							STACKLET_STATUS stackletStatus = needsStacklet(&I);
 							if(stackletStatus == STACKLET_NEEDED)
 								stream << "a." << namegen.getSecondaryName(&I) << '=';
 							stream << namegen.getSecondaryName(&I) << '=';
@@ -4948,81 +4951,6 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 	}
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
-	if(needsStacklet)
-	auto CompileEndVar = [&]()
-	{
-		if(!firstVar)
-		{
-			if(needsStacklet)
-				stream << "};";
-			else
-				stream << ';';
-		}
-		stream << NewLine;
-	};
-	if(needsLabel)
-	{
-		CompileStartVar();
-		stream << "label";
-		if(needsStacklet)
-			stream << ':';
-		else
-			stream << '=';
-		stream << '0';
-	}
-	const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(&F);
-	for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
-	{
-		CompileStartVar();
-		compileMethodLocal(namegen.getName(&F, regId), regsInfo[regId].regKind, needsStacklet);
-		firstVar = false;
-		if(regsInfo[regId].needsSecondaryName)
-		{
-			stream << ',';
-			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg);
-		}
-	}
-	for(auto& it: compiledTmpPHIs)
-	{
-		// Pretend the secondary name is a separate variable here
-		localsFound.emplace_back(LocalState());
-		localsFound.back().name = it.first;
-		localsFound.back().kind = it.second;
-		localsFound.back().isArg = false;
-		localsFound.back().state = NAME_DONE;
-	}
-	// Now we have all the needed locals in localsFound
-	if(needsStacklet && !stackletSync)
-	{
-		// If the total number of locals is > 8 we need to create a special object to store the stacklet
-		uint32_t localsCount = 3; // p, pc, f
-		for(LocalState& l: localsFound)
-		{
-			if(l.state == NOT_DONE)
-				continue;
-			localsCount += l.state == SECONDARY_NAME_DONE ? 2 : 1;
-		}
-		if(localsCount>8)
-		{
-			// We need to use a function to create the object and avoid a V8 slowpath
-			// We will pass to the function the p parameter and all the recoverable arguments
-			stream << "var a=new createStacklet" << namegen.getName(&F) << "(p";
-			for(LocalState& l: localsFound)
-			{
-				if(l.state == NOT_DONE || !l.isArg)
-					continue;
-				stream << ',' << l.name;
-				if(l.state == SECONDARY_NAME_DONE)
-					stream << ',' << l.secondaryName;
-			}
-			stream << ");" << NewLine;
-			deferredStacklets.insert(std::make_pair(&F,std::move(localsFound)));
-			assert(localsFound.empty());
-			return;
-		}
-	}
-	// Declare are all used locals in the beginning
-	bool firstVar = true;
 	if(needsStacklet && !stackletSync)
 	{
 		stream << "var a={p:";
@@ -5050,19 +4978,16 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		}
 		stream << NewLine;
 	};
-	// In the stacklet case
-	for(LocalState& l: localsFound)
+	const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(&F);
+	for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 	{
-		if(l.state == NOT_DONE)
-			continue;
 		CompileStartVar();
-		assert(!l.name.empty());
-		compileMethodLocal(l.name, l.kind, needsStacklet, l.isArg, stackletSync);
-		if(l.state == SECONDARY_NAME_DONE)
+		compileMethodLocal(namegen.getName(&F, regId), regsInfo[regId].regKind, needsStacklet, regsInfo[regId].isArg, stackletSync);
+		firstVar = false;
+		if(regsInfo[regId].needsSecondaryName)
 		{
-			assert(!l.secondaryName.empty());
 			stream << ',';
-			compileMethodLocal(l.secondaryName, Registerize::INTEGER, needsStacklet, l.isArg, stackletSync);
+			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg, stackletSync);
 		}
 	}
 	if(needsLabel)
@@ -5076,6 +5001,29 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		stream << '0';
 	}
 	CompileEndVar();
+	if(needsStacklet && !stackletSync)
+	{
+		// If the total number of locals is > 8 we need to create a special object to store the stacklet
+		uint32_t localsCount = 3 + regsInfo.size(); // p, pc, f
+		if(localsCount>8)
+		{
+			// We need to use a function to create the object and avoid a V8 slowpath
+			// We will pass to the function the p parameter and all the recoverable arguments
+			stream << "var a=new createStacklet" << namegen.getName(&F) << "(p";
+			for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
+			{
+				const Registerize::RegisterInfo& r = regsInfo[regId];
+				if(!r.isArg)
+					continue;
+				stream << ',' << namegen.getName(&F, regId);
+				if(r.needsSecondaryName)
+					stream << ',' << namegen.getSecondaryName(&F, regId);
+			}
+			stream << ");" << NewLine;
+			deferredStacklets.insert(&F);
+			return;
+		}
+	}
 }
 
 std::pair<Relooper*, const BasicBlock*> CheerpWriter::buildRelooper(const Function& F, std::set<const BasicBlock*>* usedBlocks)
@@ -5274,7 +5222,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/true, /*stackletSync*/false);
 		if(needsStacklet)
 			compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/false);
-		CheerpRenderInterface ri(this, NewLine,
+		CheerpRenderInterface ri(this, NewLine, usedPCs,
 			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
 			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
 		if(rl.second)
@@ -5425,7 +5373,8 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 			if(!C->getType()->isStructTy())
 			{
 				stream << "new Uint8Array([";
-				compileConstantAsBytes(C, true);
+				JSBytesWriter bytesWriter(*this);
+				linearHelper.compileConstantAsBytes(C,/* asmjs */ false, &bytesWriter);
 				stream << "])";
 			}
 			else
@@ -5847,6 +5796,7 @@ void CheerpWriter::compileFetchBuffer()
 
 void CheerpWriter::makeJS()
 {
+module.dump();
 	if (sourceMapGenerator) {
 		sourceMapGenerator->beginFile();
 
@@ -6057,33 +6007,34 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	if ( globalDeps.needCreatePointerArray() )
 		compileArrayPointerType();
 
-	for ( auto& it: deferredStacklets )
+	for ( const Function* F: deferredStacklets )
 	{
-		stream << "function createStacklet" << namegen.getName(it.first) << "(p";
-		for(const LocalState& l: it.second)
+		stream << "function createStacklet" << namegen.getName(F) << "(p";
+		const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(F);
+		for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 		{
-			if(l.state == NOT_DONE || !l.isArg)
+			const Registerize::RegisterInfo& r = regsInfo[regId];
+			if(!r.isArg)
 				continue;
-			stream << ',' << l.name;
-			if(l.state == SECONDARY_NAME_DONE)
-				stream << ',' << l.secondaryName;
+			stream << ',' << namegen.getName(F, regId);
+			if(r.needsSecondaryName)
+				stream << ',' << namegen.getSecondaryName(F, regId);
 		}
 		stream << ")" << NewLine;
 		stream << '{' << NewLine;
 		stream << "this.p=p;" << NewLine;
 		stream << "this.pc=0;" << NewLine;
-		stream << "this.f=" << namegen.getName(it.first) << ';' << NewLine;
-		for(const LocalState& l: it.second)
+		stream << "this.f=" << namegen.getName(F) << ';' << NewLine;
+		for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 		{
-			if(l.state == NOT_DONE)
-				continue;
+			const Registerize::RegisterInfo& r = regsInfo[regId];
 			stream << "this.";
-			compileMethodLocal(l.name, l.kind, false, l.isArg, /*stackletSync*/false);
+			compileMethodLocal(namegen.getName(F, regId), r.regKind, false, r.isArg, /*stackletSync*/false);
 			stream << ';' << NewLine;
-			if(l.state == SECONDARY_NAME_DONE)
+			if(r.needsSecondaryName)
 			{
 				stream << "this.";
-				compileMethodLocal(l.secondaryName, Registerize::INTEGER, false, l.isArg, /*stackletSync*/false);
+				compileMethodLocal(namegen.getSecondaryName(F, regId), Registerize::INTEGER, false, r.isArg, /*stackletSync*/false);
 				stream << ';' << NewLine;
 			}
 		}
@@ -6347,8 +6298,8 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 void CheerpWriter::JSBytesWriter::addByte(uint8_t byte)
 {
 	if(!first)
-		stream << ',';
-	stream << (int)byte;
+		writer.stream << ',';
+	writer.stream << (int)byte;
 	first = false;
 }
 
@@ -6357,46 +6308,46 @@ void CheerpWriter::JSBytesWriter::addRunTimeBytes(const llvm::Constant* c)
 	if(const Function* f=dyn_cast<Function>(c))
 	{
 		if(!first)
-			stream << ',';
+			writer.stream << ',';
 		// This is almost too ugly to be true
-		stream << "(cheerpPointerBaseInt(";
-		compileOperand(f);
-		stream << ")>>0)&255,";
-		stream << "(cheerpPointerBaseInt(";
-		compileOperand(f);
-		stream << ")>>8)&255,";
-		stream << "(cheerpPointerBaseInt(";
-		compileOperand(f);
-		stream << ")>>16)&255,";
-		stream << "(cheerpPointerBaseInt(";
-		compileOperand(f);
-		stream << ")>>24)&255";
+		writer.stream << "(cheerpPointerBaseInt(";
+		writer.compileOperand(f);
+		writer.stream << ")>>0)&255,";
+		writer.stream << "(cheerpPointerBaseInt(";
+		writer.compileOperand(f);
+		writer.stream << ")>>8)&255,";
+		writer.stream << "(cheerpPointerBaseInt(";
+		writer.compileOperand(f);
+		writer.stream << ")>>16)&255,";
+		writer.stream << "(cheerpPointerBaseInt(";
+		writer.compileOperand(f);
+		writer.stream << ")>>24)&255";
 	}
 	else if(isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
 	{
 		if(!first)
-			stream << ',';
+			writer.stream << ',';
 		// This is almost too ugly to be true
-		stream << "(cheerpPI(";
-		compilePointerBase(c);
-		stream << ',';
-		compilePointerOffset(c, LOWEST);
-		stream << ")>>0)&255,";
-		stream << "(cheerpPI(";
-		compilePointerBase(c);
-		stream << ',';
-		compilePointerOffset(c, LOWEST);
-		stream << ")>>8)&255,";
-		stream << "(cheerpPI(";
-		compilePointerBase(c);
-		stream << ',';
-		compilePointerOffset(c, LOWEST);
-		stream << ")>>16)&255,";
-		stream << "(cheerpPI(";
-		compilePointerBase(c);
-		stream << ',';
-		compilePointerOffset(c, LOWEST);
-		stream << ")>>24)&255";
+		writer.stream << "(cheerpPI(";
+		writer.compilePointerBase(c);
+		writer.stream << ',';
+		writer.compilePointerOffset(c, LOWEST);
+		writer.stream << ")>>0)&255,";
+		writer.stream << "(cheerpPI(";
+		writer.compilePointerBase(c);
+		writer.stream << ',';
+		writer.compilePointerOffset(c, LOWEST);
+		writer.stream << ")>>8)&255,";
+		writer.stream << "(cheerpPI(";
+		writer.compilePointerBase(c);
+		writer.stream << ',';
+		writer.compilePointerOffset(c, LOWEST);
+		writer.stream << ")>>16)&255,";
+		writer.stream << "(cheerpPI(";
+		writer.compilePointerBase(c);
+		writer.stream << ',';
+		writer.compilePointerOffset(c, LOWEST);
+		writer.stream << ")>>24)&255";
 	}
 }
 

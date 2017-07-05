@@ -195,7 +195,7 @@ private:
 		Registerize::REGISTER_KIND kind;
 		bool isArg;
 	};
-	std::map<const llvm::Function*, const std::vector<LocalState>> deferredStacklets;
+	std::unordered_set<const llvm::Function*> deferredStacklets;
 	const NewLineHandler NewLine;
 
 	// Flag to signal if we should take advantage of native JavaScript math functions
@@ -482,9 +482,9 @@ private:
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
 	{
-		ostream_proxy& stream;
+		CheerpWriter& writer;
 		bool first;
-		JSBytesWriter(ostream_proxy& stream):stream(stream),first(true)
+		JSBytesWriter(CheerpWriter& writer):writer(writer),first(true)
 		{
 		}
 		void addByte(uint8_t b) override;
