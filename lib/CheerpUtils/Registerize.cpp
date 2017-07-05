@@ -78,7 +78,7 @@ uint32_t Registerize::getRegisterId(const llvm::Value* V) const
 	return regId;
 }
 
-uint32_t Registerize::getRegisterIdForEdge(const llvm::Instruction* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const
+uint32_t Registerize::getRegisterIdForEdge(const llvm::Value* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const
 {
 	assert(registersMap.count(I));
 	uint32_t regId = registersMap.find(I)->second;
@@ -506,6 +506,7 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 			continue;
 		handlePHI(cast<PHINode>(*I), liveRanges, registers, PA);
 	}
+	bool asmjs = F.getSection()==StringRef("asmjs");
 	// Assign a register to the remaining instructions
 	for(auto it: liveRanges)
 	{
@@ -516,12 +517,11 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 		// Move on if a register is already assigned
 		if(registersMap.count(I))
 			continue;
-		bool asmjs = I->getParent()->getParent()->getSection()==StringRef("asmjs");
 		uint32_t chosenRegister = -1;
 		REGISTER_KIND kind = getRegKindFromType(I->getType(), asmjs);
 		if(isa<Argument>(I) || isa<AllocaInst>(I))
 		{
-			registers.push_back(RegisterRange(range.range, kind, cheerp::needsSecondaryName(I, PA), range.needsRecover, /*isArg*/true));
+			registers.push_back(RegisterRange(range.range, kind, cheerp::needsSecondaryName(I, PA), range.needsRecover, /*isArg*/isa<Argument>(I), /*noMerge*/true));
 			chosenRegister = registers.size()-1;
 		}
 		else
@@ -572,13 +572,13 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 			// Create a register which will have an empty live range
 			// It is not a problem since we mark it as used in the block
 			uint32_t chosenReg = registers.size();
-			registers.push_back(RegisterRange(LiveRange(), kind, needsSecondaryName));
+			registers.push_back(RegisterRange(LiveRange(), kind, needsSecondaryName, /*needsRecover*/false, /*isArg*/false, /*noMerge*/false));
 			usedRegisters.push_back(true);
 			return chosenReg;
 		}
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
-			bool asmjs = incoming->getParent()->getParent()->getSection() == StringRef("asmjs");
+			bool asmjs = fromBB->getParent()->getSection() == StringRef("asmjs");
 			assert(registerize.registersMap.count(incoming));
 			uint32_t regId=registerize.registersMap.find(incoming)->second;
 			Registerize::REGISTER_KIND phiKind = registerize.getRegKindFromType(incoming->getType(), asmjs);
@@ -704,7 +704,7 @@ uint32_t Registerize::findOrCreateRegister(llvm::SmallVector<RegisterRange, 4>& 
 			return i;
 	}
 	// Create a new register with the range of the current instruction already used
-	registers.push_back(RegisterRange(range.range, kind, needsSecondaryName));
+	registers.push_back(RegisterRange(range.range, kind, needsSecondaryName, needsRecover, /*isArg*/false, /*noMerge*/false));
 	return registers.size()-1;
 }
 
@@ -726,16 +726,6 @@ Registerize::REGISTER_KIND Registerize::getRegKindFromType(const llvm::Type* t, 
 	// NOTE: the Void type is considered an OBJECT
 	else
 		return OBJECT;
-}
-
-bool Registerize::LiveRange::doesInterfere(uint32_t id) const
-{
-	for(const LiveRangeChunk c: *this)
-	{
-		if(c.start <= id && c.end > id)
-			return true;
-	}
-	return false;
 }
 
 bool Registerize::LiveRange::doesInterfere(const LiveRange& other) const
@@ -768,18 +758,10 @@ bool Registerize::LiveRange::doesInterfere(const LiveRange& other) const
 
 bool Registerize::LiveRange::doesInterfere(uint32_t id) const
 {
-	// Check if all the ranges in this range fit inside other's holes
-	llvm::SmallVector<LiveRangeChunk, 4>::const_iterator thisIt = begin();
-	llvm::SmallVector<LiveRangeChunk, 4>::const_iterator thisItE = end();
-	while(thisIt!=thisItE)
+	for(const LiveRangeChunk c: *this)
 	{
-		if(thisIt->start > id || thisIt->end <= id)
-		{
-			// Move to the next range of this
-			++thisIt;
-			continue;
-		}
-		return true;
+		if(c.start <= id && c.end > id)
+			return true;
 	}
 	return false;
 }
@@ -802,9 +784,9 @@ bool Registerize::addRangeToRegisterIfPossible(RegisterRange& regRange, const In
 {
 	if(regRange.info.regKind!=kind)
 		return false;
-	if(regRange.needsRecover!=needsRecover)
+	if(regRange.info.needsRecover!=needsRecover)
 		return false;
-	if(regRange.isArg)
+	if(regRange.info.noMerge)
 		return false;
 	if(regRange.range.doesInterfere(liveRange.range))
 		return false;

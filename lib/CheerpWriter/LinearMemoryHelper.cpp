@@ -67,7 +67,7 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 	}
 	else if(isBitCast(c))
 	{
-		compileConstantAsBytes(cast<Constant>(cast<User>(c)->getOperand(0)), first);
+		compileConstantAsBytes(cast<Constant>(cast<User>(c)->getOperand(0)), asmjs, listener);
 	}
 	else if(isa<Function>(c) || isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
 	{
@@ -82,7 +82,7 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 	}
 	else if (asmjs)
 	{
-		else if(const Function* F = dyn_cast<Function>(c))
+		if(const Function* F = dyn_cast<Function>(c))
 		{
 			assert(offset==0);
 			if (!functionAddresses.count(F))

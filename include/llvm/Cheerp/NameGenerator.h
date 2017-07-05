@@ -20,6 +20,7 @@
 #include "llvm/Cheerp/Utility.h"
 #include <unordered_map>
 #include <array>
+#include <llvm/Support/raw_ostream.h>
 
 namespace cheerp {
 
@@ -79,6 +80,8 @@ public:
 	{
 		if(const llvm::Instruction* I = llvm::dyn_cast<llvm::Instruction>(v))
 			return getName(I->getParent()->getParent(), registerize.getRegisterId(I));
+		if(const llvm::Argument* A = llvm::dyn_cast<llvm::Argument>(v))
+			return getName(A->getParent(), registerize.getRegisterId(A));
 		assert(namemap.count(v) );
 		assert(! namemap.at(v).empty() );
 		return namemap.at(v);
@@ -99,6 +102,8 @@ public:
 	{
 		if(const llvm::Instruction* I = llvm::dyn_cast<llvm::Instruction>(v))
 			return getSecondaryName(I->getParent()->getParent(), registerize.getRegisterId(I));
+		if(const llvm::Argument* A = llvm::dyn_cast<llvm::Argument>(v))
+			return getSecondaryName(A->getParent(), registerize.getRegisterId(A));
 		assert(secondaryNamemap.count(v) );
 		assert(!secondaryNamemap.at(v).empty());
 		return secondaryNamemap.at(v);
