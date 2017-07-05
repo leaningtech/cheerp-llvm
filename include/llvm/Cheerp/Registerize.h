@@ -78,7 +78,7 @@ public:
 	{
 		return recoverableSet.count(V);
 	}
-	uint32_t getRegisterIdForEdge(const llvm::Instruction* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const;
+	uint32_t getRegisterIdForEdge(const llvm::Value* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const;
 	uint32_t getSelfRefTmpReg(const llvm::Instruction* I, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const;
 
 	void assignRegisters(llvm::Module& M, cheerp::PointerAnalyzer& PA);
@@ -101,7 +101,8 @@ public:
 		int needsSecondaryName : 1;
 		int needsRecover : 1;
 		int isArg : 1;
-		RegisterInfo(REGISTER_KIND k, bool s, bool r, bool a):regKind(k),needsSecondaryName(s),needsRecover(r),isArg(a)
+		int noMerge : 1;
+		RegisterInfo(REGISTER_KIND k, bool s, bool r, bool a, bool n):regKind(k),needsSecondaryName(s),needsRecover(r),isArg(a),noMerge(n)
 		{
 		}
 	};
@@ -214,7 +215,7 @@ private:
 	{
 		LiveRange range;
 		RegisterInfo info;
-		RegisterRange(const LiveRange& range, REGISTER_KIND k, bool s, bool r, bool a):range(range),info(k, s, r, a)
+		RegisterRange(const LiveRange& range, REGISTER_KIND k, bool s, bool r, bool a, bool n):range(range),info(k, s, r, a, n)
 		{
 		}
 	};

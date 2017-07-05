@@ -539,6 +539,20 @@ void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnaly
 			}
 		}
 
+		for ( auto arg_it = f.arg_begin(); arg_it != f.arg_end(); ++arg_it )
+		{
+			bool needsTwoNames = needsSecondaryName(arg_it, PA);
+			uint32_t registerId = registerize.getRegisterId(arg_it);
+			if(doneRegisters[registerId])
+				continue;
+			if(!arg_it->hasName())
+				continue;
+			auto& name = regNamemap.emplace( std::make_pair(&f, registerId), filterLLVMName(arg_it->getName(), LOCAL) ).first->second;
+			if(regsInfo[registerId].needsSecondaryName)
+				regSecondaryNamemap.emplace( std::make_pair(&f, registerId), StringRef((name+"o").str()));
+			doneRegisters[registerId] = true;
+		}
+
 		// Assign a name to any register which still needs one
 		for(unsigned registerId=0;registerId<regsInfo.size();registerId++)
 		{
@@ -547,34 +561,6 @@ void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnaly
 			auto& name = regNamemap.emplace( std::make_pair(&f, registerId), StringRef( "tmp" + std::to_string(registerId) ) ).first->second;
 			if(regsInfo[registerId].needsSecondaryName)
 				regSecondaryNamemap.emplace( std::make_pair(&f, registerId), StringRef((name+"o").str()));
-		}
-
-		for ( auto arg_it = f.arg_begin(); arg_it != f.arg_end(); ++arg_it )
-		{
-			bool needsTwoNames = needsSecondaryName(arg_it, PA);
-			uint32_t registerId = registerize.getRegisterId(arg_it);
-			// If the register already has a name, use it
-			// Otherwise assign one as good as possible and assign it to the register as well
-			auto regNameIt = regmap.find(registerId);
-			StringRef primaryName;
-			if(regNameIt != regmap.end())
-			{
-				primaryName = namemap.emplace( arg_it, regNameIt->second ).first->second;
-			}
-			else if ( arg_it->hasName() )
-			{
-				auto& name = namemap.emplace( arg_it, filterLLVMName(arg_it->getName(), LOCAL) ).first->second;
-				regmap.emplace( registerId, name );
-				primaryName = name;
-			}
-			else
-			{
-				auto& name = namemap.emplace( arg_it, StringRef( "Larg" + std::to_string(registerId) ) ).first->second;
-				regmap.emplace( registerId, name );
-				primaryName = name;
-			}
-			if(needsTwoNames)
-				secondaryNamemap.emplace( arg_it, StringRef((primaryName+"o").str()));
 		}
 	}
 

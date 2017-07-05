@@ -584,11 +584,14 @@ void CheerpWastWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, con
 		CheerpWastWriter& writer;
 		const BasicBlock* fromBB;
 		const BasicBlock* toBB;
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 			assert(incoming);
+assert(false);
+#if 0
 			writer.stream << "get_local " << (1 + writer.currentFun->arg_size() + writer.registerize.getRegisterId(incoming)) << '\n';
 			writer.stream << "set_local " << (1 + writer.currentFun->arg_size() + writer.registerize.getRegisterIdForEdge(incoming, fromBB, toBB)) << '\n';
+#endif
 		}
 		void handlePHI(const Instruction* phi, const Value* incoming, bool selfReferencing) override
 		{
