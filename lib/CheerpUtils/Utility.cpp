@@ -727,9 +727,9 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 				if(incomingValueId==phiReg)
 				{
 					if(mayNeedSelfRef &&
-						PA.getPointerKind(incomingInst.first) == SPLIT_REGULAR && // If the incoming inst is not SPLIT_REGULAR there is no collision risk
-						!PA.getConstantOffsetForPointer(incomingInst.first) && // If the offset part is constant we can reorder the operation to avoid a collision
-						incomingInst.second) // If the register is not dereferenced there is no conflict as base and offset are not used together
+						PA.getPointerKind(incomingValue.first) == SPLIT_REGULAR && // If the incoming inst is not SPLIT_REGULAR there is no collision risk
+						!PA.getConstantOffsetForPointer(incomingValue.first) && // If the offset part is constant we can reorder the operation to avoid a collision
+						incomingValue.second) // If the register is not dereferenced there is no conflict as base and offset are not used together
 					{
 						selfReferencing = true;
 					}
@@ -741,8 +741,8 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 			else
 			{
 				// TODO: Loads when inlined should go here
-				bool dereferenced = incomingInst.second || (mayNeedSelfRef && isa<GetElementPtrInst>(incomingInst.first) && incomingInst.first->getNumOperands() > 2);
-				for(const Value* op: incomingInst.first->operands())
+				bool dereferenced = incomingValue.second || (mayNeedSelfRef && isa<GetElementPtrInst>(incomingInst) && incomingInst->getNumOperands() > 2);
+				for(const Value* op: incomingInst->operands())
 				{
 					const Instruction* opI = dyn_cast<Instruction>(op);
 					if(!opI)
