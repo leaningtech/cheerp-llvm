@@ -2644,6 +2644,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
 				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k)) && writer.PA.getConstantOffsetForPointer(phi))
 				{
+					if(stackletStatus == STACKLET_NEEDED)
+						writer.stream << "a." << writer.namegen.getName(phi) << '=';
+					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compilePointerBase(incoming);
 				}
@@ -2664,9 +2667,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					}
 					else
 					{
-						writer.stream << writer.namegen.getSecondaryName(phi) << '=';
+						writer.stream << writer.namegen.getSecondaryName(phi);
 						if(stackletStatus == STACKLET_NEEDED)
-							writer.stream << "a." << writer.namegen.getSecondaryName(phi);
+							writer.stream << "=a." << writer.namegen.getSecondaryName(phi);
 					}
 					writer.stream << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
@@ -2681,9 +2684,9 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					}
 					writer.stream << ';' << writer.NewLine;
 					writer.registerize.clearEdgeContext();
+					writer.stream << writer.namegen.getName(phi) << '=';
 					if(stackletStatus == STACKLET_NEEDED)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
-					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if (incomingKind == RAW)
 						writer.compileHeapForType(cast<PointerType>(phiType)->getPointerElementType());
@@ -3081,7 +3084,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			}
 			else if(k == SPLIT_REGULAR)
 			{
-				stream << "=0";
+				stream << '0';
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&I);
 				stream << namegen.getName(&I) << '=';
@@ -3105,13 +3108,13 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			}
 			else if(k == SPLIT_BYTE_LAYOUT)
 			{
-				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
+				stream << '0';
 				stream << ';' << NewLine;
 				STACKLET_STATUS stackletStatus = needsStacklet(&I);
 				if(stackletStatus == STACKLET_NEEDED)
-					stream << "a." << namegen.getSecondaryName(&I) << '=';
-				stream << namegen.getSecondaryName(&I) << '=';
-				stream << '0';
+					stream << "a." << namegen.getName(&I) << '=';
+				stream << namegen.getName(&I) << '=';
+				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
 			}
 			else 
 				compileType(ai->getAllocatedType(), LITERAL_OBJ, varName, allocaStores);
@@ -4319,6 +4322,12 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				stream << "cheerpIPO(";
 			else
 			{
+				// HACK: This expects the offset first
+				stream << "0;" << NewLine;
+				STACKLET_STATUS stackletStatus = needsStacklet(&I);
+				if(stackletStatus == STACKLET_NEEDED)
+					stream << "a." << namegen.getName(&I) << '=';
+				stream << namegen.getName(&I) << '=';
 				assert(k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT);
 				stream << "cheerpIPR(";
 			}
@@ -4593,7 +4602,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				}
 			}
 			Registerize::REGISTER_KIND regKind = registerize.getRegKindFromType(li.getType(),asmjs);
-			if(regKind==Registerize::INTEGER && needsIntCoercion(regKind, parentPrio))
+			if(regKind==Registerize::INTEGER && needsIntCoercion(regKind, parentPrio) && !isByteLayout(kind))
 			{
 				if (parentPrio > BIT_OR)
 					stream << '(';
@@ -4802,7 +4811,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						STACKLET_STATUS stackletStatus = needsStacklet(&li);
 						stream << namegen.getName(&li) << '=';
 						if(stackletStatus == STACKLET_NEEDED)
-							stream << "a." << namegen.Name(&li) << '=';
+							stream << "a." << namegen.getName(&li) << '=';
 						compileCompleteObject(ptrOp);
 					}
 				}
@@ -4893,7 +4902,16 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 		}
 		if(!I->use_empty())
 		{
-			if(I->getType()->isPointerTy() && (I->getOpcode() != Instruction::Call || isDowncast) && PA.getPointerKind(I) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(I))
+			bool isBLLoad = false;
+			if(I->getType()->isPointerTy() && I->getOpcode() == Instruction::Load)
+			{
+				const LoadInst& li = *cast<LoadInst>(I);
+				const Value* ptrOp=li.getPointerOperand();
+				POINTER_KIND kind = PA.getPointerKind(ptrOp);
+				if(isByteLayout(kind) && !li.getType()->getPointerElementType()->isFunctionTy())
+					isBLLoad = true;
+			}
+			if(I->getType()->isPointerTy() && (I->getOpcode() != Instruction::Call || isDowncast) && (PA.getPointerKind(I) == SPLIT_REGULAR || PA.getPointerKind(I) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(I) && !isBLLoad)
 			{
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
 				stream << namegen.getSecondaryName(I) << '=';
@@ -4906,6 +4924,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 				stream << namegen.getName(I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getName(I) << '=';
+			}
 		}
 		if(I->isTerminator())
 		{
@@ -5468,7 +5487,7 @@ void CheerpWriter::compileMethod(const Function& F)
 	{
 		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false);
 		if(needsStacklet)
-			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false);
+			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/false, /*stackletSync*/false);
 		compileBB(*F.begin(), usedPCs);
 		if (asmjs)
 		{
@@ -5788,6 +5807,8 @@ void CheerpWriter::compileGlobalsInitAsmJS()
 
 	if (asmJSMem)
 	{
+assert(false);
+#if 0
 		ostream_proxy os(*asmJSMem, nullptr, false);
 		BinaryBytesWriter bytesWriter(os);
 		uint32_t last_address = 0;
@@ -5813,6 +5834,7 @@ void CheerpWriter::compileGlobalsInitAsmJS()
 				last_size = 0;
 			}
 		}
+#endif
 	}
 	else
 	{
@@ -5827,7 +5849,7 @@ void CheerpWriter::compileGlobalsInitAsmJS()
 					continue;
 
 				stream  << heapNames[HEAP8] << ".set([";
-				JSBytesWriter bytesWriter(stream);
+				JSBytesWriter bytesWriter(*this);
 				linearHelper.compileConstantAsBytes(init,/* asmjs */ true, &bytesWriter);
 				stream << "]," << linearHelper.getGlobalVariableAddress(GV) << ");" << NewLine;
 			}
@@ -6102,7 +6124,6 @@ void CheerpWriter::compileFetchBuffer()
 
 void CheerpWriter::makeJS()
 {
-module.dump();
 	if (sourceMapGenerator) {
 		sourceMapGenerator->beginFile();
 
@@ -6681,6 +6702,7 @@ void CheerpWriter::JSBytesWriter::addRunTimeBytes(const llvm::Constant* c)
 		writer.compilePointerOffset(c, LOWEST);
 		writer.stream << ")>>24)&255";
 	}
+	first = false;
 }
 
 void CheerpWriter::AsmJSGepWriter::addValue(const llvm::Value* v, uint32_t size)
