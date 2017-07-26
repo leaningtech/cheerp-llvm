@@ -2473,7 +2473,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					if(selfReferencing)
 					{
 						assert(!PA.getConstantOffsetForPointer(incoming));
-						assert(PA.getPointerKind(incoming) == SPLIT_REGULAR);
+						assert(PA.getPointerKind(incoming) == SPLIT_REGULAR || PA.getPointerKind(incoming) == SPLIT_BYTE_LAYOUT);
 					}
 					uint32_t tmpOffsetReg = -1;
 					if(selfReferencing)

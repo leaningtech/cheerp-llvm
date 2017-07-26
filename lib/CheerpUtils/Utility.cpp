@@ -715,7 +715,7 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 		llvm::SmallVector<std::pair<uint32_t, const Value*>, 2> incomingRegisters;
 		llvm::SmallVector<std::pair<const Value*, /*dereferenced*/bool>, 4> instQueue;
 		instQueue.push_back(std::make_pair(val, false));
-		bool mayNeedSelfRef = phi->getType()->isPointerTy() && PA.getPointerKind(phi) == SPLIT_REGULAR && !PA.getConstantOffsetForPointer(phi);
+		bool mayNeedSelfRef = phi->getType()->isPointerTy() && (PA.getPointerKind(phi) == SPLIT_REGULAR || PA.getPointerKind(phi) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(phi);
 		bool selfReferencing = false;
 		while(!instQueue.empty())
 		{
@@ -727,7 +727,7 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 				if(incomingValueId==phiReg)
 				{
 					if(mayNeedSelfRef &&
-						PA.getPointerKind(incomingValue.first) == SPLIT_REGULAR && // If the incoming inst is not SPLIT_REGULAR there is no collision risk
+						(PA.getPointerKind(incomingValue.first) == SPLIT_REGULAR || PA.getPointerKind(incomingValue.first) == SPLIT_BYTE_LAYOUT) && // If the incoming inst is not SPLIT_REGULAR there is no collision risk
 						!PA.getConstantOffsetForPointer(incomingValue.first) && // If the offset part is constant we can reorder the operation to avoid a collision
 						incomingValue.second) // If the register is not dereferenced there is no conflict as base and offset are not used together
 					{
