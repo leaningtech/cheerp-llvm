@@ -372,7 +372,7 @@ void Registerize::assignInstructionsIds(InstIdMapTy& instIdMap, const Function& 
 				allocaSet.push_back(cast<AllocaInst>(&I));
 			uint32_t thisIndex = nextIndex++;
 			// SPLIT_REGULAR inst consumes 2 indexes
-			if(PA && I.getType()->isPointerTy() && PA->getPointerKind(&I) == SPLIT_REGULAR)
+			if(PA && I.getType()->isPointerTy() && (PA->getPointerKind(&I) == SPLIT_REGULAR || PA->getPointerKind(&I) == SPLIT_BYTE_LAYOUT))
 				thisIndex = nextIndex++;
 			instIdMap[&I]=thisIndex;
 		}
@@ -407,7 +407,7 @@ uint32_t Registerize::dfsLiveRangeInBlock(BlocksState& blocksState, LiveRangesTy
 		nextIndex = thisIndex + 1;
 		bool splitRegularDest = false;
 		// SPLIT_REGULAR pointers keep alive the register until after the instruction. Calls are an exception as the offset is stored in a global.
-		if(I.getType()->isPointerTy() && PA.getPointerKind(&I) == SPLIT_REGULAR)
+		if(I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT))
 		{
 			nextIndex++;
 			CallInst* CI = dyn_cast<CallInst>(&I);
@@ -477,7 +477,7 @@ void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveR
 			{
 				assert(liveRanges.count(usedI));
 				InstructionLiveRange& range=liveRanges.find(usedI)->second;
-				if(splitRegularDest && usedI->getType()->isPointerTy() && PA.getPointerKind(usedI) == SPLIT_REGULAR)
+				if(splitRegularDest && usedI->getType()->isPointerTy() && (PA.getPointerKind(usedI) == SPLIT_REGULAR || PA.getPointerKind(usedI) == SPLIT_BYTE_LAYOUT))
 					thisIndex++;
 				if(codePathId!=thisIndex)
 					range.addUse(codePathId, thisIndex);
@@ -487,7 +487,7 @@ void Registerize::extendRangeForUsedOperands(Instruction& I, LiveRangesTy& liveR
 		{
 			assert(liveRanges.count(usedA));
 			InstructionLiveRange& range=liveRanges.find(usedA)->second;
-			if(splitRegularDest && usedA->getType()->isPointerTy() && PA.getPointerKind(usedA) == SPLIT_REGULAR)
+			if(splitRegularDest && usedA->getType()->isPointerTy() && (PA.getPointerKind(usedA) == SPLIT_REGULAR || PA.getPointerKind(usedA) == SPLIT_BYTE_LAYOUT))
 				thisIndex++;
 			if(codePathId!=thisIndex)
 				range.addUse(codePathId, thisIndex);
