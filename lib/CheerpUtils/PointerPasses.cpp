@@ -941,7 +941,7 @@ bool PointerToImmutablePHIRemoval::runOnFunction(Function& F)
 			{
 				SwitchPHIData data;
 				bool mayConvert = mayConvertPHIToSwitch(data, phi, 0);
-				if(mayConvert && F.getName() != "Render_Single_Pass")
+				if(mayConvert && F.getName() != "Render_Single_Pass" && F.getName() != "Draw_Sweep")
 {
 //llvm::errs() << "BEFORE CONVERT " << F << "\n";
 					convertPHIToSwitch(data);
