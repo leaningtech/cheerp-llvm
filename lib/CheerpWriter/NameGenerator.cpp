@@ -120,12 +120,12 @@ struct JSSymbols
 };
 
 NameGenerator::NameGenerator(const Module& M, const GlobalDepsAnalyzer& gda, Registerize& r,
-				const PointerAnalyzer& PA, const std::vector<std::string>& reservedNames, bool makeReadableNames):registerize(r), PA(PA), reservedNames(reservedNames)
+				const PointerAnalyzer& PA, const std::vector<std::string>& reservedNames, bool makeReadableNames, bool noBoilerplate):registerize(r), PA(PA), reservedNames(reservedNames)
 {
 	if ( makeReadableNames )
-		generateReadableNames(M, gda);
+		generateReadableNames(M, gda, noBoilerplate);
 	else
-		generateCompressedNames(M, gda);
+		generateCompressedNames(M, gda, noBoilerplate);
 }
 
 llvm::StringRef NameGenerator::getNameForEdge(const llvm::Value* v, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const
@@ -201,7 +201,7 @@ SmallString< 4 > NameGenerator::filterLLVMName(StringRef s, NAME_FILTER_MODE fil
 	return ans;
 }
 
-void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAnalyzer& gda)
+void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAnalyzer& gda, bool noBoilerplate)
 {
 	typedef std::pair<unsigned, const GlobalValue *> useGlobalPair;
 	// We either encode arguments in the Value or a pair of (Function, register id)
@@ -501,16 +501,24 @@ void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAna
 		constructorTypesFinished = constructor_it == constructorTypes.end();
 		arrayTypesFinished = array_it == arrayTypes.end();
 	}
-	// We generate the builtin names last because we do not have statistics about
-	// them (for now)
-	for (unsigned i = 0; i < builtins.size(); i++)
+	if(noBoilerplate)
 	{
-		builtins[i] = *name_it;
-		++name_it;
+		builtins[IMUL] = "Math.imul";
+		builtins[FROUND] = "Math.fround";
+	}
+	else
+	{
+		// We generate the builtin names last because we do not have statistics about
+		// them (for now)
+		for (unsigned i = 0; i < builtins.size(); i++)
+		{
+			builtins[i] = *name_it;
+			++name_it;
+		}
 	}
 }
 
-void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnalyzer& gda)
+void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnalyzer& gda, bool noBoilerplate)
 {
 	for (const Function & f : M.getFunctionList() )
 	{
@@ -617,8 +625,16 @@ void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnaly
 			arraymap.insert(std::make_pair(T, StringRef("createArray_literal" + std::to_string(arraymap.size()))));
 	}
 	// Builtin funcions
-	builtins[IMUL] = "__imul";
-	builtins[FROUND] = "__fround";
+	if(noBoilerplate)
+	{
+		builtins[IMUL] = "Math.imul";
+		builtins[FROUND] = "Math.fround";
+	}
+	else
+	{
+		builtins[IMUL] = "__imul";
+		builtins[FROUND] = "__fround";
+	}
 }
 
 bool NameGenerator::needsName(const Instruction & I, const PointerAnalyzer& PA) const
