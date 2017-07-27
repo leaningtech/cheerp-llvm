@@ -701,7 +701,10 @@ uint32_t Registerize::findOrCreateRegister(llvm::SmallVector<RegisterRange, 4>& 
 	for(uint32_t i=0;i<registers.size();i++)
 	{
 		if(addRangeToRegisterIfPossible(registers[i], range, kind, needsSecondaryName, !needsRecover))
+		{
+			registers[i].info.needsRecover |= needsRecover;
 			return i;
+		}
 	}
 	// Create a new register with the range of the current instruction already used
 	registers.push_back(RegisterRange(range.range, kind, needsSecondaryName, needsRecover, /*isArg*/false, /*noMerge*/false));
