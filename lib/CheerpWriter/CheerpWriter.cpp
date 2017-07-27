@@ -2420,12 +2420,12 @@ bool CheerpWriter::needsPointerKindConversionForBlocks(const BasicBlock* to, con
 	return handler.needsPointerKindConversion;
 }
 
-void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const BasicBlock* from)
+void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const BasicBlock* from, bool forceStackletSync)
 {
 	class WriterPHIHandler: public EndOfBlockPHIHandler
 	{
 	public:
-		WriterPHIHandler(CheerpWriter& w, const BasicBlock* f, const BasicBlock* t):EndOfBlockPHIHandler(w.PA),writer(w),fromBB(f),toBB(t)
+		WriterPHIHandler(CheerpWriter& w, const BasicBlock* f, const BasicBlock* t, bool s):EndOfBlockPHIHandler(w.PA),writer(w),fromBB(f),toBB(t),forceStackletSync(s)
 		{
 		}
 		~WriterPHIHandler()
@@ -2435,6 +2435,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 		CheerpWriter& writer;
 		const BasicBlock* fromBB;
 		const BasicBlock* toBB;
+		bool forceStackletSync;
 		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 			assert(incoming);
@@ -2460,7 +2461,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
 				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k)) && writer.PA.getConstantOffsetForPointer(phi))
 				{
-					if(stackletStatus == STACKLET_NEEDED)
+					if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
@@ -2484,7 +2485,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					else
 					{
 						writer.stream << writer.namegen.getSecondaryName(phi);
-						if(stackletStatus == STACKLET_NEEDED)
+						if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 							writer.stream << "=a." << writer.namegen.getSecondaryName(phi);
 					}
 					writer.stream << '=';
@@ -2501,7 +2502,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 					writer.stream << ';' << writer.NewLine;
 					writer.registerize.clearEdgeContext();
 					writer.stream << writer.namegen.getName(phi) << '=';
-					if(stackletStatus == STACKLET_NEEDED)
+					if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					if (incomingKind == RAW)
@@ -2517,7 +2518,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else
 				{
-					if(stackletStatus == STACKLET_NEEDED)
+					if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
 					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
@@ -2530,7 +2531,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			}
 			else
 			{
-				if(stackletStatus == STACKLET_NEEDED)
+				if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 					writer.stream << "a." << writer.namegen.getName(phi) << '=';
 				writer.stream << writer.namegen.getName(phi) << '=';
 				writer.registerize.setEdgeContext(fromBB, toBB);
@@ -2540,7 +2541,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			writer.registerize.clearEdgeContext();
 		}
 	};
-	WriterPHIHandler(*this, from, to).runOnEdge(registerize, from, to);
+	WriterPHIHandler(*this, from, to, forceStackletSync).runOnEdge(registerize, from, to);
 }
 
 void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_iterator itE, ImmutableCallSite callV, bool forceBoolean)
@@ -4829,7 +4830,13 @@ void CheerpRenderInterface::renderBlockEnd(bool empty)
 
 void CheerpRenderInterface::renderBlockPrologue(const BasicBlock* bbTo, const BasicBlock* bbFrom)
 {
-	writer->compilePHIOfBlockFromOtherBlock(bbTo, bbFrom);
+	bool forceStackletSync = false;
+	if(ignoreUsed && usedBlocks.count(bbTo))
+	{
+		// Destionation block is in the already compiled code
+		forceStackletSync = true;
+	}
+	writer->compilePHIOfBlockFromOtherBlock(bbTo, bbFrom, forceStackletSync);
 }
 
 void CheerpRenderInterface::renderWhileBlockBegin()
@@ -5318,7 +5325,7 @@ void CheerpWriter::compileMethod(const Function& F)
 								if(!firstSyncUp)
 									stream << "else ";
 								stream << "if(pc===" << cast<ConstantInt>(II->getOperand(0))->getZExtValue() << "){";
-								compilePHIOfBlockFromOtherBlock(rl.second, &BB);
+								compilePHIOfBlockFromOtherBlock(rl.second, &BB, /*forceStackletSync*/ false);
 								stream << '}' << NewLine;
 								firstSyncUp = false;
 							}
