@@ -121,13 +121,13 @@ struct JSSymbols
 };
 
 NameGenerator::NameGenerator(const Module& M, const GlobalDepsAnalyzer& gda, Registerize& r,
-				const PointerAnalyzer& PA, const std::vector<std::string>& rn, bool makeReadableNames):registerize(r), PA(PA),
+				const PointerAnalyzer& PA, const std::vector<std::string>& rn, bool makeReadableNames, bool noBoilerplate):registerize(r), PA(PA),
 																	reservedNames(std::move(buildReservedNamesList(M, rn)))
 {
 	if ( makeReadableNames )
-		generateReadableNames(M, gda);
+		generateReadableNames(M, gda, noBoilerplate);
 	else
-		generateCompressedNames(M, gda);
+		generateCompressedNames(M, gda, noBoilerplate);
 }
 
 llvm::StringRef NameGenerator::getNameForEdge(const llvm::Value* v, const llvm::BasicBlock* fromBB, const llvm::BasicBlock* toBB) const
@@ -203,7 +203,7 @@ SmallString< 4 > NameGenerator::filterLLVMName(StringRef s, NAME_FILTER_MODE fil
 	return ans;
 }
 
-void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAnalyzer& gda)
+void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAnalyzer& gda, bool noBoilerplate)
 {
 	typedef std::pair<unsigned, const GlobalValue *> useGlobalPair;
 	// We either encode arguments in the Value or a pair of (Function, register id)
@@ -513,12 +513,44 @@ void NameGenerator::generateCompressedNames(const Module& M, const GlobalDepsAna
 		constructorTypesFinished = constructor_it == constructorTypes.end();
 		arrayTypesFinished = array_it == arrayTypes.end();
 	}
-	// Generate the rest of the builtins
-	for(int i=IMUL;i<=HANDLE_VAARG;i++)
-		builtins[i] = *name_it++;
+	if(noBoilerplate)
+	{
+		builtins[IMUL] = "Math.imul";
+		builtins[FROUND] = "Math.fround";
+		builtins[ABS] = "Math.abs";
+		builtins[ACOS] = "Math.acos";
+		builtins[ASIN] = "Math.asin";
+		builtins[ATAN] = "Math.atan";
+		builtins[ATAN2] = "Math.atan2";
+		builtins[CEIL] = "Math.ceil";
+		builtins[COS] = "Math.cos";
+		builtins[EXP] = "Math.exp";
+		builtins[FLOOR] = "Math.floor";
+		builtins[LOG] = "Math.log";
+		builtins[POW] = "Math.pow";
+		builtins[SIN] = "Math.sin";
+		builtins[SQRT] = "Math.sqrt";
+		builtins[TAN] = "Math.tan";
+		builtins[CLZ32] = "Math.clz32";
+		builtins[CREATE_CLOSURE] = "cheerpCreateClosure";
+		builtins[CREATE_CLOSURE_SPLIT] = "cheerpCreateClosureSplit";
+		builtins[CREATE_POINTER_ARRAY] = "createPointerArray";
+		builtins[HANDLE_VAARG] = "handleVAArg";
+		builtins[HEAP8] = "HEAP8";
+		builtins[HEAP16] = "HEAP16";
+		builtins[HEAP32] = "HEAP32";
+		builtins[HEAPF32] = "HEAPF32";
+		builtins[HEAPF64] = "HEAPF64";
+	}
+	else
+	{
+		// Generate the rest of the builtins
+		for(int i=IMUL;i<=HANDLE_VAARG;i++)
+			builtins[i] = *name_it++;
+	}
 }
 
-void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnalyzer& gda)
+void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnalyzer& gda, bool noBoilerplate)
 {
 	for (const Function & f : M.getFunctionList() )
 	{
@@ -625,32 +657,64 @@ void NameGenerator::generateReadableNames(const Module& M, const GlobalDepsAnaly
 			arraymap.insert(std::make_pair(T, StringRef("createArray_literal" + std::to_string(arraymap.size()))));
 	}
 	// Builtin funcions
-	builtins[IMUL] = "__imul";
-	builtins[FROUND] = "__fround";
-	builtins[ABS] = "abs";
-	builtins[ACOS] = "acos";
-	builtins[ASIN] = "asin";
-	builtins[ATAN] = "atan";
-	builtins[ATAN2] = "atan2";
-	builtins[CEIL] = "ceil";
-	builtins[COS] = "cos";
-	builtins[EXP] = "exp";
-	builtins[FLOOR] = "floor";
-	builtins[LOG] = "log";
-	builtins[POW] = "pow";
-	builtins[SIN] = "sin";
-	builtins[SQRT] = "sqrt";
-	builtins[TAN] = "tan";
-	builtins[CLZ32] = "clz32";
-	builtins[CREATE_CLOSURE] = "cheerpCreateClosure";
-	builtins[CREATE_CLOSURE_SPLIT] = "cheerpCreateClosureSplit";
-	builtins[CREATE_POINTER_ARRAY] = "createPointerArray";
-	builtins[HANDLE_VAARG] = "handleVAArg";
-	builtins[HEAP8] = "HEAP8";
-	builtins[HEAP16] = "HEAP16";
-	builtins[HEAP32] = "HEAP32";
-	builtins[HEAPF32] = "HEAPF32";
-	builtins[HEAPF64] = "HEAPF64";
+	if(noBoilerplate)
+	{
+		builtins[IMUL] = "Math.imul";
+		builtins[FROUND] = "Math.fround";
+		builtins[ABS] = "Math.abs";
+		builtins[ACOS] = "Math.acos";
+		builtins[ASIN] = "Math.asin";
+		builtins[ATAN] = "Math.atan";
+		builtins[ATAN2] = "Math.atan2";
+		builtins[CEIL] = "Math.ceil";
+		builtins[COS] = "Math.cos";
+		builtins[EXP] = "Math.exp";
+		builtins[FLOOR] = "Math.floor";
+		builtins[LOG] = "Math.log";
+		builtins[POW] = "Math.pow";
+		builtins[SIN] = "Math.sin";
+		builtins[SQRT] = "Math.sqrt";
+		builtins[TAN] = "Math.tan";
+		builtins[CLZ32] = "Math.clz32";
+		builtins[CREATE_CLOSURE] = "cheerpCreateClosure";
+		builtins[CREATE_CLOSURE_SPLIT] = "cheerpCreateClosureSplit";
+		builtins[CREATE_POINTER_ARRAY] = "createPointerArray";
+		builtins[HANDLE_VAARG] = "handleVAArg";
+		builtins[HEAP8] = "HEAP8";
+		builtins[HEAP16] = "HEAP16";
+		builtins[HEAP32] = "HEAP32";
+		builtins[HEAPF32] = "HEAPF32";
+		builtins[HEAPF64] = "HEAPF64";
+	}
+	else
+	{
+		builtins[IMUL] = "__imul";
+		builtins[FROUND] = "__fround";
+		builtins[ABS] = "abs";
+		builtins[ACOS] = "acos";
+		builtins[ASIN] = "asin";
+		builtins[ATAN] = "atan";
+		builtins[ATAN2] = "atan2";
+		builtins[CEIL] = "ceil";
+		builtins[COS] = "cos";
+		builtins[EXP] = "exp";
+		builtins[FLOOR] = "floor";
+		builtins[LOG] = "log";
+		builtins[POW] = "pow";
+		builtins[SIN] = "sin";
+		builtins[SQRT] = "sqrt";
+		builtins[TAN] = "tan";
+		builtins[CLZ32] = "clz32";
+		builtins[CREATE_CLOSURE] = "cheerpCreateClosure";
+		builtins[CREATE_CLOSURE_SPLIT] = "cheerpCreateClosureSplit";
+		builtins[CREATE_POINTER_ARRAY] = "createPointerArray";
+		builtins[HANDLE_VAARG] = "handleVAArg";
+		builtins[HEAP8] = "HEAP8";
+		builtins[HEAP16] = "HEAP16";
+		builtins[HEAP32] = "HEAP32";
+		builtins[HEAPF32] = "HEAPF32";
+		builtins[HEAPF64] = "HEAPF64";
+	}
 }
 
 bool NameGenerator::needsName(const Instruction & I, const PointerAnalyzer& PA) const

@@ -70,7 +70,7 @@ public:
 	 * all the global variable names
 	 */
 	explicit NameGenerator( const llvm::Module&, const GlobalDepsAnalyzer &, Registerize &, const PointerAnalyzer& PA,
-		const std::vector<std::string>& reservedNames, bool makeReadableNames = true );
+		const std::vector<std::string>& reservedNames, bool makeReadableNames, bool noBoilerplate );
 
 	/**
 	 * Return the computed name for the given variable.
@@ -167,8 +167,8 @@ public:
 	bool needsName(const llvm::Instruction &, const PointerAnalyzer& PA) const;
 
 private:
-	void generateCompressedNames( const llvm::Module& M, const GlobalDepsAnalyzer & );
-	void generateReadableNames( const llvm::Module& M, const GlobalDepsAnalyzer & );
+	void generateCompressedNames( const llvm::Module& M, const GlobalDepsAnalyzer &, bool noBoilerplate );
+	void generateReadableNames( const llvm::Module& M, const GlobalDepsAnalyzer &, bool noBoilerplate );
 	static std::vector<std::string> buildReservedNamesList(const llvm::Module& M, const std::vector<std::string>& fromOption);
 	
 	Registerize& registerize;
