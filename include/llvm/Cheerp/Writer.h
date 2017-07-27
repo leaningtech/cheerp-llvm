@@ -539,7 +539,7 @@ public:
 		registerize(registerize),
 		globalDeps(gda),
 		linearHelper(linearHelper),
-		namegen(m, globalDeps, registerize, PA, reservedNames, readableOutput),
+		namegen(m, globalDeps, registerize, PA, reservedNames, readableOutput, NoBoilerplate),
 		types(m),
 		asmJSMem(asmJSMem),
 		asmJSMemFile(asmJSMemFile),
