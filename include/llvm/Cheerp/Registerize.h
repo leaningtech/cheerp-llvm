@@ -98,10 +98,10 @@ public:
 	{
 		// Try to save bits, we may need more flags here
 		const REGISTER_KIND regKind : 2;
-		int needsSecondaryName : 1;
-		int needsRecover : 1;
-		int isArg : 1;
-		int noMerge : 1;
+		unsigned needsSecondaryName : 1;
+		unsigned needsRecover : 1;
+		unsigned isArg : 1;
+		unsigned noMerge : 1;
 		RegisterInfo(REGISTER_KIND k, bool s, bool r, bool a, bool n):regKind(k),needsSecondaryName(s),needsRecover(r),isArg(a),noMerge(n)
 		{
 		}
