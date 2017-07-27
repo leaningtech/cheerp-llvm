@@ -836,6 +836,13 @@ void Interpreter::exitCalled(GenericValue GV) {
 ///
 void Interpreter::popStackAndReturnValueToCaller(Type *RetTy,
                                                  GenericValue Result) {
+  // Clear virtual address mapping for allocas
+  for (const auto& a: ECStack.back().Allocas.Allocations) {
+    ValueAddresses->unmap(a.get());
+  }
+  // Call the RetListener
+  if (RetListener)
+    RetListener(ECStack.back().Allocas.Allocations);
   // Pop the current stack frame.
   ECStack.pop_back();
 
@@ -974,22 +981,22 @@ void Interpreter::visitAllocaInst(AllocaInst &I) {
   unsigned MemToAlloc = std::max(1U, NumElements * TypeSize);
 
   // Allocate enough memory to hold the type...
-  void *Memory = malloc(MemToAlloc);
-  ValueAddresses->map(Memory, MemToAlloc+4);
+  auto Memory = make_unique<char[]>(MemToAlloc);
+  ValueAddresses->map(Memory.get(), MemToAlloc+4);
 
   DEBUG(dbgs() << "Allocated Type: " << *Ty << " (" << TypeSize << " bytes) x " 
                << NumElements << " (Total: " << MemToAlloc << ") at "
-               << uintptr_t(Memory) << '\n');
+               << uintptr_t(Memory.get()) << '\n');
 
-  GenericValue Result = RPTOGV(Memory);
+  GenericValue Result = RPTOGV(Memory.get());
   assert(Result.PointerVal && "Null pointer returned by allocator!");
   SetValue(&I, Result, SF);
 
-  if (I.getOpcode() == Instruction::Alloca)
-    ECStack.back().Allocas.add(Memory);
-
   if (AllocaListener)
-    AllocaListener(Ty, MemToAlloc, Memory);
+    AllocaListener(Ty, MemToAlloc, Memory.get());
+
+  if (I.getOpcode() == Instruction::Alloca)
+    ECStack.back().Allocas.add(std::move(Memory));
 }
 
 // getElementOffset - The workhorse for getelementptr.
