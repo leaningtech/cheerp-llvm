@@ -4968,6 +4968,39 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		if(!hasRecoveryPoint)
 			return;
 	}
+	const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(&F);
+	if(needsStacklet && !stackletSync)
+	{
+		// If the total number of locals is > 8 we need to create a special object to store the stacklet
+		uint32_t localsCount = 3; // p, pc, f
+		for(const Registerize::RegisterInfo& r: regsInfo)
+		{
+			if(!r.needsRecover)
+				continue;
+			if(r.needsSecondaryName)
+				localsCount+=2;
+			else
+				localsCount++;
+		}
+		if(localsCount>8)
+		{
+			// We need to use a function to create the object and avoid a V8 slowpath
+			// We will pass to the function the p parameter and all the recoverable arguments
+			stream << "var a=new createStacklet" << namegen.getName(&F) << "(p";
+			for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
+			{
+				const Registerize::RegisterInfo& r = regsInfo[regId];
+				if(!r.isArg || !r.needsRecover)
+					continue;
+				stream << ',' << namegen.getName(&F, regId);
+				if(r.needsSecondaryName)
+					stream << ',' << namegen.getSecondaryName(&F, regId);
+			}
+			stream << ");" << NewLine;
+			deferredStacklets.insert(&F);
+			return;
+		}
+	}
 	// Declare are all used locals in the beginning
 	bool firstVar = true;
 	if(needsStacklet && !stackletSync)
@@ -4997,9 +5030,15 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		}
 		stream << NewLine;
 	};
-	const std::vector<Registerize::RegisterInfo>& regsInfo = registerize.getRegistersForFunction(&F);
 	for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 	{
+		if(needsStacklet)
+		{
+			if(!regsInfo[regId].needsRecover)
+				continue;
+		}
+		else if(regsInfo[regId].isArg)
+			continue;
 		CompileStartVar();
 		compileMethodLocal(namegen.getName(&F, regId), regsInfo[regId].regKind, needsStacklet, regsInfo[regId].isArg, stackletSync);
 		firstVar = false;
@@ -5009,7 +5048,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 			compileMethodLocal(namegen.getSecondaryName(&F, regId), Registerize::INTEGER, needsStacklet, regsInfo[regId].isArg, stackletSync);
 		}
 	}
-	if(needsLabel)
+	if(needsLabel && !needsStacklet)
 	{
 		CompileStartVar();
 		stream << "label";
@@ -5020,29 +5059,6 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 		stream << '0';
 	}
 	CompileEndVar();
-	if(needsStacklet && !stackletSync)
-	{
-		// If the total number of locals is > 8 we need to create a special object to store the stacklet
-		uint32_t localsCount = 3 + regsInfo.size(); // p, pc, f
-		if(localsCount>8)
-		{
-			// We need to use a function to create the object and avoid a V8 slowpath
-			// We will pass to the function the p parameter and all the recoverable arguments
-			stream << "var a=new createStacklet" << namegen.getName(&F) << "(p";
-			for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
-			{
-				const Registerize::RegisterInfo& r = regsInfo[regId];
-				if(!r.isArg)
-					continue;
-				stream << ',' << namegen.getName(&F, regId);
-				if(r.needsSecondaryName)
-					stream << ',' << namegen.getSecondaryName(&F, regId);
-			}
-			stream << ");" << NewLine;
-			deferredStacklets.insert(&F);
-			return;
-		}
-	}
 }
 
 std::pair<Relooper*, const BasicBlock*> CheerpWriter::buildRelooper(const Function& F, std::set<const BasicBlock*>* usedBlocks)
@@ -6035,7 +6051,7 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 		for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 		{
 			const Registerize::RegisterInfo& r = regsInfo[regId];
-			if(!r.isArg)
+			if(!r.isArg || !r.needsRecover)
 				continue;
 			stream << ',' << namegen.getName(F, regId);
 			if(r.needsSecondaryName)
@@ -6049,6 +6065,8 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 		for(unsigned int regId = 0; regId < regsInfo.size(); regId++)
 		{
 			const Registerize::RegisterInfo& r = regsInfo[regId];
+			if(!r.needsRecover)
+				continue;
 			stream << "this.";
 			compileMethodLocal(namegen.getName(F, regId), r.regKind, false, r.isArg, /*stackletSync*/false);
 			stream << ';' << NewLine;
