@@ -50,16 +50,18 @@ protected:
 TEST_F(ExecutionEngineTest, ForwardGlobalMapping) {
   GlobalVariable *G1 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global1");
-  int32_t Mem1 = 3;
-  Engine->addGlobalMapping(G1, &Mem1);
-  EXPECT_EQ(&Mem1, Engine->getPointerToGlobalIfAvailable(G1));
-  int32_t Mem2 = 4;
-  Engine->updateGlobalMapping(G1, &Mem2);
-  EXPECT_EQ(&Mem2, Engine->getPointerToGlobalIfAvailable(G1));
+  int32_t* Mem1 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem1 = 3;
+  Engine->addGlobalMapping(G1, Mem1);
+  EXPECT_EQ(Mem1, Engine->getPointerToGlobalIfAvailable(G1));
+  int32_t* Mem2 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem2 = 4;
+  Engine->updateGlobalMapping(G1, Mem2);
+  EXPECT_EQ(Mem2, Engine->getPointerToGlobalIfAvailable(G1));
   Engine->updateGlobalMapping(G1, nullptr);
   EXPECT_EQ(nullptr, Engine->getPointerToGlobalIfAvailable(G1));
-  Engine->updateGlobalMapping(G1, &Mem2);
-  EXPECT_EQ(&Mem2, Engine->getPointerToGlobalIfAvailable(G1));
+  Engine->updateGlobalMapping(G1, Mem2);
+  EXPECT_EQ(Mem2, Engine->getPointerToGlobalIfAvailable(G1));
 
   GlobalVariable *G2 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global1");
@@ -67,9 +69,9 @@ TEST_F(ExecutionEngineTest, ForwardGlobalMapping) {
     << "The NULL return shouldn't depend on having called"
     << " updateGlobalMapping(..., NULL)";
   // Check that update...() can be called before add...().
-  Engine->updateGlobalMapping(G2, &Mem1);
-  EXPECT_EQ(&Mem1, Engine->getPointerToGlobalIfAvailable(G2));
-  EXPECT_EQ(&Mem2, Engine->getPointerToGlobalIfAvailable(G1))
+  Engine->updateGlobalMapping(G2, Mem1);
+  EXPECT_EQ(Mem1, Engine->getPointerToGlobalIfAvailable(G2));
+  EXPECT_EQ(Mem2, Engine->getPointerToGlobalIfAvailable(G1))
     << "A second mapping shouldn't affect the first.";
 }
 
@@ -77,25 +79,27 @@ TEST_F(ExecutionEngineTest, ReverseGlobalMapping) {
   GlobalVariable *G1 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global1");
 
-  int32_t Mem1 = 3;
-  Engine->addGlobalMapping(G1, &Mem1);
-  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(&Mem1));
-  int32_t Mem2 = 4;
-  Engine->updateGlobalMapping(G1, &Mem2);
-  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem1));
-  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(&Mem2));
+  int32_t* Mem1 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem1 = 3;
+  Engine->addGlobalMapping(G1, Mem1);
+  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(Mem1));
+  int32_t* Mem2 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem2 = 4;
+  Engine->updateGlobalMapping(G1, Mem2);
+  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(Mem1));
+  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(Mem2));
 
   GlobalVariable *G2 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global2");
-  Engine->updateGlobalMapping(G2, &Mem1);
-  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem1));
-  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(&Mem2));
+  Engine->updateGlobalMapping(G2, Mem1);
+  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(Mem1));
+  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(Mem2));
   Engine->updateGlobalMapping(G1, nullptr);
-  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem1))
+  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(Mem1))
     << "Removing one mapping doesn't affect a different one.";
-  Engine->updateGlobalMapping(G2, &Mem2);
-  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem1));
-  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem2))
+  Engine->updateGlobalMapping(G2, Mem2);
+  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(Mem1));
+  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(Mem2))
     << "Once a mapping is removed, we can point another GV at the"
     << " now-free address.";
 }
@@ -104,33 +108,35 @@ TEST_F(ExecutionEngineTest, ClearModuleMappings) {
   GlobalVariable *G1 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global1");
 
-  int32_t Mem1 = 3;
-  Engine->addGlobalMapping(G1, &Mem1);
-  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(&Mem1));
+  int32_t* Mem1 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem1 = 3;
+  Engine->addGlobalMapping(G1, Mem1);
+  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(Mem1));
 
   Engine->clearGlobalMappingsFromModule(M);
 
-  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem1));
+  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(Mem1));
 
   GlobalVariable *G2 =
       NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global2");
   // After clearing the module mappings, we can assign a new GV to the
   // same address.
-  Engine->addGlobalMapping(G2, &Mem1);
-  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(&Mem1));
+  Engine->addGlobalMapping(G2, Mem1);
+  EXPECT_EQ(G2, Engine->getGlobalValueAtAddress(Mem1));
 }
 
 TEST_F(ExecutionEngineTest, DestructionRemovesGlobalMapping) {
   GlobalVariable *G1 =
     NewExtGlobal(Type::getInt32Ty(getGlobalContext()), "Global1");
-  int32_t Mem1 = 3;
-  Engine->addGlobalMapping(G1, &Mem1);
+  int32_t* Mem1 = (int32_t*)GVMemoryBlock::Create(*Engine->ValueAddresses, G1, *Engine->getDataLayout());
+  *Mem1 = 3;
+  Engine->addGlobalMapping(G1, Mem1);
   // Make sure the reverse mapping is enabled.
-  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(&Mem1));
+  EXPECT_EQ(G1, Engine->getGlobalValueAtAddress(Mem1));
   // When the GV goes away, the ExecutionEngine should remove any
   // mappings that refer to it.
   G1->eraseFromParent();
-  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(&Mem1));
+  EXPECT_EQ(nullptr, Engine->getGlobalValueAtAddress(Mem1));
 }
 
 TEST_F(ExecutionEngineTest, LookupWithMangledName) {
