@@ -2912,7 +2912,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 					if(const AllocaInst* AI = dyn_cast<AllocaInst>(&I))
 					{
 						POINTER_KIND k = PA.getPointerKind(AI);
-						if(k == COMPLETE_OBJECT)
+						if(k == COMPLETE_OBJECT && AI->getType()->getPointerElementType()->isAggregateType())
 						{
 							stream << "cheerpjFree(";
 							compileCompleteObject(AI);
