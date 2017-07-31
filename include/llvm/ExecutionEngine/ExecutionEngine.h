@@ -533,12 +533,12 @@ public:
     RetListener = P;
   }
 
+  void EmitGlobalVariable(const GlobalVariable *GV);
+
 protected:
   explicit ExecutionEngine(std::unique_ptr<Module> M);
 
   void emitGlobals(bool AllowUnresolved);
-
-  void EmitGlobalVariable(const GlobalVariable *GV);
 
   GenericValue getConstantValue(const Constant *C);
   void LoadValueFromMemory(GenericValue &Result, GenericValue *Ptr,
