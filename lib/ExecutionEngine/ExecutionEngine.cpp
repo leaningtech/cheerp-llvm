@@ -80,6 +80,39 @@ ExecutionEngine::~ExecutionEngine() {
   clearAllGlobalMappings();
 }
 
+namespace {
+/// \brief Helper class which uses a value handler to automatically deletes the
+/// memory block when the GlobalVariable is destroyed.
+class GVMemoryBlock : public CallbackVH {
+  GVMemoryBlock(const GlobalVariable *GV)
+    : CallbackVH(const_cast<GlobalVariable*>(GV)) {}
+
+public:
+  /// \brief Returns the address the GlobalVariable should be written into.  The
+  /// GVMemoryBlock object prefixes that.
+  static char *Create(AddressMapBase& ValueAddresses, const GlobalVariable *GV, const DataLayout& TD) {
+    Type *ElTy = GV->getType()->getElementType();
+    size_t GVSize = (size_t)TD.getTypeAllocSize(ElTy);
+    void *RawMemory = ::operator new(
+      RoundUpToAlignment(sizeof(GVMemoryBlock),
+                         TD.getPreferredAlignment(GV))
+      + GVSize);
+    new(RawMemory) GVMemoryBlock(GV);
+    char* addr = static_cast<char*>(RawMemory) + sizeof(GVMemoryBlock);
+    ValueAddresses.map(addr, GVSize + 4);
+    return addr;
+  }
+
+  void deleted() override {
+    // We allocated with operator new and with some extra memory hanging off the
+    // end, so don't just delete this.  I'm not sure if this is actually
+    // required.
+    this->~GVMemoryBlock();
+    ::operator delete(this);
+  }
+};
+}  // anonymous namespace
+
 GenericValue ExecutionEngine::RPTOGV(void *P) {
   return GenericValue(ValueAddresses->toVirtual(P));
 }
