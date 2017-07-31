@@ -164,11 +164,6 @@ void ExecutionEngine::addGlobalMapping(const GlobalValue *GV, void *Addr) {
 void ExecutionEngine::clearAllGlobalMappings() {
   MutexGuard locked(lock);
 
-  for (auto i: EEState.getGlobalAddressMap()) {
-    GVMemoryBlock* gv = (GVMemoryBlock*)((char*)(i.second) - sizeof(GVMemoryBlock));
-    gv->~GVMemoryBlock();
-    ::operator delete(gv);
-  }
   EEState.getGlobalAddressMap().clear();
   EEState.getGlobalAddressReverseMap().clear();
 }
@@ -181,12 +176,7 @@ void ExecutionEngine::clearGlobalMappingsFromModule(Module *M) {
 
   for (Module::global_iterator GI = M->global_begin(), GE = M->global_end();
        GI != GE; ++GI) {
-    char *gv = (char *)EEState.RemoveMapping(GI);
-    if (!gv || GI->isDeclaration())
-      continue;
-    gv -= sizeof(GVMemoryBlock);
-    ((GVMemoryBlock*)gv)->~GVMemoryBlock();
-    ::operator delete(gv);
+    EEState.RemoveMapping(GI);
   }
 }
 
