@@ -248,11 +248,6 @@ void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
 void ExecutionEngine::clearAllGlobalMappings() {
   MutexGuard locked(lock);
 
-  for (auto i: EEState.getGlobalAddressMap()) {
-    GVMemoryBlock* gv = (GVMemoryBlock*)((char*)(i.second) - sizeof(GVMemoryBlock));
-    gv->~GVMemoryBlock();
-    ::operator delete(gv);
-  }
   EEState.getGlobalAddressMap().clear();
   EEState.getGlobalAddressReverseMap().clear();
 }
