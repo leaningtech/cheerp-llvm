@@ -5068,104 +5068,6 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 	CompileEndVar();
 }
 
-std::pair<Relooper*, const BasicBlock*> CheerpWriter::buildRelooper(const Function& F, std::set<const BasicBlock*>* usedBlocks)
-{
-	//TODO: Support exceptions
-	Function::const_iterator B=F.begin();
-	Function::const_iterator BE=F.end();
-	//First run, create the corresponding relooper blocks
-	std::map<const BasicBlock*, /*relooper::*/Block*> relooperMap;
-	int BlockId = 0;
-	for(;B!=BE;++B)
-	{
-		//Decide if this block should be duplicated instead
-		//of actually directing the control flow to reach it
-		//Currently we just check if the block ends with a return
-		//and its small enough. This should simplify some control flows.
-		bool isSplittable = B->size()<3 && isa<ReturnInst>(B->getTerminator());
-		Block* rlBlock = new Block(&(*B), isSplittable, BlockId++);
-		relooperMap.insert(make_pair(&(*B),rlBlock));
-	}
-
-	B=F.begin();
-	BE=F.end();
-	//Second run, add the branches
-	const llvm::BasicBlock* landingPad = nullptr;
-	for(;B!=BE;++B)
-	{
-		if(usedBlocks && usedBlocks->count(&(*B)))
-			continue;
-		if(B->isLandingPad())
-		{
-			assert(!landingPad);
-			landingPad = &(*B);
-		}
-		const TerminatorInst* term=B->getTerminator();
-		uint32_t defaultBranchId=-1;
-		//Find out which branch id is the default
-		if(isa<BranchInst>(term))
-		{
-			const BranchInst* bi=cast<BranchInst>(term);
-			if(bi->isUnconditional())
-				defaultBranchId = 0;
-			else
-				defaultBranchId = 1;
-		}
-		else if(isa<SwitchInst>(term))
-		{
-#ifndef NDEBUG
-			const SwitchInst* si=cast<SwitchInst>(term);
-#endif
-			assert(si->getDefaultDest()==si->getSuccessor(0));
-			defaultBranchId = 0;
-		}
-		else if(isa<InvokeInst>(term))
-		{
-#ifndef NDEBUG
-			const InvokeInst* ii=cast<InvokeInst>(term);
-#endif
-			assert(ii->getNormalDest()==ii->getSuccessor(0));
-			defaultBranchId = 0;
-		}
-		else if(term->getNumSuccessors())
-		{
-			//Only a problem if there are successors
-			term->dump();
-			llvm::report_fatal_error("Unsupported code found, please report a bug", false);
-		}
-
-		for(uint32_t i=0;i<term->getNumSuccessors();i++)
-		{
-			if(term->getSuccessor(i)->isLandingPad())
-				continue;
-			auto it = relooperMap.find(term->getSuccessor(i));
-			assert(it != relooperMap.end());
-			Block* target = it->second;
-			//Use -1 for the default target
-			assert(relooperMap.count(&(*B)));
-			bool ret=relooperMap[&(*B)]->AddBranchTo(target, (i==defaultBranchId)?-1:i);
-
-			if(ret==false) //More than a path for a single block can only happen for switch
-			{
-				assert(isa<SwitchInst>(term));
-			}
-		}
-	}
-
-	B=F.begin();
-	BE=F.end();
-	//Third run, add the block to the relooper and run it
-	Relooper* rl=new Relooper(BlockId);
-	for(;B!=BE;++B)
-	{
-		assert(relooperMap.count(&(*B)));
-		rl->AddBlock(relooperMap[&(*B)]);
-	}
-	assert(relooperMap.count(usedBlocks ? landingPad : &F.getEntryBlock()));
-	rl->Calculate(relooperMap[usedBlocks ? landingPad : &F.getEntryBlock()]);
-	return std::make_pair(rl, landingPad);
-}
-
 uint32_t CheerpWriter::getNextPC(const std::set<uint32_t>& usedPCs)
 {
 	while(usedPCs.count(currentPC))
@@ -5260,7 +5162,7 @@ void CheerpWriter::compileMethod(const Function& F)
 	}
 	else
 	{
-		std::pair<Relooper*, const llvm::BasicBlock*> rl=buildRelooper(F, PA, registerize, nullptr);
+		std::pair<Relooper*, const llvm::BasicBlock*> rl=runRelooperOnFunction(F, PA, registerize, nullptr);
 		compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/true, /*stackletSync*/false);
 		if(needsStacklet)
 			compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/false);
@@ -5304,7 +5206,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		{
 			stream << "function " << namegen.getName(&F) << "E(a,b){" << NewLine;
 			stream << "a.f=" << namegen.getName(&F) << "E;" << NewLine;
-			std::pair<Relooper*, const llvm::BasicBlock*> rl2=buildRelooper(F, &ri.usedBlocks);
+			std::pair<Relooper*, const llvm::BasicBlock*> rl2=runRelooperOnFunction(F, &ri.usedBlocks);
 			compileMethodLocals(F, usedPCs, rl2.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/true);
 			stream << "var pc=a.pc;" << NewLine;
 			// PHI sync up, pretty bad but works
@@ -6215,8 +6117,8 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
 	}
 }
 
-Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const PointerAnalyzer& PA,
-                                              const Registerize& registerize)
+std::pair<Relooper*, const BasicBlock*> CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const PointerAnalyzer& PA,
+                                              const Registerize& registerize, std::set<const BasicBlock*>* usedBlocks)
 {
 	//TODO: Support exceptions
 	Function::const_iterator B=F.begin();
@@ -6226,8 +6128,6 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 	int BlockId = 0;
 	for(;B!=BE;++B)
 	{
-		if(B->isLandingPad())
-			continue;
 		//Decide if this block should be duplicated instead
 		//of actually directing the control flow to reach it
 		//Currently we just check if the block ends with a return
@@ -6266,10 +6166,16 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 	B=F.begin();
 	BE=F.end();
 	//Second run, add the branches
+	const llvm::BasicBlock* landingPad = nullptr;
 	for(;B!=BE;++B)
 	{
-		if(B->isLandingPad())
+		if(usedBlocks && usedBlocks->count(&(*B)))
 			continue;
+		if(B->isLandingPad())
+		{
+			assert(!landingPad);
+			landingPad = &(*B);
+		}
 		const TerminatorInst* term=B->getTerminator();
 		uint32_t defaultBranchId=-1;
 		//Find out which branch id is the default
@@ -6308,7 +6214,9 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 		{
 			if(term->getSuccessor(i)->isLandingPad())
 				continue;
-			Block* target=relooperMap[term->getSuccessor(i)];
+			auto it = relooperMap.find(term->getSuccessor(i));
+			assert(it != relooperMap.end());
+			Block* target = it->second;
 			const BasicBlock* bbTo = target->llvmBlock;
 			bool hasPrologue = bbTo->getFirstNonPHI()!=&bbTo->front();
 			if (hasPrologue)
@@ -6318,6 +6226,7 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 				hasPrologue = needsPointerKindConversionForBlocks(bbTo, &(*B), PA, registerize);
 			}
 			//Use -1 for the default target
+			assert(relooperMap.count(&(*B)));
 			bool ret=relooperMap[&(*B)]->AddBranchTo(target, (i==defaultBranchId)?-1:i, hasPrologue);
 
 			if(ret==false) //More than a path for a single block can only happen for switch
@@ -6333,12 +6242,12 @@ Relooper* CheerpWriter::runRelooperOnFunction(const llvm::Function& F, const Poi
 	Relooper* rl=new Relooper(BlockId);
 	for(;B!=BE;++B)
 	{
-		if(B->isLandingPad())
-			continue;
+		assert(relooperMap.count(&(*B)));
 		rl->AddBlock(relooperMap[&(*B)]);
 	}
-	rl->Calculate(relooperMap[&F.getEntryBlock()]);
-	return rl;
+	assert(relooperMap.count(usedBlocks ? landingPad : &F.getEntryBlock()));
+	rl->Calculate(relooperMap[usedBlocks ? landingPad : &F.getEntryBlock()]);
+	return std::make_pair(rl, landingPad);
 }
 
 void CheerpWriter::JSBytesWriter::addByte(uint8_t byte)

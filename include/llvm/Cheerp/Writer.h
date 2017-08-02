@@ -477,7 +477,6 @@ private:
 
 	enum STACKLET_STATUS { NO_STACKLET = 0, STACKLET_NEEDED, STACKLET_NOT_NEEDED };
 	STACKLET_STATUS needsStacklet(const llvm::Value* v) const;
-	std::pair<Relooper*, const llvm::BasicBlock*> buildRelooper(const llvm::Function& F, std::set<const llvm::BasicBlock*>* usedBlocks);
 	uint32_t getNextPC(const std::set<uint32_t>& usedPCs);
 
 	struct JSBytesWriter: public LinearMemoryHelper::ByteListener
@@ -629,12 +628,8 @@ public:
 	/**
 	 * Run relooper on a function, this code is here since it is also used by CheerpWastWriter
 	 */
-	static Relooper* runRelooperOnFunction(const llvm::Function& F, const PointerAnalyzer& PA,
-	                                       const Registerize& registerize);
-	static bool needsPointerKindConversion(const llvm::Instruction* phi, const llvm::Value* incoming,
-	                                       const PointerAnalyzer& PA, const Registerize& registerize);
-	static bool needsPointerKindConversionForBlocks(const llvm::BasicBlock* to, const llvm::BasicBlock* from,
-	                                                const PointerAnalyzer& PA, const Registerize& registerize);
+	static std::pair<Relooper*, const llvm::BasicBlock*> runRelooperOnFunction(const llvm::Function& F, const PointerAnalyzer& PA,
+	                                       const Registerize& registerize, std::set<const llvm::BasicBlock*>* usedBlocks);
 };
 
 }
