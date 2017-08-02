@@ -1880,7 +1880,80 @@ CheerpWriter::STACKLET_STATUS CheerpWriter::needsStacklet(const llvm::Value* v) 
 	return registerize.isRecoverable(I) ? STACKLET_NEEDED : STACKLET_NOT_NEEDED;
 }
 
-const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_OFFSET_MODE offsetMode)
+void CheerpWriter::compileByteLayoutAdd(const std::vector<std::pair<const llvm::Value*, size_t>>& dynPart, uint32_t constPart, PARENT_PRIORITY parentPrio)
+{
+	uint32_t opCount = dynPart.size();
+	if(constPart)
+		opCount++;
+
+	if(opCount == 0)
+		return;
+
+	if(parentPrio > BIT_OR && opCount > 2)
+		stream << '(';
+	for(uint32_t i=2;i<opCount;i++)
+		stream << '(';
+
+	for(uint32_t i=0;i<dynPart.size();i++)
+	{
+		if(i>1)
+			stream << ')';
+		if(i>0)
+			stream << '+';
+		const Value* val = dynPart[i].first;
+		size_t typeSize = dynPart[i].second;
+		if(typeSize == 1)
+			compileOperand(val);
+		else if((typeSize & (typeSize - 1)) == 0)
+		{
+			// Power of 2, using bitshift will return already an integer so we can save a cast
+			uint32_t shift = 0;
+			while(typeSize)
+			{
+				typeSize>>=1;
+				shift++;
+			}
+			shift--;
+			stream << '(';
+			compileOperand( val, SHIFT );
+			stream << "<<" << shift << ')';
+		}
+		else
+		{
+			if(useMathImul)
+				stream << "Math.imul(";
+			else
+				stream << '(';
+			compileOperand( val, useMathImul ? LOWEST : MUL_DIV);
+			if(useMathImul)
+				stream << ',';
+			else
+				stream << '*';
+			stream << typeSize;
+			if(useMathImul)
+				stream << ')';
+			else
+				stream << "|0)";
+		}
+		if(i>0)
+			stream << "|0";
+	}
+
+	if(constPart)
+	{
+		if(opCount > 2)
+			stream << ')';
+		if(opCount > 1)
+			stream << '+';
+		stream << constPart;
+		if(opCount > 1)
+			stream << "|0";
+	}
+	if(parentPrio > BIT_OR && opCount > 2)
+		stream << ')';
+}
+
+const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_OFFSET_MODE offsetMode, PARENT_PRIORITY parentPrio)
 {
 	// If the value has byte layout skip GEPS and BitCasts until the base is found
 	// We need to handle the first GEP having more than an index (so it actually changes types)
@@ -1889,6 +1962,8 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	bool findFirstTypeChangingGEP = (offsetMode != BYTE_LAYOUT_OFFSET_FULL);
 	const Value* lastOffset = NULL;
 	const Value* const passedP = p;
+	uint32_t constPart = 0;
+	std::vector<std::pair<const Value*, size_t>> dynPart;
 	while ( isBitCast(p) || isGEP(p) )
 	{
 		const User * u = cast<User>(p);
@@ -1905,7 +1980,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 					uint32_t index = cast<ConstantInt>( indices[i] )->getZExtValue();
 					const StructLayout* SL = targetData.getStructLayout( ST );
 					if (!skipUntilBytelayout && (offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT))
-						stream << SL->getElementOffset(index) << '+';
+						constPart += SL->getElementOffset(index);
 					curType = ST->getElementType(index);
 				}
 				else
@@ -1922,45 +1997,11 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 					if (!skipUntilBytelayout && (offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT))
 					{
 						uint32_t typeSize = targetData.getTypeAllocSize(curType->getSequentialElementType());
-						bool isZero = false;
 						assert(typeSize>0);
-						if(isa<ConstantInt>(indices[i]) && cast<ConstantInt>(indices[i])->getZExtValue() == 0)
-							isZero = true;
-						else if(typeSize == 1)
-							compileOperand( indices[i] );
-						else if((typeSize & (typeSize - 1)) == 0)
-						{
-							// Power of 2, using bitshift will return already an integer so we can save a cast
-							uint32_t shift = 0;
-							while(typeSize)
-							{
-								typeSize>>=1;
-								shift++;
-							}
-							shift--;
-							stream << '(';
-							compileOperand( indices[i], SHIFT );
-							stream << "<<" << shift << ')';
-						}
+						if(isa<ConstantInt>(indices[i]))
+							constPart += cast<ConstantInt>(indices[i])->getSExtValue() * typeSize;
 						else
-						{
-							if(useMathImul)
-								stream << "Math.imul(";
-							else
-								stream << '(';
-							compileOperand( indices[i], useMathImul ? LOWEST : MUL_DIV);
-							if(useMathImul)
-								stream << ',';
-							else
-								stream << '*';
-							stream << typeSize;
-							if(useMathImul)
-								stream << ')';
-							else
-								stream << "|0)";
-						}
-						if(!isZero)
-							stream << '+';
+							dynPart.push_back(std::make_pair(indices[i], typeSize));
 					}
 					curType = curType->getSequentialElementType();
 				}
@@ -1974,7 +2015,12 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 		if(byteLayoutFromHere)
 		{
 			if(offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT)
-				stream << '0';
+			{
+				if(dynPart.empty())
+					stream << constPart;
+				else
+					compileByteLayoutAdd(dynPart, constPart, parentPrio);
+			}
 			return lastOffset;
 		}
 		p = u->getOperand(0);
@@ -1983,25 +2029,24 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	assert (PA.getPointerKind(p) != COMPLETE_OBJECT);
 	if(offsetMode != BYTE_LAYOUT_OFFSET_NO_PRINT)
 	{
+		uint32_t opCount = dynPart.size();
+		if(constPart)
+			opCount++;
+		bool firstAdd = false;
 		if(const ConstantInt* CI=PA.getConstantOffsetForPointer(p))
 		{
-			if(CI->getZExtValue())
-			{
-			if(useMathImul)
-				stream << namegen.getBuiltinName(NameGenerator::Builtin::IMUL);
-			stream << '(';
-			compileConstant(CI);
-			if(useMathImul)
-				stream << ',';
-			else
-				stream << '*';
-			stream << targetData.getTypeAllocSize(p->getType()->getPointerElementType()) << ')';
-			}
-			else
-				stream << '0';
+			uint32_t addOffset = CI->getSExtValue() * targetData.getTypeAllocSize(p->getType()->getPointerElementType());
+			if(!constPart && addOffset)
+				opCount++;
+			constPart += addOffset;
+			if(parentPrio > BIT_OR && opCount > 1)
+				stream << '(';
 		}
 		else
 		{
+			opCount++;
+			if(parentPrio > BIT_OR && opCount > 1)
+				stream << '(';
 			if(PA.getPointerKind(p) == SPLIT_REGULAR || PA.getPointerKind(p) == SPLIT_BYTE_LAYOUT)
 			{
 				if(passedP == p)
@@ -2014,7 +2059,20 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 				compileOperand(p);
 				stream << ".o";
 			}
+			firstAdd = opCount>1;
 		}
+		if(opCount > 0)
+		{
+			if(firstAdd)
+				stream << '+';
+			compileByteLayoutAdd(dynPart, constPart, firstAdd ? ADD_SUB : parentPrio);
+			if(firstAdd)
+				stream << "|0";
+			if(parentPrio > BIT_OR && opCount > 1)
+				stream << ')';
+		}
+		else
+			stream << '0';
 	}
 	return lastOffset;
 }
@@ -2047,7 +2105,7 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	// byteLayout must be handled second, otherwise we may print a constant offset without the required byte multiplier
 	else if ( byteLayout && !forEscapingPointer)
 	{
-		compileByteLayoutOffset(p, BYTE_LAYOUT_OFFSET_FULL);
+		compileByteLayoutOffset(p, BYTE_LAYOUT_OFFSET_FULL, parentPrio);
 	}
 	else if(isGEP(p) && (!isa<Instruction>(p) || isInlineable(*cast<Instruction>(p), PA) || forEscapingPointer))
 	{
@@ -3247,7 +3305,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 				{
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=";
 					compileOperand(valOp);
 					return COMPILE_OK;
@@ -3260,7 +3318,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					stream << ";" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[1+";
@@ -3280,7 +3338,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					stream << ";" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[1+";
@@ -3305,7 +3363,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					stream << "var __tmp__=mSlot.getInt32(0,true);" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[1+";
@@ -3330,7 +3388,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					stream << "var __tmp__=mSlot.getInt32(0,true);" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[1+";
@@ -3381,7 +3439,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					}
 					compilePointerBase(ptrOp);
 					stream << '[';
-					compilePointerOffset(ptrOp, ADD_SUB);
+					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]=__tmp__;" << NewLine;
 					compilePointerBase(ptrOp);
 					stream << "[1+";
@@ -3509,7 +3567,7 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 			stream << ".buffer,(";
 			// If this GEP or a previous one passed through an array of immutables generate a regular from
 			// the start of the array and not from the pointed element
-			compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_STOP_AT_ARRAY );
+			compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_STOP_AT_ARRAY, LOWEST );
 			stream << ")+";
 			compilePointerBase( baseOperand );
 			stream << ".byteOffset>>0)";
@@ -3580,7 +3638,7 @@ llvm::errs() << "FAIL GEP OFFSET " << *gep_inst << "\n";
 			assert(TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true));
 			// If this GEP or a previous one passed through an array of immutables generate a regular from
 			// the start of the array and not from the pointed element
-			const Value* lastOffset = compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_NO_PRINT );
+			const Value* lastOffset = compileByteLayoutOffset( gep_inst, BYTE_LAYOUT_OFFSET_NO_PRINT, LOWEST );
 			if (lastOffset)
 				compileOperand(lastOffset);
 			else
@@ -4652,8 +4710,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "]|";
 					compilePointerBase(ptrOp);
 					stream << "[1+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<8";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<8";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isIntegerTy(24))
@@ -4669,16 +4727,16 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "]|";
 					compilePointerBase(ptrOp);
 					stream << "[1+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<8|";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<8|";
 					compilePointerBase(ptrOp);
 					stream << "[2+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<16|";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<16|";
 					compilePointerBase(ptrOp);
 					stream << "[3+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<24";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<24";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isFloatTy())
@@ -4690,16 +4748,16 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "]|";
 					compilePointerBase(ptrOp);
 					stream << "[1+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<8|";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<8|";
 					compilePointerBase(ptrOp);
 					stream << "[2+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<16|";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<16|";
 					compilePointerBase(ptrOp);
 					stream << "[3+";
-					compilePointerOffset(ptrOp, LOWEST);
-					stream << "]<<24,true),mSlot.getFloat32(0,true))";
+					compilePointerOffset(ptrOp, ADD_SUB);
+					stream << "|0]<<24,true),mSlot.getFloat32(0,true))";
 					return COMPILE_OK;
 				}
 				else if(pointedType->isDoubleTy())
