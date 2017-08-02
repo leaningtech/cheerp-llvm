@@ -1703,7 +1703,9 @@ void CheerpWastWriter::compileMethod(const Function& F)
 	}
 	else
 	{
-		Relooper* rl = CheerpWriter::runRelooperOnFunction(F, PA, registerize);
+		std::pair<Relooper*, const BasicBlock*> rlAndLandingPad = CheerpWriter::runRelooperOnFunction(F, PA, registerize, nullptr);
+		assert(!rlAndLandingPad.second);
+		Relooper* rl = rlAndLandingPad.first;
 		compileMethodLocals(F, rl->needsLabel());
 		// TODO: Only save the stack address if required
 		stream << "get_global " << stackTopGlobal << '\n';
