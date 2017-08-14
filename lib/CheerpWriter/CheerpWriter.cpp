@@ -1641,7 +1641,7 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 
 	if(PA.getPointerKind(p) == COMPLETE_OBJECT)
 	{
-		llvm::errs() << "compilePointerBase with COMPLETE_OBJECT pointer:" << *p << '\n' << "In function: " << *currentFun << '\n';
+		llvm::errs() << "compilePointerBase with COMPLETE_OBJECT pointer:" << *p << '\n' << "In function: " << currentFun->getName() << '\n';
 assert(false);
 		llvm::report_fatal_error("Unsupported code found, please report a bug", false);
 	}
@@ -5984,7 +5984,7 @@ int count = 0;
 #ifdef CHEERP_DEBUG_POINTERS
 			dumpAllPointers(F, PA);
 #endif //CHEERP_DEBUG_POINTERS
-llvm::errs() << (count++) << "/" << module.getFunctionList().size() << "\n";
+llvm::errs() << (count++) << "/" << module.getFunctionList().size() << " " << F.getName() << "\n";
 			compileMethod(F);
 		}
 	for ( const GlobalVariable & GV : module.getGlobalList() )
