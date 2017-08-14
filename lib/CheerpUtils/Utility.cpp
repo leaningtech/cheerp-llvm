@@ -704,13 +704,13 @@ void EndOfBlockPHIHandler::runOnEdge(const Registerize& registerize, const Basic
 		if(phi->use_empty())
 			continue;
 		const Value* val=phi->getIncomingValueForBlock(fromBB);
+		uint32_t phiReg = registerize.getRegisterId(phi);
+		setRegisterUsed(phiReg);
 		if(!isa<Instruction>(val) && !isa<Argument>(val))
 		{
 			orderedPHIs.push_back(std::make_pair(phi, /*selfReferencing*/false));
 			continue;
 		}
-		uint32_t phiReg = registerize.getRegisterId(phi);
-		setRegisterUsed(phiReg);
 		// This instruction may depend on multiple registers
 		llvm::SmallVector<std::pair<uint32_t, const Value*>, 2> incomingRegisters;
 		llvm::SmallVector<std::pair<const Value*, /*dereferenced*/bool>, 4> instQueue;
