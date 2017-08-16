@@ -1639,6 +1639,12 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 		return;
 	}
 
+	if(isa<ConstantExpr>(p) && cast<ConstantExpr>(p)->getOpcode() == Instruction::IntToPtr)
+	{
+		stream << "nullArray";
+		return;
+	}
+
 	if(PA.getPointerKind(p) == COMPLETE_OBJECT)
 	{
 		llvm::errs() << "compilePointerBase with COMPLETE_OBJECT pointer:" << *p << '\n' << "In function: " << currentFun->getName() << '\n';
@@ -1926,6 +1932,11 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	else if(isa<ConstantPointerNull>(p) || isa<UndefValue>(p))
 	{
 		stream << '0';
+	}
+	else if(isa<ConstantExpr>(p) && cast<ConstantExpr>(p)->getOpcode() == Instruction::IntToPtr)
+	{
+		compileOperand(cast<User>(p)->getOperand(0), parentPrio);
+		return;
 	}
 	// byteLayout must be handled second, otherwise we may print a constant offset without the required byte multiplier
 	else if ( byteLayout && !forEscapingPointer)
