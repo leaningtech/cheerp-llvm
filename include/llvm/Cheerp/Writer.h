@@ -486,7 +486,7 @@ private:
 		{
 		}
 		void addByte(uint8_t b) override;
-		void addRunTimeBytes(const llvm::Constant* C) override;
+		uint32_t getObjectGlobalAddr(const llvm::Constant* C);
 	};
 	struct BinaryBytesWriter: public LinearMemoryHelper::ByteListener
 	{
@@ -506,6 +506,9 @@ private:
 		void addValue(const llvm::Value* v, uint32_t size) override;
 		void addConst(uint32_t v) override;
 	};
+	uint32_t lastObjectGlobalAddr = 1;
+	std::unordered_map<const llvm::GlobalValue*, uint32_t> objectsGlobalAddrs;
+	std::vector<const llvm::GlobalValue*> objectsGlobalOrder;
 public:
 	ostream_proxy stream;
 	CheerpWriter(llvm::Module& m, llvm::raw_ostream& s, cheerp::PointerAnalyzer & PA,
@@ -629,6 +632,7 @@ public:
 						const PointerAnalyzer& PA, const Registerize& registerize);
 	static bool needsPointerKindConversionForBlocks(const llvm::BasicBlock* to, const llvm::BasicBlock* from,
 						const PointerAnalyzer& PA, const Registerize& registerize);
+	uint32_t getObjectGlobalAddr(const llvm::GlobalValue* C);
 };
 
 }
