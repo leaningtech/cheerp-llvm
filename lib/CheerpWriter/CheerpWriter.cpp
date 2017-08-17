@@ -5275,7 +5275,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		{
 			stream << "function " << namegen.getName(&F) << "E(a,b){" << NewLine;
 			stream << "a.f=" << namegen.getName(&F) << "E;" << NewLine;
-			std::pair<Relooper*, const llvm::BasicBlock*> rl2=runRelooperOnFunction(F, &ri.usedBlocks);
+			std::pair<Relooper*, const llvm::BasicBlock*> rl2=runRelooperOnFunction(F, PA, registerize, &ri.usedBlocks);
 			compileMethodLocals(F, usedPCs, rl2.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/true);
 			stream << "var pc=a.pc;" << NewLine;
 			// PHI sync up, pretty bad but works
@@ -5291,7 +5291,7 @@ void CheerpWriter::compileMethod(const Function& F)
 						if(const InlineAsm* ia = dyn_cast<InlineAsm>(II->getCalledValue()))
 						{
 							// For asm code that requires recovery
-							if(ia->isAlignStack() && needsPointerKindConversionForBlocks(rl.second, &BB))
+							if(ia->isAlignStack() && needsPointerKindConversionForBlocks(rl.second, &BB, PA, registerize))
 							{
 								if(!firstSyncUp)
 									stream << "else ";
