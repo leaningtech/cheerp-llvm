@@ -228,7 +228,7 @@ public:
 	struct ByteListener
 	{
 		virtual void addByte(uint8_t b) = 0;
-		virtual void addRunTimeBytes(const llvm::Constant* C) = 0;
+		virtual uint32_t getObjectGlobalAddr(const llvm::Constant* C) = 0;
 		virtual ~ByteListener()
 		{
 		}

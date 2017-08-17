@@ -61,20 +61,59 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 	}
 	else if(const ConstantAggregateZero* Z = dyn_cast<ConstantAggregateZero>(c))
 	{
+		assert(offset==0);
 		uint32_t size = targetData.getTypeAllocSize(Z->getType());
 		for (uint32_t i = 0; i < size; i++)
 			listener->addByte(0);
 	}
-	else if(isBitCast(c))
+	else if(isa<ConstantExpr>(c))
 	{
-		compileConstantAsBytes(cast<Constant>(cast<User>(c)->getOperand(0)), asmjs, listener);
+		const ConstantExpr* ce = cast<ConstantExpr>(c);
+		switch(ce->getOpcode())
+		{
+			case Instruction::GetElementPtr:
+			{
+				Type* curTy = ce->getOperand(0)->getType();
+				SmallVector< const Value *, 8 > indices ( std::next(ce->op_begin()), ce->op_end() );
+				for (uint32_t i=0; i<indices.size(); i++)
+				{
+					uint32_t index = cast<ConstantInt>(indices[i])->getZExtValue();
+					if (StructType* ST = dyn_cast<StructType>(curTy))
+					{
+						const StructLayout* SL = targetData.getStructLayout( ST );
+						offset += SL->getElementOffset(index);
+						curTy = ST->getElementType(index);
+					}
+					else
+					{
+						offset += index*targetData.getTypeAllocSize(curTy->getSequentialElementType());
+						curTy = curTy->getSequentialElementType();
+					}
+				}
+				compileConstantAsBytes(ce->getOperand(0), asmjs, listener, offset);
+				break;
+			}
+			case Instruction::PtrToInt:
+			case Instruction::IntToPtr:
+			case Instruction::BitCast:
+			{
+				compileConstantAsBytes(ce->getOperand(0), asmjs, listener, offset);
+				break;
+			}
+			default:
+				// TODO: It could make sense to emit the right number of zeroes anyway
+				llvm::errs() << "warning: Unsupported constant expr in asm.js module :" << ce->getOpcodeName() << '\n';
+		}
 	}
-	else if(isa<Function>(c) || isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
+	else if(isa<Function>(c) || isa<GlobalVariable>(c))
 	{
-		listener->addRunTimeBytes(c);
+		uint32_t val = listener->getObjectGlobalAddr(c) + offset;
+		for(uint32_t i=0;i<32;i+=8)
+			listener->addByte((val>>i)&255);
 	}
 	else if(dyn_cast<ConstantPointerNull>(c))
 	{
+		assert(offset==0);
 		listener->addByte(0);
 		listener->addByte(0);
 		listener->addByte(0);
@@ -93,45 +132,6 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 			uint32_t addr = getFunctionAddress(F);
 			for(uint32_t i=0;i<32;i+=8)
 				listener->addByte((addr>>i)&255);
-		}
-		else if(isa<ConstantExpr>(c))
-		{
-			const ConstantExpr* ce = cast<ConstantExpr>(c);
-			switch(ce->getOpcode())
-			{
-				case Instruction::GetElementPtr:
-				{
-					Type* curTy = ce->getOperand(0)->getType();
-					SmallVector< const Value *, 8 > indices ( std::next(ce->op_begin()), ce->op_end() );
-					for (uint32_t i=0; i<indices.size(); i++)
-					{
-						uint32_t index = cast<ConstantInt>(indices[i])->getZExtValue();
-						if (StructType* ST = dyn_cast<StructType>(curTy))
-						{
-							const StructLayout* SL = targetData.getStructLayout( ST );
-							offset += SL->getElementOffset(index);
-							curTy = ST->getElementType(index);
-						}
-						else
-						{
-							offset += index*targetData.getTypeAllocSize(curTy->getSequentialElementType());
-							curTy = curTy->getSequentialElementType();
-						}
-					}
-					compileConstantAsBytes(ce->getOperand(0), asmjs, listener, offset);
-					break;
-				}
-				case Instruction::PtrToInt:
-				case Instruction::IntToPtr:
-				case Instruction::BitCast:
-				{
-					compileConstantAsBytes(ce->getOperand(0), asmjs, listener, offset);
-					break;
-				}
-				default:
-					// TODO: It could make sense to emit the right number of zeroes anyway
-					llvm::errs() << "warning: Unsupported constant expr in asm.js module :" << ce->getOpcodeName() << '\n';
-			}
 		}
 		else if(isa<GlobalVariable>(c))
 		{

@@ -31,6 +31,8 @@ using namespace cheerp;
 //De-comment this to debug the source map generation
 //#define CHEERP_DEBUG_SOURCE_MAP
 
+//#define CHEERP_DEBUG_GLOBAL_ADDRESS
+
 class CheerpRenderInterface: public RenderInterface
 {
 public:
@@ -5399,6 +5401,9 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 				stream << ';' << NewLine;
 				stream << "var " << namegen.getSecondaryName(&G) << "=0";
 			}
+			// Byte layout globals do not need either class initialization and fixups, so return immediately
+			stream << ';' << NewLine;
+			return;
 		}
 		else if(k == SPLIT_REGULAR)
 		{
@@ -6007,6 +6012,24 @@ llvm::errs() << (count++) << "/" << module.getFunctionList().size() << " " << F.
 			compileGlobal(GV);
 	}
 
+	// Force address computation for all globals that need it
+	for ( uint32_t i = 0; i < objectsGlobalOrder.size(); i++)
+	{
+		const GlobalValue* c = objectsGlobalOrder[i];
+#ifdef CHEERP_DEBUG_GLOBAL_ADDRESS
+		stream << "assert(";
+#endif
+		stream << "cheerpPointerBaseInt(";
+		if(isa<Function>(c))
+			compileOperand(c);
+		else
+			compilePointerBase(c);
+		stream << ')';
+#ifdef CHEERP_DEBUG_GLOBAL_ADDRESS
+		stream << "===" << objectsGlobalAddrs[c] << ')';
+#endif
+		stream << ';' << NewLine;
+	}
 	for ( StructType * st : globalDeps.classesUsed() )
 	{
 		if ( st->getNumElements() > V8MaxLiteralProperties )
@@ -6327,53 +6350,52 @@ void CheerpWriter::JSBytesWriter::addByte(uint8_t byte)
 	first = false;
 }
 
-void CheerpWriter::JSBytesWriter::addRunTimeBytes(const llvm::Constant* c)
+uint32_t CheerpWriter::getObjectGlobalAddr(const GlobalValue* c)
 {
-	if(const Function* f=dyn_cast<Function>(c))
+	auto it = objectsGlobalAddrs.find(c);
+	if(it != objectsGlobalAddrs.end())
+		return it->second;
+	uint32_t newAddr = lastObjectGlobalAddr;
+	objectsGlobalAddrs.insert(std::make_pair(c, newAddr));
+	objectsGlobalOrder.push_back(c);
+	if(const Function* F = dyn_cast<Function>(c))
 	{
-		if(!first)
-			writer.stream << ',';
-		// This is almost too ugly to be true
-		writer.stream << "(cheerpPointerBaseInt(";
-		writer.compileOperand(f);
-		writer.stream << ")>>0)&255,";
-		writer.stream << "(cheerpPointerBaseInt(";
-		writer.compileOperand(f);
-		writer.stream << ")>>8)&255,";
-		writer.stream << "(cheerpPointerBaseInt(";
-		writer.compileOperand(f);
-		writer.stream << ")>>16)&255,";
-		writer.stream << "(cheerpPointerBaseInt(";
-		writer.compileOperand(f);
-		writer.stream << ")>>24)&255";
+		// We need to compute the amount of parameters that this has in JS
+		int argSize = 0;
+		auto argIt = F->arg_begin();
+		auto argEnd = F->arg_end();
+		for(;argIt!=argEnd;++argIt)
+		{
+			if(argIt->getType()->isPointerTy())
+			{
+				POINTER_KIND k = PA.getPointerKind(argIt);
+				if(k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT)
+					argSize+=2;
+				else
+					argSize++;
+			}
+			else
+				argSize++;
+		}
+		if(F->hasFnAttribute(Attribute::Recoverable))
+			argSize++;
+		if(argSize == 0)
+			argSize = 1;
+		lastObjectGlobalAddr += argSize;
 	}
-	else if(isa<GlobalVariable>(c) || isa<ConstantExpr>(c))
+	else if(isa<GlobalVariable>(c))
 	{
-		if(!first)
-			writer.stream << ',';
-		// This is almost too ugly to be true
-		writer.stream << "(cheerpPI(";
-		writer.compilePointerBase(c);
-		writer.stream << ',';
-		writer.compilePointerOffset(c, LOWEST);
-		writer.stream << ")>>0)&255,";
-		writer.stream << "(cheerpPI(";
-		writer.compilePointerBase(c);
-		writer.stream << ',';
-		writer.compilePointerOffset(c, LOWEST);
-		writer.stream << ")>>8)&255,";
-		writer.stream << "(cheerpPI(";
-		writer.compilePointerBase(c);
-		writer.stream << ',';
-		writer.compilePointerOffset(c, LOWEST);
-		writer.stream << ")>>16)&255,";
-		writer.stream << "(cheerpPI(";
-		writer.compilePointerBase(c);
-		writer.stream << ',';
-		writer.compilePointerOffset(c, LOWEST);
-		writer.stream << ")>>24)&255";
+		uint32_t size = targetData.getTypeAllocSize(c->getType()->getPointerElementType());
+		lastObjectGlobalAddr += size;
 	}
-	first = false;
+	// At runtime an additional byte is left out
+	lastObjectGlobalAddr++;
+	return newAddr;
+}
+
+uint32_t CheerpWriter::JSBytesWriter::getObjectGlobalAddr(const Constant* c)
+{
+	return writer.getObjectGlobalAddr(cast<GlobalValue>(c));
 }
 
 void CheerpWriter::AsmJSGepWriter::addValue(const llvm::Value* v, uint32_t size)
