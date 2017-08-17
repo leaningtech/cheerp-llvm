@@ -1764,9 +1764,12 @@ void CheerpWastWriter::compileDataSection()
 				continue;
 			// The offset into memory, which is the address
 			stream << "(data (i32.const " << linearHelper.getGlobalVariableAddress(&GV) << ") \"";
+assert(false);
+#if 0
 			WastBytesWriter bytesWriter(stream);
 			linearHelper.compileConstantAsBytes(init,/* asmjs */ true, &bytesWriter);
 			stream << "\")\n";
+#endif
 		}
 	}
 }
