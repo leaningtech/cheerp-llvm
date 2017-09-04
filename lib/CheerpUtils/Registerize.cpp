@@ -557,6 +557,8 @@ uint32_t Registerize::assignToRegisters(Function& F, const InstIdMapTy& instIdMa
 					continue;
 				if(usedRegisters[i])
 					continue;
+				if(registers[i].info.noMerge)
+					continue;
 				// usedRegisters will skip all registers already assigned or used by PHIs
 				// we still need to make sure we are not interfering with registers which are
 				// alive across the whole range
