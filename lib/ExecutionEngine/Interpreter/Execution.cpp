@@ -1096,16 +1096,27 @@ void Interpreter::visitCallSite(CallSite CS) {
       Instruction* bitcast = dyn_cast<Instruction>(CS.getInstruction()->getOperand(0));
       assert(bitcast);
       Value* ap = bitcast->getOperand(0);
-	GenericValue GV = getOperandValue(ap, SF);
+      GenericValue GV = getOperandValue(ap, SF);
       StoreValueToMemory(ArgIndex, (GenericValue *)GVTORP(GV),
                      int32Ty);
       return;
     }
     case Intrinsic::vaend:    // va_end is a noop for the interpreter
       return;
-    case Intrinsic::vacopy:   // va_copy: dest = src
-      SetValue(CS.getInstruction(), getOperandValue(*CS.arg_begin(), SF), SF);
+    case Intrinsic::vacopy: { // va_copy: dest = src
+      Type* int32Ty = Type::getInt32Ty(F->getContext());
+      Instruction* bitcast = dyn_cast<Instruction>(CS.getInstruction()->getOperand(0));
+      assert(bitcast);
+      GenericValue GVDst = getOperandValue(bitcast->getOperand(0), SF);
+      bitcast = dyn_cast<Instruction>(CS.getInstruction()->getOperand(1));
+      assert(bitcast);
+      GenericValue VAList = getOperandValue(bitcast->getOperand(0), SF);
+	GenericValue GVSrc;
+      LoadValueFromMemory(GVSrc, (GenericValue *)GVTORP(VAList), int32Ty);
+      StoreValueToMemory(GVSrc, (GenericValue *)GVTORP(GVDst),
+                     int32Ty);
       return;
+    }
     default:
       // Check if the callback can provide an implementation
       if (LazyFunctionCreator(F->getName().str()))
