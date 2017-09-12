@@ -1629,7 +1629,7 @@ void CheerpWriter::compilePointerBase(const Value* p, bool forEscapingPointer)
 		return;
 	}
 
-	if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && isByteLayout(PA.getPointerKind(p)) && forEscapingPointer)
+	if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && isByteLayout(PA.getPointerKind(p)) && forEscapingPointer && !p->getType()->getPointerElementType()->isIntegerTy(8))
 	{
 		compileBitCastBase(p, p->getType(), forEscapingPointer);
 		return;
@@ -1961,7 +1961,7 @@ void CheerpWriter::compilePointerOffset(const Value* p, PARENT_PRIORITY parentPr
 	{
 		compileBitCastOffset(cast<User>(p)->getOperand(0), p->getType(), parentPrio);
 	}
-	else if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && byteLayout && isa<Argument>(p) && forEscapingPointer)
+	else if(TypeSupport::isTypedArrayType(p->getType()->getPointerElementType(), true) && byteLayout && forEscapingPointer && !p->getType()->getPointerElementType()->isIntegerTy(8))
 	{
 		compileBitCastOffset(p, p->getType(), HIGHEST);
 	}
