@@ -178,7 +178,7 @@ void CheerpWriter::compileBitCastBase(const llvm::Value* op, llvm::Type* dstType
 			compilePointerBase(op);
 			stream << ".buffer";
 			stream << ',';
-			compilePointerOffset(op, LOWEST, forEscapingPointer);
+			compilePointerOffset(op, LOWEST, false);
 			stream << ')';
 			return;
 		}
