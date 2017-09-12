@@ -775,6 +775,7 @@ void TypeOptimizer::rewriteIntrinsic(Function* F, FunctionType* FT)
 		case Intrinsic::cheerp_downcast:
 		case Intrinsic::cheerp_reallocate:
 		case Intrinsic::cheerp_make_complete_object:
+		case Intrinsic::cheerp_make_regular:
 		{
 			Type* localTys[] = { FT->getReturnType(), FT->getParamType(0)};
 			newTys.insert(newTys.end(),localTys,localTys+2);
