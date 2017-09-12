@@ -1797,7 +1797,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	const Value* const passedP = p;
 	uint32_t constPart = 0;
 	std::vector<std::pair<const Value*, size_t>> dynPart;
-	while ( isBitCast(p) || isGEP(p) )
+	while ( isBitCast(p) || isGEP(p) || (isa<IntrinsicInst>(p) && cast<IntrinsicInst>(p)->getIntrinsicID()==Intrinsic::cheerp_make_regular))
 	{
 		const User * u = cast<User>(p);
 		bool byteLayoutFromHere = PA.getPointerKind(u->getOperand(0)) == COMPLETE_OBJECT;
@@ -1843,7 +1843,16 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 			}
 			if (indices.size() > 1)
 				findFirstTypeChangingGEP = false;
+			p = u->getOperand(0);
 		}
+		else if(const IntrinsicInst* II = dyn_cast<IntrinsicInst>(p))
+		{
+			assert(II->getIntrinsicID() == Intrinsic::cheerp_make_regular);
+			dynPart.push_back(std::make_pair(u->getOperand(1), 1));
+			assert(byteLayoutFromHere);
+		}
+		else
+			p = u->getOperand(0);
 		// In any case, close the summation here
 		if(byteLayoutFromHere)
 		{
@@ -1856,7 +1865,6 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 			}
 			return lastOffset;
 		}
-		p = u->getOperand(0);
 		continue;
 	}
 	assert (PA.getPointerKind(p) != COMPLETE_OBJECT);
