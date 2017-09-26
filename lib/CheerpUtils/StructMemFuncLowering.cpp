@@ -266,6 +266,12 @@ void StructMemFuncLowering::createBackwardLoop(IRBuilder<>* IRB, BasicBlock* pre
 
 bool StructMemFuncLowering::runOnBlock(BasicBlock& BB, bool asmjs)
 {
+	bool blImpl = false;
+	if(BB.getParent()->getName() == "af_glyph_hints_init" ||
+		BB.getParent()->getName() == "af_cjk_metrics_init_widths" ||
+		BB.getParent()->getName() == "af_autofitter_load_glyph" ||
+		BB.getParent()->getName() == "af_latin_metrics_init_widths")
+		blImpl = true;
 	BasicBlock::iterator it=BB.begin();
 	BasicBlock::iterator itE=BB.end();
 	for(;it!=itE;++it)
@@ -318,6 +324,13 @@ bool StructMemFuncLowering::runOnBlock(BasicBlock& BB, bool asmjs)
 					src = IRB->CreateBitCast(src, int32Type->getPointerTo());
 				pointedType = int32Type;
 			}
+		} else if(blImpl) {
+			// In BL mode its faster to go 1 byte at the time
+			pointedType = IntegerType::get(BB.getContext(), 8);
+			Type* charPtrTy = pointedType->getPointerTo();
+			dst = new BitCastInst(dst, charPtrTy, "", CI);
+			if(mode != MEMSET)
+				src = new BitCastInst(src, charPtrTy, "", CI);
 		}
 		uint32_t byteSize = DL->getTypeAllocSize(pointedType);
 		//First of all split the original block
