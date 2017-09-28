@@ -270,6 +270,7 @@ bool StructMemFuncLowering::runOnBlock(BasicBlock& BB, bool asmjs)
 	if(BB.getParent()->getName() == "af_glyph_hints_init" ||
 		BB.getParent()->getName() == "af_cjk_metrics_init_widths" ||
 		BB.getParent()->getName() == "af_autofitter_load_glyph" ||
+		BB.getParent()->getName() == "TT_RunIns" ||
 		BB.getParent()->getName() == "af_latin_metrics_init_widths")
 		blImpl = true;
 	BasicBlock::iterator it=BB.begin();
