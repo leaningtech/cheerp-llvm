@@ -83,6 +83,9 @@ bool hasNonLoadStoreUses(const llvm::Value* v);
 
 llvm::StructType* getGEPContainerStructType(const llvm::User* gep);
 
+// Determines if the given value is a BL pointer
+bool visitPointerByteLayoutChain(const llvm::Value * v);
+
 class TypeSupport
 {
 public:
