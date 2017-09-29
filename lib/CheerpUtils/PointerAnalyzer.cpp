@@ -336,7 +336,6 @@ struct PointerUsageVisitor
 	PointerKindWrapper& visitValue(PointerKindWrapper& ret, const Value* v, bool first);
 	PointerKindWrapper& visitUse(PointerKindWrapper& ret, const Use* U);
 	static bool visitRawChain ( const Value * v );
-	static bool visitByteLayoutChain ( const Value * v );
 	static POINTER_KIND getKindForType(Type*);
 
 	PointerKindWrapper& visitAllUses(PointerKindWrapper& ret, const Value* v)
@@ -433,92 +432,6 @@ bool PointerUsageVisitor::visitRawChain( const Value * p)
 	return false;
 }
 
-bool PointerUsageVisitor::visitByteLayoutChain( const Value * p )
-{
-	Type* pointedType = p->getType()->getPointerElementType();
-	if ( TypeSupport::hasByteLayout(pointedType) )
-		return true;
-	else if (isa<StructType>(pointedType))
-		return false;
-
-	if ( isGEP(p))
-	{
-		const User* u = cast<User>(p);
-		// We need to find out if the base element or any element accessed by the GEP is byte layout
-		if (visitByteLayoutChain(u->getOperand(0)))
-			return true;
-		Type* curType = u->getOperand(0)->getType();
-		for (uint32_t i=1;i<u->getNumOperands();i++)
-		{
-			if (StructType* ST = dyn_cast<StructType>(curType))
-			{
-				if (ST->hasByteLayout())
-					return true;
-				uint32_t index = cast<ConstantInt>( u->getOperand(i) )->getZExtValue();
-				curType = ST->getElementType(index);
-			}
-			else
-			{
-				// This case also handles the first index
-				curType = curType->getSequentialElementType();
-			}
-		}
-		return false;
-	}
-
-	if ( isBitCast(p) || (isa<IntrinsicInst>(p) && cast<IntrinsicInst>(p)->getIntrinsicID() == Intrinsic::cheerp_cast_user))
-	{
-		const User* u = cast<User>(p);
-		if (TypeSupport::hasByteLayout(u->getOperand(0)->getType()->getPointerElementType()))
-			return true;
-		if (visitByteLayoutChain(u->getOperand(0)))
-			return true;
-		return false;
-	}
-
-	while(isa<ArrayType>(pointedType))
-		pointedType = pointedType->getArrayElementType();
-
-	if (TypeSupport::isImmutableType(pointedType) && isa<Instruction>(p) && cast<Instruction>(p)->getParent()->getParent()->getSection() == StringRef("bytelayout"))
-	{
-		// Loads of pointer values. Assume that they have the same kind as the memory they come from.
-		// This means that BL code cannot load BL pointers from normal memory, while normal code can.
-		if(isa<LoadInst>(p))
-			return visitByteLayoutChain(cast<User>(p)->getOperand(0));
-		if(isa<CallInst>(p))
-		{
-			const Function* F = cast<CallInst>(p)->getCalledFunction();
-			if(!F)
-			{
-				// Indirect call. We assume bytelayout if the function pointer comes from bytelayout memory
-				// If the values does not come from a load, assume BL
-				const Value* calledVal = cast<CallInst>(p)->getCalledValue();
-				if(isa<BitCastInst>(calledVal))
-					calledVal = cast<User>(calledVal)->getOperand(0);
-				if(!isa<LoadInst>(calledVal))
-					return true;
-				return visitByteLayoutChain(cast<User>(calledVal)->getOperand(0));
-			}
-			else if(F->getSection() == StringRef("bytelayout"))
-				return true;
-			else if(F->getIntrinsicID() == Intrinsic::cheerp_allocate)
-				return true;
-			else if(F->getIntrinsicID() == Intrinsic::cheerp_reallocate)
-				return true;
-			return false;
-		}
-		return true;
-	}
-
-	if ( TypeSupport::isImmutableType(pointedType) && isa<Argument>(p) && cast<Argument>(p)->getParent()->getSection() == StringRef("bytelayout"))
-		return true;
-
-	if ( isa<GlobalVariable>(p) && cast<GlobalVariable>(p)->getSection() == StringRef("bytelayout"))
-		return true;
-
-	return false;
-}
-
 PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, const Value* p, bool first)
 {
 	if (p->getType()->isPointerTy())
@@ -532,7 +445,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		if(!isa<Argument>(p))
 		{
 		Type* pointedType = p->getType()->getPointerElementType();
-		if (visitByteLayoutChain(p))
+		if (visitPointerByteLayoutChain(p))
 			return pointerKindData.valueMap.insert( std::make_pair(p, SPLIT_BYTE_LAYOUT ) ).first->second;
 		else if(getKindForType(pointedType) == COMPLETE_OBJECT)
 			return pointerKindData.valueMap.insert( std::make_pair(p, COMPLETE_OBJECT ) ).first->second;
@@ -607,7 +520,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		Type* pointedValueType = SI->getValueOperand()->getType()->getPointerElementType();
 		if(TypeSupport::hasByteLayout(pointedValueType))
 			return CacheAndReturn(ret = SPLIT_BYTE_LAYOUT);
-		else if(visitByteLayoutChain(SI->getPointerOperand()))
+		else if(visitPointerByteLayoutChain(SI->getPointerOperand()))
 			return CacheAndReturn(ret |= PointerKindWrapper(SPLIT_REGULAR, p));
 		else if(TypeAndIndex baseAndIndex = PointerAnalyzer::getBaseStructAndIndexFromGEP(SI->getPointerOperand()))
 			ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint( BASE_AND_INDEX_CONSTRAINT, baseAndIndex ));
@@ -747,7 +660,7 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 		k.makeKnown();
 		// We want to override the ret value, not add a constraint
 		// TODO: This mess with Argument is horrible
-		if(visitByteLayoutChain(LI->getOperand(0)))
+		if(visitPointerByteLayoutChain(LI->getOperand(0)))
 			return CacheAndReturn(ret = PointerKindWrapper(SPLIT_REGULAR, p));
 		else if (TypeSupport::isImmutableType(LI->getType()) && isa<Argument>(LI->getOperand(0)) && cast<Argument>(LI->getOperand(0))->getParent()->getSection() == StringRef("bytelayout"))
 			return CacheAndReturn(ret = PointerKindWrapper(SPLIT_REGULAR, p));
@@ -796,7 +709,7 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 	{
 		const Constant * constOffset = dyn_cast<Constant>( p->getOperand(1) );
 		
-		if ( constOffset && constOffset->isNullValue() && !visitByteLayoutChain(*U))
+		if ( constOffset && constOffset->isNullValue() && !visitPointerByteLayoutChain(*U))
 		{
 			if ( p->getNumOperands() == 2 )
 				return visitValue( ret, p, /*first*/ false );
@@ -940,7 +853,7 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 
 		Function::const_arg_iterator arg = calledFunction->arg_begin();
 		std::advance(arg, argNo);
-		if(visitByteLayoutChain(arg))
+		if(visitPointerByteLayoutChain(arg))
 		{
 llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << cast<Instruction>(p)->getParent()->getParent()->getName() << "\n";
 			return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
@@ -954,7 +867,7 @@ llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << cast<Instructi
 	// Bitcasts from byte layout types require COMPLETE_OBJECT, and generate SPLIT_BYTE_LAYOUT
 	if(isBitCast(p))
 	{
-		if (visitByteLayoutChain(p))
+		if (visitPointerByteLayoutChain(p))
 			return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
 		else if (TypeSupport::hasByteLayout(p->getOperand(0)->getType()->getPointerElementType()))
 			return ret |= COMPLETE_OBJECT;
@@ -1127,7 +1040,7 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 	const User* gep=cast<User>(p);
 	if (gep->getNumOperands() == 2)
 		return NULL;
-	if(PointerUsageVisitor::visitByteLayoutChain(gep->getOperand(0)))
+	if(visitPointerByteLayoutChain(gep->getOperand(0)))
 		return NULL;
 	SmallVector<Value*, 4> indexes;
 	for(uint32_t i=1;i<gep->getNumOperands()-1;i++)
@@ -1226,7 +1139,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		{
 			return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 		}
-		if(PointerUsageVisitor::visitByteLayoutChain(LI->getOperand(0)))
+		if(visitPointerByteLayoutChain(LI->getOperand(0)))
 			return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 		else if (TypeAndIndex baseAndIndex = PointerAnalyzer::getBaseStructAndIndexFromGEP(LI->getPointerOperand()))
 			return CacheAndReturn(ret |= pointerOffsetData.getConstraintPtr(IndirectPointerKindConstraint( BASE_AND_INDEX_CONSTRAINT, baseAndIndex)));

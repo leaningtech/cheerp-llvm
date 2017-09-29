@@ -791,6 +791,92 @@ bool needsSecondaryName(const Value* V, const PointerAnalyzer& PA)
 	return false;
 }
 
+bool visitPointerByteLayoutChain( const Value * p )
+{
+	Type* pointedType = p->getType()->getPointerElementType();
+	if ( TypeSupport::hasByteLayout(pointedType) )
+		return true;
+	else if (isa<StructType>(pointedType))
+		return false;
+
+	if ( isGEP(p))
+	{
+		const User* u = cast<User>(p);
+		// We need to find out if the base element or any element accessed by the GEP is byte layout
+		if (visitPointerByteLayoutChain(u->getOperand(0)))
+			return true;
+		Type* curType = u->getOperand(0)->getType();
+		for (uint32_t i=1;i<u->getNumOperands();i++)
+		{
+			if (StructType* ST = dyn_cast<StructType>(curType))
+			{
+				if (ST->hasByteLayout())
+					return true;
+				uint32_t index = cast<ConstantInt>( u->getOperand(i) )->getZExtValue();
+				curType = ST->getElementType(index);
+			}
+			else
+			{
+				// This case also handles the first index
+				curType = curType->getSequentialElementType();
+			}
+		}
+		return false;
+	}
+
+	if ( isBitCast(p) || (isa<IntrinsicInst>(p) && cast<IntrinsicInst>(p)->getIntrinsicID() == Intrinsic::cheerp_cast_user))
+	{
+		const User* u = cast<User>(p);
+		if (TypeSupport::hasByteLayout(u->getOperand(0)->getType()->getPointerElementType()))
+			return true;
+		if (visitPointerByteLayoutChain(u->getOperand(0)))
+			return true;
+		return false;
+	}
+
+	while(isa<ArrayType>(pointedType))
+		pointedType = pointedType->getArrayElementType();
+
+	if (TypeSupport::isImmutableType(pointedType) && isa<Instruction>(p) && cast<Instruction>(p)->getParent()->getParent()->getSection() == StringRef("bytelayout"))
+	{
+		// Loads of pointer values. Assume that they have the same kind as the memory they come from.
+		// This means that BL code cannot load BL pointers from normal memory, while normal code can.
+		if(isa<LoadInst>(p))
+			return visitPointerByteLayoutChain(cast<User>(p)->getOperand(0));
+		if(isa<CallInst>(p))
+		{
+			const Function* F = cast<CallInst>(p)->getCalledFunction();
+			if(!F)
+			{
+				// Indirect call. We assume bytelayout if the function pointer comes from bytelayout memory
+				// If the values does not come from a load, assume BL
+				const Value* calledVal = cast<CallInst>(p)->getCalledValue();
+				if(isa<BitCastInst>(calledVal))
+					calledVal = cast<User>(calledVal)->getOperand(0);
+				if(!isa<LoadInst>(calledVal))
+					return true;
+				return visitPointerByteLayoutChain(cast<User>(calledVal)->getOperand(0));
+			}
+			else if(F->getSection() == StringRef("bytelayout"))
+				return true;
+			else if(F->getIntrinsicID() == Intrinsic::cheerp_allocate)
+				return true;
+			else if(F->getIntrinsicID() == Intrinsic::cheerp_reallocate)
+				return true;
+			return false;
+		}
+		return true;
+	}
+
+	if ( TypeSupport::isImmutableType(pointedType) && isa<Argument>(p) && cast<Argument>(p)->getParent()->getSection() == StringRef("bytelayout"))
+		return true;
+
+	if ( isa<GlobalVariable>(p) && cast<GlobalVariable>(p)->getSection() == StringRef("bytelayout"))
+		return true;
+
+	return false;
+}
+
 }
 
 namespace llvm
