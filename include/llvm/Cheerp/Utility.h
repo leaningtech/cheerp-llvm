@@ -117,6 +117,9 @@ inline bool isFreeFunctionName(llvm::StringRef name)
 	return name=="free" || name=="_ZdlPv" || name=="_ZdaPv";
 }
 
+// Determines if the given value is a BL pointer
+bool visitPointerByteLayoutChain(const llvm::Value * v);
+
 class TypeSupport
 {
 public:
