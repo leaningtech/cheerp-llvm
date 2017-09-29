@@ -92,6 +92,56 @@ bool ReplaceNopCastsAndByteSwaps::processBasicBlock(BasicBlock& BB)
 			}
 #endif
 		}
+		else if( LoadInst* LI = dyn_cast<LoadInst>(Inst) )
+		{
+			llvm::Value* ptr = LI->getOperand(0);
+			if(cheerp::visitPointerByteLayoutChain(ptr) && LI->getType()->isIntegerTy() && LI->getType()->getIntegerBitWidth() > 8)
+			{
+				// Decompose this load into N byte loads, the backend would do the same in an inefficient way
+				llvm::Instruction* ptr8 = new BitCastInst(ptr, IntegerType::get(LI->getType()->getContext(), 8)->getPointerTo(), "", LI);
+				int bitWidth = LI->getType()->getIntegerBitWidth();
+				assert((bitWidth % 8) == 0);
+				llvm::Instruction* val1 = new LoadInst(ptr8, "", LI);
+				val1 = new ZExtInst(val1, LI->getType(), "", LI);
+				for(int i=8;i<bitWidth;i+=8)
+				{
+					llvm::Value* Indexes[] = { ConstantInt::get(IntegerType::get(LI->getType()->getContext(), 32), 1) };
+					ptr8 = GetElementPtrInst::Create(ptr8, Indexes, "", LI);
+					llvm::Instruction* val2 = new LoadInst(ptr8, "", LI);
+					val2 = new ZExtInst(val2, LI->getType(), "", LI);
+					val2 = BinaryOperator::CreateShl(val2, ConstantInt::get(LI->getType(), i), "", LI);
+					val1 = BinaryOperator::CreateOr(val1, val2, "", LI);
+				}
+				LI->replaceAllUsesWith(val1);
+				LI->eraseFromParent();
+			}
+		}
+		else if( StoreInst* SI = dyn_cast<StoreInst>(Inst) )
+		{
+			llvm::Value* ptr = SI->getPointerOperand();
+			llvm::Value* val = SI->getValueOperand();
+			if(cheerp::visitPointerByteLayoutChain(ptr) && val->getType()->isIntegerTy() && val->getType()->getIntegerBitWidth() > 8)
+			{
+				// Decompose this store into N byte store, the backend would do the same in an inefficient way
+				llvm::Type* Int8Ty = IntegerType::get(val->getType()->getContext(), 8);
+				llvm::Instruction* ptr8 = new BitCastInst(ptr, Int8Ty->getPointerTo(), "", SI);
+				int bitWidth = val->getType()->getIntegerBitWidth();
+				assert((bitWidth % 8) == 0);
+				for(int i=0;i<bitWidth;i+=8)
+				{
+					llvm::Value* val1 = val;
+					if(i!=0)
+					{
+						llvm::Value* Indexes[] = { ConstantInt::get(IntegerType::get(val->getType()->getContext(), 32), 1) };
+						ptr8 = GetElementPtrInst::Create(ptr8, Indexes, "", SI);
+						val1 = BinaryOperator::CreateAShr(val, ConstantInt::get(val->getType(), i), "", SI);
+					}
+					val1 = new TruncInst(val1, Int8Ty, "", SI);
+					new StoreInst(val1, ptr8, SI);
+				}
+				SI->eraseFromParent();
+			}
+		}
 	}
 	
 	/**
