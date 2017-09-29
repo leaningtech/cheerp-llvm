@@ -750,8 +750,10 @@ Value *InstCombiner::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
 
       // If the input sign bit is known to be zero, or if none of the top bits
       // are demanded, turn this into an unsigned shift right.
-      if (BitWidth <= ShiftAmt || KnownZero[BitWidth-ShiftAmt-1] ||
-          (HighBits & ~DemandedMask) == HighBits) {
+      if ((BitWidth <= ShiftAmt || KnownZero[BitWidth-ShiftAmt-1] ||
+          (HighBits & ~DemandedMask) == HighBits) &&
+          // While generating JS code >> is preferable to >>>
+          DL && DL->isByteAddressable()) {
         // Perform the logical shift right.
         BinaryOperator *NewVal = BinaryOperator::CreateLShr(I->getOperand(0),
                                                             SA, I->getName());
