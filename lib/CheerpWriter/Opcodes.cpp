@@ -238,3 +238,17 @@ void CheerpWriter::compileSelect(const llvm::User* select, const llvm::Value* co
 
 	if(parentPrio >= TERNARY) stream << ')';
 }
+
+void CheerpWriter::compileAShr(const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio)
+{
+	//Integer arithmetic shift right
+	//No need to apply the >> operator. The result is an integer by spec
+	if(parentPrio > SHIFT) stream << '(';
+	if(types.isI32Type(lhs->getType()))
+		compileOperand(lhs, SHIFT);
+	else
+		compileSignedInteger(lhs, /*forComparison*/ false, SHIFT);
+	stream << ">>";
+	compileOperand(rhs, nextPrio(SHIFT));
+	if(parentPrio > SHIFT) stream << ')';
+}
