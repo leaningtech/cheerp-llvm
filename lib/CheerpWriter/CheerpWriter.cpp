@@ -2054,6 +2054,16 @@ void CheerpWriter::compileConstantExpr(const ConstantExpr* ce)
 			compileSubtraction(ce->getOperand(0), ce->getOperand(1), HIGHEST);
 			break;
 		}
+		case Instruction::Trunc:
+		{
+			compileOperand(ce->getOperand(0), HIGHEST);
+			break;
+		}
+		case Instruction::AShr:
+		{
+			compileAShr(ce->getOperand(0), ce->getOperand(1), HIGHEST);
+			break;
+		}
 		default:
 			stream << "undefined";
 			llvm::errs() << "warning: Unsupported constant expr " << ce->getOpcodeName() << '\n';
@@ -4017,16 +4027,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 		}
 		case Instruction::AShr:
 		{
-			//Integer arithmetic shift right
-			//No need to apply the >> operator. The result is an integer by spec
-			if(parentPrio > SHIFT) stream << '(';
-			if(types.isI32Type(I.getOperand(0)->getType()))
-				compileOperand(I.getOperand(0), SHIFT);
-			else
-				compileSignedInteger(I.getOperand(0), /*forComparison*/ false, SHIFT);
-			stream << ">>";
-			compileOperand(I.getOperand(1), nextPrio(SHIFT));
-			if(parentPrio > SHIFT) stream << ')';
+			compileAShr(I.getOperand(0), I.getOperand(1), parentPrio);
 			return COMPILE_OK;
 		}
 		case Instruction::Shl:

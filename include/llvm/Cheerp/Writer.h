@@ -467,6 +467,7 @@ private:
 	void compileBitCastBase(const llvm::Value* op, llvm::Type* dstType, bool forEscapingPointer);
 	void compileBitCastOffset(const llvm::Value* op, llvm::Type* dstType, PARENT_PRIORITY parentPrio);
 	void compileSelect(const llvm::User* select, const llvm::Value* cond, const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio);
+	void compileAShr(const llvm::Value* lhs, const llvm::Value* rhs, PARENT_PRIORITY parentPrio);
 
 	//JS interoperability support
 	std::vector<llvm::StringRef> compileClassesExportedToJs();
