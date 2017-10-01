@@ -1210,7 +1210,9 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 	// Handle global pointers
 	if(const GlobalVariable* GV = dyn_cast<GlobalVariable>(v))
 	{
-		if(GV->hasInitializer() && GV->getType()->getPointerElementType()->isPointerTy())
+		if(GV->getSection() == StringRef("bytelayout"))
+			return CacheAndReturn(ret |= Zero);
+		else if(GV->hasInitializer() && GV->getType()->getPointerElementType()->isPointerTy())
 		{
 			visitValue(ret, GV->getInitializer(), false);
 			for(const Use& u: GV->uses())
@@ -1732,7 +1734,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 			}
 			getFinalPointerConstantOffsetWrapper(GV.getInitializer());
 		}
-		else if(GV.getInitializer()->getType()->isPointerTy())
+		else if(GV.getInitializer()->getType()->isPointerTy() || GV.getSection() == StringRef("bytelayout"))
 			getFinalPointerConstantOffsetWrapper(&GV);
 	}
 
