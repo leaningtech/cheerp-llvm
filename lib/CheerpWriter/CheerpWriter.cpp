@@ -5394,7 +5394,9 @@ void CheerpWriter::compileGlobal(const GlobalVariable& G)
 				stream << "{d:";
 			//if(C->getType()->isPointerTy())
 			//	compilePointerAs(C, PA.getPointerKindForStoredType(C->getType()));
-			if(!C->getType()->isStructTy())
+			if(isa<ConstantAggregateZero>(C))
+				stream << "new Uint8Array(" << targetData.getTypeAllocSize(C->getType()) << ")";
+			else if(!C->getType()->isStructTy())
 			{
 				stream << "new Uint8Array([";
 				JSBytesWriter bytesWriter(*this);
