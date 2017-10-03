@@ -15,6 +15,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
@@ -122,27 +123,40 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 		// If this happen the instruction may have been hoisted outside a loop and we want to keep it there
 		if(!I.use_empty() && cast<Instruction>(I.use_begin()->getUser())->getParent()!=I.getParent())
 			return false;
+		bool ifCallIsInlineable = true;
 		switch(I.getOpcode())
 		{
 			// A few opcodes if immediately used in a store or return can be inlined
 			case Instruction::Call:
-				if(isa<InlineAsm>(cast<CallInst>(I).getCalledValue()) && I.getType()->isIntegerTy(1))
+			{
+				const InlineAsm* IA = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue());
+				ifCallIsInlineable = false;
+				if(IA)
 				{
-					// This is an hack to improve cheerpj code for instanceof checks
-					return true;
+					if(I.getType()->isIntegerTy(1))
+					{
+						// This is an hack to improve cheerpj code for instanceof checks
+						return true;
+					}
+					else if(!IA->isAlignStack())
+					{
+						// These assembly lines are not recovery point and they are safe to inline
+						ifCallIsInlineable = true;
+					}
 				}
+			}
 			case Instruction::Load:
 			{
 				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
 					return false;
 				const Instruction* nextInst=I.getNextNode();
 				assert(nextInst);
-				if(I.user_back()!=nextInst || I.getParent()->getParent()->hasFnAttribute(llvm::Attribute::Recoverable))
+				if(I.user_back()!=nextInst || !ifCallIsInlineable)
 					return false;
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
 					return nextInst->getOperand(0)==&I;
-				return false;//isa<ReturnInst>(nextInst);
+				return isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Invoke:
 			case Instruction::Ret:
