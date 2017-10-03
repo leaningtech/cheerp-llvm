@@ -2911,6 +2911,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 							i++;
 							if(code[i]=='$')
 								stream << '$';
+							else if(code[i] == 'a')
+								stream << 'a';
 							else
 							{
 								const char* curPtr = code.data()+i;
@@ -4300,6 +4302,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 							i++;
 							if(code[i]=='$')
 								stream << '$';
+							else if(code[i] == 'a')
+								stream << 'a';
 							else
 							{
 								const char* curPtr = code.data()+i;
