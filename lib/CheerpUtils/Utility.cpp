@@ -184,9 +184,6 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			{
 				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
 					return false;
-				if(!ifCallIsInlineable)
-					return false;
-
 				// Skip all instructions that have no side effects.
 				const Instruction* nextInst = &I;
 				int i = 0;
@@ -202,7 +199,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 					return false;
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
-					return nextInst->getOperand(0)==&I;
+					return ifCallIsInlineable && nextInst->getOperand(0)==&I;
 				return isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Invoke:
