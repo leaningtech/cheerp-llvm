@@ -123,14 +123,14 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 		// If this happen the instruction may have been hoisted outside a loop and we want to keep it there
 		if(!I.use_empty() && cast<Instruction>(I.use_begin()->getUser())->getParent()!=I.getParent())
 			return false;
-		bool ifCallIsInlineable = true;
 		switch(I.getOpcode())
 		{
 			// A few opcodes if immediately used in a store or return can be inlined
 			case Instruction::Call:
 			{
+				bool callIsInlineable = true;
 				const InlineAsm* IA = dyn_cast<InlineAsm>(cast<CallInst>(I).getCalledValue());
-				ifCallIsInlineable = false;
+				callIsInlineable = false;
 				if(IA)
 				{
 					if(I.getType()->isIntegerTy(1))
@@ -141,9 +141,19 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 					else if(!IA->isAlignStack())
 					{
 						// These assembly lines are not recovery point and they are safe to inline
-						ifCallIsInlineable = true;
+						callIsInlineable = true;
 					}
 				}
+				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
+					return false;
+				const Instruction* nextInst=I.getNextNode();
+				assert(nextInst);
+				if(I.user_back()!=nextInst)
+					return false;
+				// To be inlineable this should be the value operand, not the pointer operand
+				if(isa<StoreInst>(nextInst))
+					return callIsInlineable && nextInst->getOperand(0)==&I;
+				return isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Load:
 			{
@@ -155,7 +165,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 					return false;
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
-					return ifCallIsInlineable && nextInst->getOperand(0)==&I;
+					return nextInst->getOperand(0)==&I;
 				return isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Invoke:
