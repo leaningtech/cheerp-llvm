@@ -151,11 +151,11 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 					return false;
 				const Instruction* nextInst=I.getNextNode();
 				assert(nextInst);
-				if(I.user_back()!=nextInst || !ifCallIsInlineable)
+				if(I.user_back()!=nextInst)
 					return false;
 				// To be inlineable this should be the value operand, not the pointer operand
 				if(isa<StoreInst>(nextInst))
-					return nextInst->getOperand(0)==&I;
+					return ifCallIsInlineable && nextInst->getOperand(0)==&I;
 				return isa<ReturnInst>(nextInst);
 			}
 			case Instruction::Invoke:

@@ -233,7 +233,7 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 			hasLandingPad = true;
 		for(Instruction& I: BB)
 		{
-			if(needsRecover && (isa<CallInst>(I) || isa<InvokeInst>(I)))
+			if(needsRecover && (isa<CallInst>(I) || isa<InvokeInst>(I)) && !isInlineable(I, PA))
 			{
 				bool isRecoverPoint = true;
 				// For InlineAsm we use the stack align flag to signal if recovery is necessary
