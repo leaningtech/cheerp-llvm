@@ -2672,7 +2672,11 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 	{
 		if(opCount)
 			stream << ',';
-		stream << 'a';
+		// Tail call support, directly pass the parent
+		if(isInlineable(*callV.getInstruction(), PA))
+			stream << 'p';
+		else
+			stream << 'a';
 	}
 	stream << ')';
 }
@@ -4224,7 +4228,12 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 							if(code[i]=='$')
 								stream << '$';
 							else if(code[i] == 'a')
-								stream << 'a';
+							{
+								if(isInlineable(ci, PA))
+									stream << 'p';
+								else
+									stream << 'a';
+							}
 							else
 							{
 								const char* curPtr = code.data()+i;
@@ -4946,6 +4955,8 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 			for(const Instruction& I: BB)
 			{
 				if(!isa<CallInst>(I) && !isa<InvokeInst>(I))
+					continue;
+				if(isInlineable(I, PA))
 					continue;
 				// This is a recover point unless it is an inline asm without the align stack flag
                                 const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I).getCalledValue() : cast<InvokeInst>(I).getCalledValue();
