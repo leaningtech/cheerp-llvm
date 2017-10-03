@@ -311,13 +311,10 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 					continue;
 				if(it.second.range.doesInterfere(i))
 				{
-					llvm::errs() << "INTERFERE BECAUSE OF " << i << " ID " << instIdMap.find(it.first)->second << "\n";
 					it.second.needsRecover = true;
 					break;
 				}
 			}
-			if(it.second.needsRecover)
-				llvm::errs() << "NEEDS RECOVER FOR " << *it.first << " FUNC " << F.getName() << "\n";
 		}
 	}
 	return liveRanges;
