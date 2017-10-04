@@ -159,14 +159,29 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			{
 				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT)))
 					return false;
-				const Instruction* nextInst=I.getNextNode();
-				assert(nextInst);
-				if(I.user_back()!=nextInst)
+				const Instruction* userInst = cast<Instruction>(I.user_back());
+				// To inline a load we must make sure that a chain of inlining does not move it past a store/class
+				// so traver the inline chain until the first real use and make sure that no instruction in the middle is problematic
+				while(isInlineable(*userInst, PA))
+				{
+					// Multiple uses, so don't follow
+					if(userInst->hasNUsesOrMore(2))
+						return false;
+					userInst = userInst->user_back();
+				}
+				// The final not-inlineable user should be in the same block
+				if(userInst->getParent() != I.getParent())
 					return false;
-				// To be inlineable this should be the value operand, not the pointer operand
-				if(isa<StoreInst>(nextInst))
-					return nextInst->getOperand(0)==&I;
-				return isa<ReturnInst>(nextInst);
+				const Instruction* nextInst=I.getNextNode();
+				while(nextInst != userInst)
+				{
+					// We are ok with everything but Stores and Calls as they may modify memory
+					// NOTE: Invokes are terminators, so we won't find them in the middle of a block
+					if(isa<StoreInst>(nextInst) || isa<CallInst>(nextInst))
+						return false;
+					nextInst = nextInst->getNextNode();
+				}
+				return true;
 			}
 			case Instruction::Invoke:
 			case Instruction::Ret:
