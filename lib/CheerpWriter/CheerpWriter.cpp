@@ -4703,7 +4703,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			}
 			else if(regKind==Registerize::DOUBLE)
 			{
-				if(parentPrio==ADD_SUB)
+				if(parentPrio==nextPrio(ADD_SUB))
 					stream << '(';
 				stream << '+';
 			}
@@ -4793,6 +4793,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "[3+";
 					compilePointerOffset(ptrOp, ADD_SUB);
 					stream << "|0]<<24,true),mSlot.getFloat32(0,true))";
+					if(parentPrio==nextPrio(ADD_SUB))
+						stream << ')';
 					return COMPILE_OK;
 				}
 				else if(pointedType->isDoubleTy())
@@ -4830,6 +4832,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					stream << "[7+";
 					compilePointerOffset(ptrOp, LOWEST);
 					stream << "]<<24,true),mSlot.getFloat64(0,true))";
+					if(parentPrio==nextPrio(ADD_SUB))
+						stream << ')';
 					return COMPILE_OK;
 				}
 				else if(pointedType->isPointerTy())
@@ -4918,7 +4922,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			}
 			else if(regKind==Registerize::DOUBLE)
 			{
-				if(parentPrio==ADD_SUB)
+				if(parentPrio==nextPrio(ADD_SUB))
 					stream << ')';
 			}
 			else if(regKind==Registerize::FLOAT)
