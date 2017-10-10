@@ -162,6 +162,7 @@ private:
 	llvm::DataLayout targetData;
 	const llvm::Function* currentFun;
 	int currentPC;
+	const llvm::BasicBlock* currentLandingPad;
 	const PointerAnalyzer & PA;
 	Registerize & registerize;
 
@@ -404,7 +405,7 @@ private:
 	void compileUnsignedInteger(const llvm::Value* v, PARENT_PRIORITY parentPrio);
 
 	void compileMethodLocal(llvm::StringRef name, Registerize::REGISTER_KIND kind, bool needsStacklet, bool isArg, bool stackletSync);
-	void compileMethodLocals(const llvm::Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync);
+	void compileMethodLocals(const llvm::Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync, bool hasLandingPad);
 	void compileMethod(const llvm::Function& F);
 	/**
 	 * Helper structure for compiling globals
@@ -544,6 +545,7 @@ public:
 		targetData(&m),
 		currentFun(NULL),
 		currentPC(0),
+		currentLandingPad(NULL),
 		PA(PA),
 		registerize(registerize),
 		globalDeps(gda),

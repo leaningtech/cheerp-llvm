@@ -2786,7 +2786,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		if(opCount)
 			stream << ',';
 		// Tail call support, directly pass the parent
-		if(isInlineable(*callV.getInstruction(), PA) && !callV.getInstruction()->getType()->isIntegerTy(1))
+		if(isInlineable(*callV.getInstruction(), PA) && !callV.getInstruction()->getType()->isIntegerTy(1) && !currentLandingPad)
 			stream << 'p';
 		else
 			stream << 'a';
@@ -4308,7 +4308,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 								stream << '$';
 							else if(code[i] == 'a')
 							{
-								if(isInlineable(ci, PA) && !ci.getType()->isIntegerTy(1))
+								if(isInlineable(ci, PA) && !ci.getType()->isIntegerTy(1) && !currentLandingPad)
 									stream << 'p';
 								else
 									stream << 'a';
@@ -5044,7 +5044,7 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	}
 }
 
-void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync)
+void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& usedPCs, bool needsLabel, bool forceNoStacklet, bool stackletSync, bool hasLandingPad)
 {
 	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable) && !forceNoStacklet;
 	if(needsStacklet)
@@ -5057,7 +5057,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 			{
 				if(!isa<CallInst>(I) && !isa<InvokeInst>(I))
 					continue;
-				if(isInlineable(I, PA))
+				if(isInlineable(I, PA) && !hasLandingPad)
 					continue;
 				// This is a recover point unless it is an inline asm without the align stack flag
                                 const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I).getCalledValue() : cast<InvokeInst>(I).getCalledValue();
@@ -5193,6 +5193,7 @@ void CheerpWriter::compileMethod(const Function& F)
 	}
 	currentFun = &F;
 	currentPC = 0;
+	currentLandingPad = nullptr;
 	stream << "function " << namegen.getName(&F) << '(';
 	const Function::const_arg_iterator A=F.arg_begin();
 	const Function::const_arg_iterator AE=F.arg_end();
@@ -5224,9 +5225,9 @@ void CheerpWriter::compileMethod(const Function& F)
 	std::set<uint32_t> usedPCs;
 	if(F.size()==1)
 	{
-		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false);
+		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false, /*hasLandingPad*/false);
 		if(needsStacklet)
-			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/false, /*stackletSync*/false);
+			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/false, /*stackletSync*/false, /*hasLandingPad*/false);
 		compileBB(*F.begin(), usedPCs);
 		if (asmjs)
 		{
@@ -5262,14 +5263,17 @@ void CheerpWriter::compileMethod(const Function& F)
 	else
 	{
 		std::pair<Relooper*, const llvm::BasicBlock*> rl=runRelooperOnFunction(F, PA, registerize, nullptr);
-		compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/true, /*stackletSync*/false);
+		compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/true, /*stackletSync*/false, /*hasLandingPad*/rl.second!=nullptr);
 		if(needsStacklet)
-			compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/false);
+			compileMethodLocals(F, usedPCs, rl.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/false, /*hasLandingPad*/rl.second!=nullptr);
 		CheerpRenderInterface ri(this, NewLine, usedPCs,
 			asmjs ? CheerpRenderInterface::ASMJS : CheerpRenderInterface::GENERICJS,
 			needsStacklet ? CheerpRenderInterface::NEEDS_STACKLET : CheerpRenderInterface::NO_STACKET);
 		if(rl.second)
+		{
 			ri.hasLandingPad = true;
+			currentLandingPad = rl.second;
+		}
 		rl.first->Render(&ri);
 		if (asmjs)
 		{
@@ -5306,7 +5310,7 @@ void CheerpWriter::compileMethod(const Function& F)
 			stream << "function " << namegen.getName(&F) << "E(a,b){" << NewLine;
 			stream << "a.f=" << namegen.getName(&F) << "E;" << NewLine;
 			std::pair<Relooper*, const llvm::BasicBlock*> rl2=runRelooperOnFunction(F, PA, registerize, &ri.usedBlocks);
-			compileMethodLocals(F, usedPCs, rl2.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/true);
+			compileMethodLocals(F, usedPCs, rl2.first->needsLabel(), /*forceNoStacklet*/false, /*stackletSync*/true, /*hasLandingPad*/false);
 			stream << "var pc=a.pc;" << NewLine;
 			// PHI sync up, pretty bad but works
 			bool firstSyncUp = true;
@@ -5343,6 +5347,7 @@ void CheerpWriter::compileMethod(const Function& F)
 	}
 
 	currentFun = NULL;
+	currentLandingPad = NULL;
 }
 
 CheerpWriter::GlobalSubExprInfo CheerpWriter::compileGlobalSubExpr(const GlobalDepsAnalyzer::SubExprVec& subExpr)
