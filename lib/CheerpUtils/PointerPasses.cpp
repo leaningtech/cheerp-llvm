@@ -934,27 +934,27 @@ bool PointerToImmutablePHIRemoval::runOnFunction(Function& F)
 			PHINode * phi = dyn_cast<PHINode>(it++);
 			if (! phi )
 				continue;
+			Type* phiType = phi->getType();
 			BasicBlock* parentBlock = phi->getParent();
-			if ( parentBlock->getTerminator()->getNumSuccessors() == 0 &&  parentBlock->size() <= 5)
+			if (parentBlock->getTerminator()->getNumSuccessors() == 0 && parentBlock->size() <= 5)
+			{
 				hoistBlock(parentBlock);
-			else
+				Changed = true;
+				break;
+			}
+			else if(phiType->isPointerTy() && cheerp::TypeSupport::isImmutableType(phiType->getPointerElementType()))
 			{
 				SwitchPHIData data;
 				bool mayConvert = mayConvertPHIToSwitch(data, phi, 0);
 				if(mayConvert && F.getName() != "Render_Single_Pass" && F.getName() != "Draw_Sweep")
-{
-//llvm::errs() << "BEFORE CONVERT " << F << "\n";
+				{
 					convertPHIToSwitch(data);
-}
+					Changed = true;
+					// convertPHIToSwitch may remove more than one PHI, to be safe reset the iterator
+					it = BB->begin();
+				}
 			}
-			Changed = true;
-			break;
 		}
-	}
-	if(Changed)
-	{
-//llvm::errs() << "AFTER HOISTING\n";
-		F.dump();
 	}
 	return Changed;
 }
