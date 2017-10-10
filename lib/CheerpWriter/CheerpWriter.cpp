@@ -2786,7 +2786,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		if(opCount)
 			stream << ',';
 		// Tail call support, directly pass the parent
-		if(isInlineable(*callV.getInstruction(), PA))
+		if(isInlineable(*callV.getInstruction(), PA) && !callV.getInstruction()->getType()->isIntegerTy(1))
 			stream << 'p';
 		else
 			stream << 'a';
@@ -4308,7 +4308,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 								stream << '$';
 							else if(code[i] == 'a')
 							{
-								if(isInlineable(ci, PA))
+								if(isInlineable(ci, PA) && !ci.getType()->isIntegerTy(1))
 									stream << 'p';
 								else
 									stream << 'a';
