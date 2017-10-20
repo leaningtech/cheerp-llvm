@@ -6281,7 +6281,8 @@ std::pair<Relooper*, const BasicBlock*> CheerpWriter::runRelooperOnFunction(cons
 				max <= std::numeric_limits<int32_t>::max() && 
 				//NOTE: this number is the maximum allowed by V8 for wasm's br_table,
 				// it is not defined in the spec
-				max-min <= 128 * 1024)
+				max-min <= 128 * 1024 &&
+				si->getNumCases() > 3)
 			{
 				switchInst = si;
 			}
