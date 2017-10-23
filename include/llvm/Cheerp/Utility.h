@@ -570,6 +570,8 @@ struct PairHash
 		}
 };
 
+llvm::Instruction* emitByteLayoutLoad(llvm::Value* ptr, llvm::Type* LoadTy, llvm::Instruction* InsertPt);
+
 }
 
 #endif //_CHEERP_UTILITY_H

@@ -97,21 +97,7 @@ bool ReplaceNopCastsAndByteSwaps::processBasicBlock(BasicBlock& BB)
 			llvm::Value* ptr = LI->getOperand(0);
 			if(cheerp::visitPointerByteLayoutChain(ptr) && LI->getType()->isIntegerTy() && LI->getType()->getIntegerBitWidth() > 8)
 			{
-				// Decompose this load into N byte loads, the backend would do the same in an inefficient way
-				llvm::Instruction* ptr8 = new BitCastInst(ptr, IntegerType::get(LI->getType()->getContext(), 8)->getPointerTo(), "", LI);
-				int bitWidth = LI->getType()->getIntegerBitWidth();
-				assert((bitWidth % 8) == 0);
-				llvm::Instruction* val1 = new LoadInst(ptr8, "", LI);
-				val1 = new ZExtInst(val1, LI->getType(), "", LI);
-				for(int i=8;i<bitWidth;i+=8)
-				{
-					llvm::Value* Indexes[] = { ConstantInt::get(IntegerType::get(LI->getType()->getContext(), 32), 1) };
-					ptr8 = GetElementPtrInst::Create(ptr8, Indexes, "", LI);
-					llvm::Instruction* val2 = new LoadInst(ptr8, "", LI);
-					val2 = new ZExtInst(val2, LI->getType(), "", LI);
-					val2 = BinaryOperator::CreateShl(val2, ConstantInt::get(LI->getType(), i), "", LI);
-					val1 = BinaryOperator::CreateOr(val1, val2, "", LI);
-				}
+				llvm::Instruction* val1 = cheerp::emitByteLayoutLoad(ptr, LI->getType(), LI);
 				LI->replaceAllUsesWith(val1);
 				LI->eraseFromParent();
 			}

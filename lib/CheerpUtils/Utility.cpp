@@ -916,6 +916,26 @@ bool visitPointerByteLayoutChain( const Value * p )
 	return false;
 }
 
+llvm::Instruction* emitByteLayoutLoad(llvm::Value* ptr, llvm::Type* LoadTy, llvm::Instruction* InsertPt)
+{
+	// Decompose this load into N byte loads, the backend would do the same in an inefficient way
+	llvm::Instruction* ptr8 = new BitCastInst(ptr, IntegerType::get(LoadTy->getContext(), 8)->getPointerTo(), "", InsertPt);
+	int bitWidth = LoadTy->getIntegerBitWidth();
+	assert((bitWidth % 8) == 0);
+	llvm::Instruction* val1 = new LoadInst(ptr8, "", InsertPt);
+	val1 = new ZExtInst(val1, LoadTy, "", InsertPt);
+	for(int i=8;i<bitWidth;i+=8)
+	{
+		llvm::Value* Indexes[] = { ConstantInt::get(IntegerType::get(LoadTy->getContext(), 32), 1) };
+		ptr8 = GetElementPtrInst::Create(ptr8, Indexes, "", InsertPt);
+		llvm::Instruction* val2 = new LoadInst(ptr8, "", InsertPt);
+		val2 = new ZExtInst(val2, LoadTy, "", InsertPt);
+		val2 = BinaryOperator::CreateShl(val2, ConstantInt::get(LoadTy, i), "", InsertPt);
+		val1 = BinaryOperator::CreateOr(val1, val2, "", InsertPt);
+	}
+	return val1;
+}
+
 }
 
 namespace llvm
