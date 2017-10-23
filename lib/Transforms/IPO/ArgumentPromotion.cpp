@@ -33,6 +33,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Cheerp/Utility.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
@@ -806,14 +807,19 @@ CallGraphNode *ArgPromotion::DoPromotion(Function *F,
           }
           // Since we're replacing a load make sure we take the alignment
           // of the previous load.
-          LoadInst *newLoad = new LoadInst(V, V->getName()+".val", Call);
-          newLoad->setAlignment(OrigLoad->getAlignment());
-          // Transfer the AA info too.
-          AAMDNodes AAInfo;
-          OrigLoad->getAAMetadata(AAInfo);
-          newLoad->setAAMetadata(AAInfo);
+          llvm::Type* LoadedTy = V->getType()->getPointerElementType();
+          if(cheerp::visitPointerByteLayoutChain(V) && LoadedTy->isIntegerTy() && LoadedTy->getIntegerBitWidth() > 8) {
+            Args.push_back(cheerp::emitByteLayoutLoad(V, LoadedTy, Call));
+          } else {
+            LoadInst *newLoad = new LoadInst(V, V->getName()+".val", Call);
+            newLoad->setAlignment(OrigLoad->getAlignment());
+            // Transfer the AA info too.
+            AAMDNodes AAInfo;
+            OrigLoad->getAAMetadata(AAInfo);
+            newLoad->setAAMetadata(AAInfo);
 
-          Args.push_back(newLoad);
+            Args.push_back(newLoad);
+          }
           AA.copyValue(OrigLoad, Args.back());
         }
       }
