@@ -3389,7 +3389,7 @@ void CheerpWriter::compileGEPBase(const llvm::User* gep_inst, bool forEscapingPo
 		bool byteLayoutFromHere = !isByteLayout(PA.getPointerKind(baseOperand));
 		if (byteLayoutFromHere)
 			compileCompleteObject(gep_inst);
-		else if (!TypeSupport::hasByteLayout(targetType) && TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true) && forEscapingPointer)
+		else if (!TypeSupport::hasByteLayout(targetType) && TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true) && forEscapingPointer && !targetType->isIntegerTy(8))
 		{
 			if(!TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
 			{
@@ -3465,7 +3465,7 @@ void CheerpWriter::compileGEPOffset(const llvm::User* gep_inst, PARENT_PRIORITY 
 	bool byteLayout = isByteLayout(PA.getPointerKind(gep_inst));
 	if (byteLayout)
 	{
-		if (TypeSupport::hasByteLayout(targetType) || !TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true))
+		if (TypeSupport::hasByteLayout(targetType) || !TypeSupport::isTypedArrayType(targetType, /* forceTypedArray*/ true) || targetType->isIntegerTy(8))
 			compilePointerOffset( gep_inst, HIGHEST );
 		else
 		{
