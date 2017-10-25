@@ -244,6 +244,12 @@ Registerize::LiveRangesTy Registerize::computeLiveRanges(Function& F, const Inst
 						isRecoverPoint = false;
 				}
 
+				// Calls which are just before a void calls do not need to preserve state
+				if(cheerp::isLastCallBeforeVoidReturn(I))
+				{
+					isRecoverPoint = false;
+				}
+
 				if(isRecoverPoint)
 				{
 					assert(instIdMap.count(&I));
