@@ -572,6 +572,11 @@ struct PairHash
 
 llvm::Instruction* emitByteLayoutLoad(llvm::Value* ptr, llvm::Type* LoadTy, llvm::Instruction* InsertPt);
 
+inline bool isLastCallBeforeVoidReturn(const llvm::Instruction& I)
+{
+	return llvm::isa<llvm::CallInst>(I) && llvm::isa<llvm::ReturnInst>(I.getNextNode()) && I.getNextNode()->getNumOperands() == 0;
+}
+
 }
 
 #endif //_CHEERP_UTILITY_H

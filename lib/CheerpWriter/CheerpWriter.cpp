@@ -2786,7 +2786,8 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		if(opCount)
 			stream << ',';
 		// Tail call support, directly pass the parent
-		if(isInlineable(*callV.getInstruction(), PA) && !callV.getInstruction()->getType()->isIntegerTy(1) && !currentLandingPad)
+		const llvm::Instruction* I = callV.getInstruction();
+		if((isInlineable(*I, PA) || isLastCallBeforeVoidReturn(*I)) && !I->getType()->isIntegerTy(1) && !currentLandingPad)
 			stream << 'p';
 		else
 			stream << 'a';
@@ -4308,7 +4309,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 								stream << '$';
 							else if(code[i] == 'a')
 							{
-								if(isInlineable(ci, PA) && !ci.getType()->isIntegerTy(1) && !currentLandingPad)
+								if((isInlineable(ci, PA) || isLastCallBeforeVoidReturn(ci)) && !ci.getType()->isIntegerTy(1) && !currentLandingPad)
 									stream << 'p';
 								else
 									stream << 'a';
@@ -4697,7 +4698,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 		const DebugLoc& debugLoc = I->getDebugLoc();
 		if(sourceMapGenerator && !debugLoc.isUnknown())
 			sourceMapGenerator->setDebugLoc(I->getDebugLoc());
-		if(needsStacklet && (isa<CallInst>(I) || isa<InvokeInst>(I)))
+		if(needsStacklet && (isa<CallInst>(I) || isa<InvokeInst>(I)) && !isLastCallBeforeVoidReturn(*I))
 		{
 			const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I)->getCalledValue() : cast<InvokeInst>(I)->getCalledValue();
 			if(const InlineAsm* ia = dyn_cast<InlineAsm>(calledValue))
@@ -5068,6 +5069,8 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 					assert(isa<ConstantInt>(I.getOperand(0)));
 					usedPCs.insert(cast<ConstantInt>(I.getOperand(0))->getZExtValue());
 				}
+				if(cheerp::isLastCallBeforeVoidReturn(I))
+					continue;
 				hasRecoveryPoint = true;
 			}
 		}
