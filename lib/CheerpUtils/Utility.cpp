@@ -177,7 +177,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 				{
 					// We are ok with everything but Stores and Calls as they may modify memory
 					// NOTE: Invokes are terminators, so we won't find them in the middle of a block
-					if(isa<StoreInst>(nextInst) || isa<CallInst>(nextInst))
+					if(isa<StoreInst>(nextInst) || (isa<CallInst>(nextInst) && !isInlineable(*nextInst, PA)))
 						return false;
 					nextInst = nextInst->getNextNode();
 				}
