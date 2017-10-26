@@ -4917,7 +4917,7 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	if(stackletSync)
 	{
 		if(kind == Registerize::INTEGER)
-			stream << "a." << name << ">>0";
+			stream << "a." << name << "|0";
 		else if(kind == Registerize::DOUBLE || kind == Registerize::FLOAT)
 			stream << '+' << "a." << name;
 		else
@@ -4926,7 +4926,7 @@ void CheerpWriter::compileMethodLocal(StringRef name, Registerize::REGISTER_KIND
 	else if(isArg)
 	{
 		if(kind == Registerize::INTEGER)
-			stream << name << ">>0";
+			stream << name << "|0";
 		else if(kind == Registerize::DOUBLE || kind == Registerize::FLOAT)
 			stream << '+' << name;
 		else
