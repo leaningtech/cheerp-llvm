@@ -594,10 +594,19 @@ llvm::errs() << "DOMINATED FROM " << *succ << "\n";
 		}
 		// Update the terminator to go to the new block
 		TerminatorInst* curTerm = curBlock->getTerminator();
-		for(uint32_t j = 0; j < curTerm->getNumSuccessors(); j++)
+		if(curTerm->getNumSuccessors() == 1 && newBlock->getTerminator()->getNumSuccessors() == 0)
 		{
-			if (curTerm->getSuccessor(j) == targetBlock)
-				curTerm->setSuccessor(j, newBlock);
+			curBlock->getInstList().splice(curTerm, newBlock->getInstList());
+			curTerm->eraseFromParent();
+			newBlock->eraseFromParent();
+		}
+		else
+		{
+			for(uint32_t j = 0; j < curTerm->getNumSuccessors(); j++)
+			{
+				if (curTerm->getSuccessor(j) == targetBlock)
+					curTerm->setSuccessor(j, newBlock);
+			}
 		}
 		TerminatorInst* targetTerm = targetBlock->getTerminator();
 		for(uint32_t j = 0; j < targetTerm->getNumSuccessors(); j++)
