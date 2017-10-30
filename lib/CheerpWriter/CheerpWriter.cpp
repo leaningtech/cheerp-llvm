@@ -4613,11 +4613,22 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 				{
 					llvm::Value* lastOperand = I->getOperand(0);
 					assert(lastOperand->getType()->isIntegerTy(32));
-					stream << "a.pc=" << cast<ConstantInt>(lastOperand)->getZExtValue() << ';';
+					uint32_t sourcePc = cast<ConstantInt>(lastOperand)->getZExtValue();
+					if(sourcePc == 0xffffffff)
+					{
+						uint32_t curPos = stream.getPos();
+						stream << "a.pc=-" << (curPos-currentFunOffset) << ';';
+					}
+					else
+						stream << "a.pc=" << sourcePc << ';';
 				}
 			}
 			else
-				stream << "a.pc=" << getNextPC(usedPCs) << ';';
+			{
+				// Directly hint the offset int he function were we are, use negative offsets for this purpose
+				uint32_t curPos = stream.getPos();
+				stream << "a.pc=-" << (curPos-currentFunOffset) << ';';
+			}
 		}
 		if(!I->use_empty())
 		{
@@ -5098,6 +5109,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		}
 	}
 	currentFun = &F;
+	currentFunOffset = stream.getPos();
 	currentPC = 0;
 	currentLandingPad = nullptr;
 	stream << "function " << namegen.getName(&F) << '(';
