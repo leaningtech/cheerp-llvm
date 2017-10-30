@@ -121,6 +121,11 @@ public:
 			sourceMapGenerator->addLineOffset(end-beginVal);
 	}
 
+	uint32_t getPos()
+	{
+		return stream.tell();
+	}
+
 private:
 
 	// Return true if we are closing a curly bracket, need to unindent by 1.
@@ -174,6 +179,7 @@ private:
 	llvm::Module& module;
 	llvm::DataLayout targetData;
 	const llvm::Function* currentFun;
+	uint32_t currentFunOffset;
 	int currentPC;
 	const llvm::BasicBlock* currentLandingPad;
 	const PointerAnalyzer & PA;
@@ -565,6 +571,7 @@ public:
 		module(m),
 		targetData(&m),
 		currentFun(NULL),
+		currentFunOffset(0),
 		currentPC(0),
 		currentLandingPad(NULL),
 		PA(PA),
