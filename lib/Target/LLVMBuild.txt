@@ -25,7 +25,7 @@ subdirectories =
  AVR
  BPF
  CheerpBackend
- CheerpWastBackend
+ CheerpWasmBackend
  Lanai
  Hexagon
  MSP430
