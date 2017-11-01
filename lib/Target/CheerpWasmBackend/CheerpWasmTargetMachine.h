@@ -1,4 +1,4 @@
-//===-- CheerpWastTargetMachine.h - TargetMachine for the CheerpBackend -------===//
+//===-- CheerpWasmTargetMachine.h - TargetMachine for the CheerpBackend -------===//
 //
 //                     Cheerp: The C++ compiler for the Web
 //

@@ -159,7 +159,7 @@ set(LLVM_ALL_TARGETS
   ARM
   CppBackend
   CheerpBackend
-  CheerpWastBackend
+  CheerpWasmBackend
   Hexagon
   Mips
   MSP430
