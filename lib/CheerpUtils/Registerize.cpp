@@ -960,7 +960,9 @@ Registerize::InstructionSetOrderedByID Registerize::gatherDerivedMemoryAccesses(
 	for(const Use& U: rootI->uses())
 		allUses.push_back(&U);
 
-	bool escapes = false;
+	std::set<const Instruction*> escapePoints;
+	std::set<const Instruction*> lifetimeStarts;
+	std::set<const Instruction*> lifetimeEnds;
 	// NOTE: allUses.size() will grow over time, that's fine
 	for(uint32_t i=0;i<allUses.size();i++)
 	{
@@ -981,7 +983,7 @@ Registerize::InstructionSetOrderedByID Registerize::gatherDerivedMemoryAccesses(
 				// If we are storing away one of the values, it escape
 				// NOTE: Operand 0 is the value
 				if (U->getOperandNo() == 0)
-					escapes = true;
+					escapePoints.insert(I);
 				break;
 			}
 			case Instruction::Load:
@@ -993,25 +995,49 @@ Registerize::InstructionSetOrderedByID Registerize::gatherDerivedMemoryAccesses(
 			{
 				const CallInst* CI = cast<CallInst>(I);
 				const Function* F = CI->getCalledFunction();
-				// Lifetime intrinsics are ok
-				if(F && (F->getIntrinsicID()==Intrinsic::lifetime_start ||
-					F->getIntrinsicID()==Intrinsic::lifetime_end))
+				if(F)
 				{
-					break;
+					// Lifetime intrinsics are ok
+					if(F->getIntrinsicID()==Intrinsic::lifetime_start)
+					{
+						lifetimeStarts.insert(I);
+						break;
+					}
+					else if(F->getIntrinsicID()==Intrinsic::lifetime_end)
+					{
+						lifetimeEnds.insert(I);
+						break;
+					}
+					// This escapes, unless the argument is flagged as nocapture
+					//NOTE: Parameter attributes start at index 1
+					if(F->getAttributes().hasAttribute(U->getOperandNo()+1, Attribute::NoCapture))
+						break;
 				}
-				// This escapes, unless the argument is flagged as nocapture
-				//NOTE: Parameter attributes start at index 1
-				if(F && F->getAttributes().hasAttribute(U->getOperandNo()+1, Attribute::NoCapture))
-					break;
-				escapes = true;
+				escapePoints.insert(I);
 				break;
 			}
 			default:
 				// Be conservative
-				escapes = true;
+				escapePoints.insert(I);
 				break;
 		}
-		if (escapes)
+		// Escape points we are between a lifetime_end and a lifetime_start can be eliminated
+		// TODO: This should actually check for postdominance
+		for(const Instruction* CI: lifetimeEnds)
+		{
+			const Instruction* parentFirst = CI->getParent()->begin();
+			const Instruction* curI = CI;
+			while(1)
+			{
+				if(lifetimeStarts.count(curI))
+					break;
+				escapePoints.erase(curI);
+				if(curI == parentFirst)
+					break;
+				curI = curI->getPrevNode();
+			}
+		}
+		if (escapePoints.size())
 		{
 			allUses.clear();
 			break;
