@@ -289,7 +289,7 @@ set(LLVM_ALL_TARGETS
   ARM
   BPF
   CheerpBackend
-  CheerpWastBackend
+  CheerpWasmBackend
   Hexagon
   Lanai
   Mips
