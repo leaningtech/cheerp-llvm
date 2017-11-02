@@ -124,7 +124,6 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            bool DisableVerify,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
-  if (FileType != TargetMachine::CGFT_AssemblyFile) return true;
   PM.add(createResolveAliasesPass());
   PM.add(createFreeAndDeleteRemovalPass());
   PM.add(cheerp::createGlobalDepsAnalyzerPass());
