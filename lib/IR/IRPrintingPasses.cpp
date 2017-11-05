@@ -26,7 +26,7 @@ PrintModulePass::PrintModulePass(raw_ostream &OS, const std::string &Banner)
 
 PreservedAnalyses PrintModulePass::run(Module &M) {
   if (llvm::isFunctionInPrintList("*")) {
-    OS << Banner << '\n';
+    OS << Banner;
     M.print(OS, nullptr);
   } else {
     bool bannerShown = false;

@@ -610,12 +610,16 @@ namespace {
     bool runOnSCC(CallGraphSCC &SCC) override {
       bool bannerShown = false;
       for (CallGraphSCC::iterator I = SCC.begin(), E = SCC.end(); I != E; ++I) {
-        if ((*I)->getFunction() && isFunctionInPrintList((*I)->getFunction()->getName())) {
-          if (!bannerShown) {
-            Out << Banner << '\n';
-            bannerShown = true;
+        if ((*I)->getFunction()) {
+          if (isFunctionInPrintList((*I)->getFunction()->getName())) {
+            if (!bannerShown) {
+              Out << Banner << '\n';
+              bannerShown = true;
+            }
+            (*I)->getFunction()->print(Out);
           }
-          (*I)->getFunction()->print(Out);
+        } else if (isFunctionInPrintList("*")) {
+          Out << "\nPrinting <null> Function\n";
         }
       }
       return false;
