@@ -26,6 +26,8 @@ using namespace llvm;
 namespace cheerp {
 
 PointerKindWrapper PointerKindWrapper::staticDefaultValue(COMPLETE_OBJECT);
+PointerKindWrapper PointerKindWrapper::staticCOAndPOValue(COMPLETE_OBJECT_AND_PO);
+const IndirectPointerKindConstraint* PointerKindWrapper::staticCOAndPoConstraint = NULL;
 PointerConstantOffsetWrapper PointerConstantOffsetWrapper::staticDefaultValue(PointerConstantOffsetWrapper::INVALID);
 
 void IndirectPointerKindConstraint::dump() const
@@ -39,20 +41,22 @@ void IndirectPointerKindConstraint::dump() const
 			dbgs() << "\tDepends on argument " << argPtr->getArgNo() << " of " << argPtr->getParent()->getName() << "\n";
 			break;
 		case STORED_TYPE_CONSTRAINT:
-			dbgs() << "Depends on stored type " << *typePtr << "\n";
+			dbgs() << "\tDepends on stored type " << *typePtr << "\n";
 			break;
 		case RETURN_TYPE_CONSTRAINT:
-			dbgs() << "Depends on returned type " << *typePtr << "\n";
+			dbgs() << "\tDepends on returned type " << *typePtr << "\n";
 			break;
 		case BASE_AND_INDEX_CONSTRAINT:
-			dbgs() << "Depends on index " << i << " of struct " << *typePtr << "\n";
+			dbgs() << "\tDepends on index " << i << " of struct " << *typePtr << "\n";
 			break;
 		case INDIRECT_ARG_CONSTRAINT:
-			dbgs() << "Depends on argument " << i << " of type pointer to " << *typePtr << "\n";
+			dbgs() << "\tDepends on argument " << i << " of type pointer to " << *typePtr << "\n";
 			break;
 		case DIRECT_ARG_CONSTRAINT_IF_ADDRESS_TAKEN:
 			dbgs() << "\tDepends on argument " << argPtr->getArgNo() << " of " << argPtr->getParent()->getName() << ", if it is used indirectly\n";
 			break;
+		case COMPLETE_OBJECT_AND_PO_FLAG:
+			dbgs() << "\tNeeds PO\n";
 	}
 }
 
@@ -96,6 +100,18 @@ PointerKindWrapper& PointerKindWrapper::operator|=(const PointerKindWrapper& rhs
 	if (rhs==COMPLETE_OBJECT)
 		return *this;
 
+	if(lhs==COMPLETE_OBJECT_AND_PO && rhs==COMPLETE_OBJECT_AND_PO)
+	{
+		// Nothing to do
+		return *this;
+	}
+
+	// At least 1 side is UNKNOWN or INDIRECT
+	if(lhs==COMPLETE_OBJECT_AND_PO || rhs==COMPLETE_OBJECT_AND_PO)
+	{
+		lhs.constraints.insert(staticCOAndPoConstraint);
+	}
+
 	// Handle 4, 5, 6
 	if (lhs==UNKNOWN || rhs==UNKNOWN)
 		lhs.kind = UNKNOWN;
@@ -115,6 +131,7 @@ PointerKindWrapper& PointerKindWrapper::operator|=(const IndirectPointerKindCons
 
 	assert(lhs!=BYTE_LAYOUT);
 	assert(lhs!=SPLIT_BYTE_LAYOUT);
+	assert(lhs!=COMPLETE_OBJECT_AND_PO);
 
 	// Handle 1
 	if (lhs==REGULAR)
@@ -782,11 +799,12 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 		case Intrinsic::invariant_end:
 		case Intrinsic::lifetime_start:
 		case Intrinsic::lifetime_end:
-		case Intrinsic::cheerp_deallocate:
 		case Intrinsic::cheerp_make_regular:
 		case Intrinsic::cheerp_make_complete_object:
 		case Intrinsic::cheerp_downcast_current:
 			return ret |= COMPLETE_OBJECT;
+		case Intrinsic::cheerp_deallocate:
+			return ret |= (PointerKindWrapper::staticCOAndPoConstraint = pointerKindData.getConstraintPtr(COMPLETE_OBJECT_AND_PO_FLAG));
 		case Intrinsic::cheerp_upcast_collapsed:
 		case Intrinsic::cheerp_cast_user:
 			return visitValue( ret, p, /*first*/ false );
@@ -855,7 +873,7 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 		std::advance(arg, argNo);
 		if(visitPointerByteLayoutChain(arg))
 		{
-llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << cast<Instruction>(p)->getParent()->getParent()->getName() << "\n";
+//llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << cast<Instruction>(p)->getParent()->getParent()->getName() << "\n";
 			return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
 		}
 		return ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint(DIRECT_ARG_CONSTRAINT, arg));
@@ -878,7 +896,10 @@ llvm::errs() << "FAIL FOR " << *p << " ARG " << *arg << " IN " << cast<Instructi
 	}
 
 	if(isa<SelectInst> (p) || isa <PHINode>(p) || (isa<ConstantExpr>(p) && cast<ConstantExpr>(p)->getOpcode() == Instruction::Select) )
-		return visitValue(ret, p, /*first*/ false);
+	{
+		PointerKindWrapper& hack = visitValue(ret, p, /*first*/ false);
+		return hack;
+	}
 
 	return ret |= COMPLETE_OBJECT;
 }
@@ -912,6 +933,10 @@ const T& PointerResolverBaseVisitor<T>::resolveConstraint(const IndirectPointerK
 			else
 			{
 				assert(pointerData.argsMap.count(c.argPtr));
+#if 0
+llvm::errs() << "RESOLVECONSTRAINTARG " << c.argPtr->getParent()->getName() << " INDEX " << c.argPtr->getArgNo() << "\n";
+pointerData.argsMap.find(c.argPtr)->second.dump();
+#endif
 				return pointerData.argsMap.find(c.argPtr)->second;
 			}
 		}
@@ -984,9 +1009,15 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 	assert(k==INDIRECT);
 	// If mayCache is initially false we can't cache anything
 	bool initialMayCache = mayCache;
+	bool hasCOAndPOFlag = false;
 	// Temporary value to store a SPLIT_REGULAR kind, as we can't stop immediately like we do for REGULAR
 	for(const IndirectPointerKindConstraint* constraint: k.constraints)
 	{
+		if(constraint->kind == COMPLETE_OBJECT_AND_PO_FLAG)
+		{
+			hasCOAndPOFlag = true;
+			continue;
+		}
 		if(constraint->isBeingVisited)
 		{
 			mayCache = false;
@@ -996,7 +1027,7 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 		closedset.push_back(constraint);
 		const PointerKindWrapper& retKind=resolveConstraint(*constraint);
 		assert(retKind.isKnown());
-		if(retKind == REGULAR || retKind==SPLIT_REGULAR || retKind==BYTE_LAYOUT || retKind==SPLIT_BYTE_LAYOUT)
+		if(retKind == REGULAR || retKind==SPLIT_REGULAR || retKind==BYTE_LAYOUT || retKind==SPLIT_BYTE_LAYOUT || retKind==COMPLETE_OBJECT_AND_PO)
 			return retKind;
 		else if(retKind==INDIRECT)
 		{
@@ -1007,12 +1038,15 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 			else
 				mayCache = false;
 
-			if(resolvedKind==SPLIT_REGULAR || resolvedKind==REGULAR)
+			if(resolvedKind==SPLIT_REGULAR || resolvedKind==REGULAR || resolvedKind==COMPLETE_OBJECT_AND_PO)
 				return resolvedKind;
 		}
 	}
 
-	return PointerKindWrapper::staticDefaultValue;
+	if(hasCOAndPOFlag)
+		return PointerKindWrapper::staticCOAndPOValue;
+	else
+		return PointerKindWrapper::staticDefaultValue;
 }
 
 struct PointerConstantOffsetVisitor
@@ -1563,6 +1597,8 @@ REGULAR_POINTER_PREFERENCE PointerAnalyzer::getRegularPreference(const IndirectP
 			return PREF_SPLIT_REGULAR;
 		case STORED_TYPE_CONSTRAINT:
 			return PREF_REGULAR;
+		case COMPLETE_OBJECT_AND_PO_FLAG:
+			return PREF_SPLIT_REGULAR;
 	}
 	assert(false);
 }
@@ -1659,27 +1695,39 @@ void PointerAnalyzer::fullResolve()
 {
 	for(auto& it: pointerKindData.argsMap)
 	{
+#if 0
+llvm::errs() << "ARGRESOLVE1 " << *it.first << "\n";
+it.second.dump();
+#endif
 		if(it.second!=INDIRECT)
 		{
 			it.second.applyRegularPreference(PREF_SPLIT_REGULAR);
+#if 0
+llvm::errs() << "ARGRESOLVE2 " << *it.first << "\n";
+it.second.dump();
+#endif
 			continue;
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR || k==COMPLETE_OBJECT_AND_PO);
 		it.second = k;
 		it.second.applyRegularPreference(PREF_SPLIT_REGULAR);
+#if 0
+llvm::errs() << "ARGRESOLVE3 " << *it.first << "\n";
+it.second.dump();
+#endif
 	}
 	for(auto& it: pointerKindData.baseStructAndIndexMapForMembers)
 	{
 		if(it.second!=INDIRECT)
 		{
 			it.second.applyRegularPreference(PREF_REGULAR);
-if(it.second == REGULAR)
+/*if(it.second == REGULAR)
 {
 llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
 it.second.dump();
-}
+}*/
 			continue;
 		}
 		bool mayCache = true;
@@ -1688,45 +1736,70 @@ it.second.dump();
 		//assert(k==COMPLETE_OBJECT || k==SPLIT_REGULAR || k==REGULAR);
 		it.second = k;
 		it.second.applyRegularPreference(PREF_REGULAR);
-if(it.second == REGULAR)
+/*if(it.second == REGULAR)
 {
 llvm::errs() << "MEMBER1 " << *it.first.type << " INDEX " << it.first.index << " ";
 it.second.dump();
-}
+}*/
 	}
 	for(auto& it: pointerKindData.constraintsMap)
 	{
 		REGULAR_POINTER_PREFERENCE pref = getRegularPreference(it.first, pointerKindData, addressTakenCache);
 		assert(pref != PREF_NONE);
+#if 0
+if(/*it.second == SPLIT_REGULAR && */it.first.kind == DIRECT_ARG_CONSTRAINT && it.first.argPtr->getArgNo()==0)
+{
+llvm::errs() << "FUNC0 " << it.first.argPtr->getParent()->getName() << " INDEX " << it.first.argPtr->getArgNo() << " ";
+it.second.dump();
+}
+#endif
 		if(it.second!=INDIRECT)
 		{
 			it.second.applyRegularPreference(pref);
-if(it.second == SPLIT_REGULAR && it.first.kind == BASE_AND_INDEX_CONSTRAINT && it.first.i==3)
+#if 0
+if(/*it.second == SPLIT_REGULAR && */it.first.kind == DIRECT_ARG_CONSTRAINT && it.first.argPtr->getArgNo()==0)
 {
-llvm::errs() << "BASE1 " << *it.first.typePtr << " INDEX " << it.first.i << " ";
+llvm::errs() << "FUNC1 " << it.first.argPtr->getParent()->getName() << " INDEX " << it.first.argPtr->getArgNo() << " ";
 it.second.dump();
 }
+#endif
 			continue;
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO);
 		it.second = k;
 		it.second.applyRegularPreference(pref);
-if(it.second == SPLIT_REGULAR && it.first.kind == BASE_AND_INDEX_CONSTRAINT && it.first.i==3)
+#if 0
+if(/*it.second == SPLIT_REGULAR && */it.first.kind == DIRECT_ARG_CONSTRAINT && it.first.argPtr->getArgNo()==0)
 {
-llvm::errs() << "BASE2 " << *it.first.typePtr << " INDEX " << it.first.i << " ";
+llvm::errs() << "FUNC2 " << it.first.argPtr->getParent()->getName() << " INDEX " << it.first.argPtr->getArgNo() << " ";
 it.second.dump();
 }
+#endif
 	}
 	for(auto& it: pointerKindData.valueMap)
 	{
+		if(isa<Argument>(it.first))
+		{
+#if 0
+			llvm::errs() << "ARG1 " << *it.first << "\n";
+			it.second.dump();
+#endif
+		}
 		if(it.second!=INDIRECT)
 			continue;
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO);
 		it.second = k;
+		if(isa<Argument>(it.first))
+		{
+#if 0
+			llvm::errs() << "ARG2 " << *it.first << "\n";
+			it.second.dump();
+#endif
+		}
 	}
 #ifndef NDEBUG
 	fullyResolved = true;

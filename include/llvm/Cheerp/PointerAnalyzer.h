@@ -26,6 +26,7 @@ namespace cheerp {
 
 enum POINTER_KIND {
 	COMPLETE_OBJECT,
+	COMPLETE_OBJECT_AND_PO,
 	SPLIT_REGULAR,
 	REGULAR,
 	BYTE_LAYOUT,
@@ -82,7 +83,7 @@ struct TypeAndIndex
 };
 
 enum INDIRECT_POINTER_KIND_CONSTRAINT { RETURN_CONSTRAINT, DIRECT_ARG_CONSTRAINT, STORED_TYPE_CONSTRAINT, RETURN_TYPE_CONSTRAINT, BASE_AND_INDEX_CONSTRAINT,
-	INDIRECT_ARG_CONSTRAINT, DIRECT_ARG_CONSTRAINT_IF_ADDRESS_TAKEN };
+	INDIRECT_ARG_CONSTRAINT, DIRECT_ARG_CONSTRAINT_IF_ADDRESS_TAKEN, COMPLETE_OBJECT_AND_PO_FLAG };
 
 struct IndirectPointerKindConstraint
 {
@@ -105,6 +106,10 @@ struct IndirectPointerKindConstraint
 														kind(k),isBeingVisited(false)
 	{
 		assert(k == BASE_AND_INDEX_CONSTRAINT || k == INDIRECT_ARG_CONSTRAINT);
+	}
+	IndirectPointerKindConstraint(INDIRECT_POINTER_KIND_CONSTRAINT k):ptr(NULL),i(0),kind(k),isBeingVisited(false)
+	{
+		assert(k == COMPLETE_OBJECT_AND_PO_FLAG);
 	}
 	bool operator==(const IndirectPointerKindConstraint& rhs) const
 	{
@@ -141,7 +146,7 @@ public:
 	PointerKindWrapper(POINTER_KIND k, const llvm::Value* regularCause = NULL):kind(k),regularCause(regularCause)
 	{
 		assert(k!=REGULAR);
-		assert(k!=SPLIT_REGULAR || regularCause);
+		//assert(k!=SPLIT_REGULAR || regularCause);
 	}
 	PointerKindWrapper(const IndirectPointerKindConstraint* constraint):kind(INDIRECT),regularCause(NULL)
 	{
@@ -214,6 +219,8 @@ public:
 	const llvm::Value* regularCause;
 
 	static PointerKindWrapper staticDefaultValue;
+	static PointerKindWrapper staticCOAndPOValue;
+	static const IndirectPointerKindConstraint* staticCOAndPoConstraint;
 };
 
 class PointerConstantOffsetWrapper

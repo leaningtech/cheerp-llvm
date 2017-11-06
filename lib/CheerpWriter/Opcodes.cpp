@@ -139,7 +139,7 @@ void CheerpWriter::compileBitCast(const llvm::User* bc_inst, POINTER_KIND kind)
 	{
 		compileRawPointer(bc_inst);
 	}
-	else if(kind==COMPLETE_OBJECT)
+	else if(kind==COMPLETE_OBJECT || kind == COMPLETE_OBJECT_AND_PO)
 		compileCompleteObject(bc_inst->getOperand(0));
 	else
 	{

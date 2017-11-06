@@ -157,7 +157,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			}
 			case Instruction::Load:
 			{
-				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(&I)))
+				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&I) == COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(&I)))
 					return false;
 				const Instruction* userInst = cast<Instruction>(I.user_back());
 				// To inline a load we must make sure that a chain of inlining does not move it past a store/class
@@ -825,7 +825,8 @@ bool needsSecondaryName(const Value* V, const PointerAnalyzer& PA)
 {
 	if(!V->getType()->isPointerTy())
 		return false;
-	if((PA.getPointerKind(V) == SPLIT_REGULAR || PA.getPointerKind(V) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(V))
+	POINTER_KIND k = PA.getPointerKind(V);
+	if((k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT || k == COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(V))
 		return true;
 	return false;
 }
