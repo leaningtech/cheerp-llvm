@@ -1083,7 +1083,7 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 				(*gep->op_begin())->getType(), indexes);
 	if (containerType->isStructTy())
 		return Zero;
-	if (TypeSupport::hasByteLayout(containerType))
+	if (/*containerType->isStructTy() ||*/ TypeSupport::hasByteLayout(containerType))
 		return NULL;
 	return dyn_cast<ConstantInt>(*std::prev(gep->op_end()));
 }

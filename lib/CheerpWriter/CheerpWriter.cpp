@@ -2635,16 +2635,15 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 				}
 				else if(k==COMPLETE_OBJECT_AND_PO)
 				{
-/*incoming->dump();
-phi->dump();
-llvm::errs() << "INCOMING KIND " << PA.getPointerKind(incoming) << "\n";
-					assert(PA.getPointerKind(incoming) == COMPLETE_OBJECT_AND_PO);*/
-					writer.stream << writer.namegen.getSecondaryName(phi);
-					writer.stream << '=';
-					writer.registerize.setEdgeContext(fromBB, toBB);
-					writer.compilePointerBase(incoming, LOWEST);
-					writer.stream << ';' << writer.NewLine;
-					writer.registerize.clearEdgeContext();
+					if(!PA.getConstantOffsetForPointer(phi))
+					{
+						writer.stream << writer.namegen.getSecondaryName(phi);
+						writer.stream << '=';
+						writer.registerize.setEdgeContext(fromBB, toBB);
+						writer.compilePointerBase(incoming, LOWEST);
+						writer.stream << ';' << writer.NewLine;
+						writer.registerize.clearEdgeContext();
+					}
 					writer.stream << writer.namegen.getName(phi) << '=';
 					writer.registerize.setEdgeContext(fromBB, toBB);
 					writer.compileCompleteObject(incoming);
@@ -2815,8 +2814,11 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			else if(argKind == COMPLETE_OBJECT_AND_PO)
 			{
 				compileCompleteObject(*cur);
-				stream << ',';
-				compilePointerBase(*cur);
+				if(!PA.getConstantOffsetForPointer(*cur))
+				{
+					stream << ',';
+					compilePointerBase(*cur);
+				}
 			}
 			else if(argKind == RAW)
 			{
@@ -3401,10 +3403,13 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					POINTER_KIND valKind = PA.getPointerKind(valOp);
 					assert(valKind != COMPLETE_OBJECT);
 					compileCompleteObject(valOp);
-					stream << ';' << NewLine;
-					compileCompleteObject(ptrOp);
-					stream << "b=";
-					compilePointerBase(valOp);
+					if(!PA.getConstantOffsetForPointer(&si))
+					{
+						stream << ';' << NewLine;
+						compileCompleteObject(ptrOp);
+						stream << "b=";
+						compilePointerBase(valOp);
+					}
 				}
 				else
 					compilePointerAs(valOp, storedKind);
@@ -4185,16 +4190,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			}
 			else if(si.getType()->isPointerTy() && PA.getPointerKind(&si) == COMPLETE_OBJECT_AND_PO)
 			{
-				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
-				stream << '?';
-				compilePointerBase(si.getOperand(1), TERNARY);
-				stream << ':';
-				compilePointerBase(si.getOperand(2), TERNARY);
-				stream << ';' << NewLine;
-				//STACKLET_STATUS stackletStatus = needsStacklet(&si);
-				//if(stackletStatus == STACKLET_NEEDED)
-				//	stream << "a." << namegen.getName(&si) << '=';
-				stream << namegen.getName(&si) << '=';
+				if(!PA.getConstantOffsetForPointer(&si))
+				{
+					compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
+					stream << '?';
+					compilePointerBase(si.getOperand(1), TERNARY);
+					stream << ':';
+					compilePointerBase(si.getOperand(2), TERNARY);
+					stream << ';' << NewLine;
+					//STACKLET_STATUS stackletStatus = needsStacklet(&si);
+					//if(stackletStatus == STACKLET_NEEDED)
+					//	stream << "a." << namegen.getName(&si) << '=';
+					stream << namegen.getName(&si) << '=';
+				}
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
 				compileCompleteObject(si.getOperand(1));
