@@ -2690,6 +2690,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		else if(tp->isPointerTy())
 		{
 			POINTER_KIND argKind = UNKNOWN;
+			bool needsSecondary = true;
 			// Calling convention:
 			// If this is a direct call and the argument is not a variadic one,
 			// we pass the kind decided by getPointerKind(arg_it).
@@ -2719,7 +2720,10 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 				}
 			}
 			else if (arg_it != F->arg_end())
+			{
 				argKind = PA.getPointerKind(arg_it);
+				needsSecondary = !PA.getConstantOffsetForPointer(arg_it);
+			}
 			else
 			{
 				if(isa<ConstantPointerNull>(*cur) && (cur+1)==itE && cur!=it)
@@ -2757,8 +2761,11 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 				else
 				{
 					compilePointerBase(*cur, !isByteLayout(argKind));
-					stream << ',';
-					compilePointerOffset(*cur, LOWEST, !isByteLayout(argKind));
+					if(needsSecondary)
+					{
+						stream << ',';
+						compilePointerOffset(*cur, LOWEST, !isByteLayout(argKind));
+					}
 				}
 			}
 			else if(argKind == RAW)
@@ -5218,7 +5225,13 @@ void CheerpWriter::compileMethod(const Function& F)
 		if(curArg!=A)
 			stream << ',';
 		if(curArg->getType()->isPointerTy() && (PA.getPointerKind(curArg) == SPLIT_REGULAR || PA.getPointerKind(curArg) == SPLIT_BYTE_LAYOUT))
-			stream << namegen.getName(curArg) << ',' << namegen.getSecondaryName(curArg);
+		{
+			stream << namegen.getName(curArg);
+			if(!PA.getConstantOffsetForPointer(curArg))
+			{
+				stream << ',' << namegen.getSecondaryName(curArg);
+			}
+		}
 		else
 			stream << namegen.getName(curArg);
 	}

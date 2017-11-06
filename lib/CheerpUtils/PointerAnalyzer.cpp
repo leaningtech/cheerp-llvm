@@ -1020,7 +1020,7 @@ struct PointerConstantOffsetVisitor
 	PointerConstantOffsetVisitor( PointerAnalyzer::PointerOffsetData& pointerOffsetData ) : pointerOffsetData(pointerOffsetData) {}
 
 	PointerConstantOffsetWrapper& visitValue(PointerConstantOffsetWrapper& ret, const Value* v, bool first);
-	static const llvm::ConstantInt* getPointerOffsetFromGEP( const llvm::Value* v );
+	static const llvm::ConstantInt* getPointerOffsetFromGEP( const llvm::Value* v, ConstantInt* Zero );
 
 	PointerAnalyzer::PointerOffsetData& pointerOffsetData;
 	llvm::DenseSet< const llvm::Value* > closedset;
@@ -1033,7 +1033,7 @@ struct PointerResolverForOffsetVisitor: public PointerResolverBaseVisitor<Pointe
 	PointerConstantOffsetWrapper resolvePointerOffset(const PointerConstantOffsetWrapper& o);
 };
 
-const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const Value* p)
+const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const Value* p, ConstantInt* Zero)
 {
 	if(!isGEP(p))
 		return NULL;
@@ -1047,7 +1047,9 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 		indexes.push_back(*(gep->op_begin()+i));
 	Type* containerType = GetElementPtrInst::getIndexedType(
 				(*gep->op_begin())->getType(), indexes);
-	if (containerType->isStructTy() || TypeSupport::hasByteLayout(containerType))
+	if (containerType->isStructTy())
+		return Zero;
+	if (TypeSupport::hasByteLayout(containerType))
 		return NULL;
 	return dyn_cast<ConstantInt>(*std::prev(gep->op_end()));
 }
@@ -1102,6 +1104,8 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 	}
 
+	Type* Int32Ty=IntegerType::get(v->getContext(), 32);
+	ConstantInt* Zero = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
 	if ( isGEP(v) )
 	{
 		if(TypeAndIndex b = PointerAnalyzer::getBaseStructAndIndexFromGEP(v))
@@ -1109,7 +1113,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			if(cheerp::hasNonLoadStoreUses(v))
 				pointerOffsetData.constraintsMap[IndirectPointerKindConstraint(BASE_AND_INDEX_CONSTRAINT, b)] |= PointerConstantOffsetWrapper::INVALID;
 		}
-		return CacheAndReturn(ret |= getPointerOffsetFromGEP(v));
+		return CacheAndReturn(ret |= getPointerOffsetFromGEP(v, Zero));
 	}
 
 	if(const StoreInst* SI=dyn_cast<StoreInst>(v))
@@ -1163,6 +1167,13 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret);
 	}
 
+	if(const SelectInst* SI=dyn_cast<SelectInst>(v))
+	{
+		visitValue(ret, SI->getTrueValue(), false);
+		visitValue(ret, SI->getFalseValue(), false);
+		return CacheAndReturn(ret);
+	}
+
 	if(const ConstantStruct* CS=dyn_cast<ConstantStruct>(v))
 	{
 		Type* structType = CS->getType();
@@ -1181,9 +1192,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 	}
 
-	Type* Int32Ty=IntegerType::get(v->getContext(), 32);
-	ConstantInt* Zero = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
-	if(isa<ConstantPointerNull>(v))
+	if(isa<ConstantPointerNull>(v) || isa<UndefValue>(v))
 		return CacheAndReturn(ret |= Zero);
 
 	if(const CallInst * CI = dyn_cast<CallInst>(v))
@@ -1205,6 +1214,33 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			return CacheAndReturn(ret |= Zero);
 		}
 		
+	}
+
+	if(const Argument * a = dyn_cast<Argument>(v))
+	{
+		const llvm::Function* parentFunc = a->getParent();
+		int argNo = a->getArgNo();
+		if(!parentFunc->hasAddressTaken())
+		{
+			bool noUser = true;
+			for(const User* U: parentFunc->users())
+			{
+				noUser = false;
+				if(const CallInst* CI = dyn_cast<CallInst>(U))
+					visitValue(ret, CI->getOperand(argNo), false);
+				else
+				{
+					ret |= PointerConstantOffsetWrapper::INVALID;
+					break;
+				}
+			}
+			if(noUser)
+			{
+				// TODO: We need to detect jseported code and use INVALID
+				return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
+			}
+			return CacheAndReturn(ret);
+		}
 	}
 
 	// Handle global pointers
@@ -1704,6 +1740,11 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 #endif
 	for(const Function & F : M)
 	{
+		for ( const Argument & arg : F.getArgumentList() )
+		{
+			if (arg.getType()->isPointerTy())
+				getFinalPointerConstantOffsetWrapper(&arg);
+		}
 		for(const BasicBlock & BB : F)
 		{
 			for(auto it=BB.begin();it != BB.end();++it)
