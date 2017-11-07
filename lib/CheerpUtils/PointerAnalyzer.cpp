@@ -1061,13 +1061,15 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 
 struct PointerConstantOffsetVisitor
 {
-	PointerConstantOffsetVisitor( PointerAnalyzer::PointerOffsetData& pointerOffsetData ) : pointerOffsetData(pointerOffsetData) {}
+	PointerConstantOffsetVisitor( PointerAnalyzer::PointerOffsetData& pointerOffsetData, const PointerAnalyzer& PA, bool forCoAndPo ) : pointerOffsetData(pointerOffsetData), PA(PA), forCoAndPo(forCoAndPo) {}
 
 	PointerConstantOffsetWrapper& visitValue(PointerConstantOffsetWrapper& ret, const Value* v, bool first);
 	static const llvm::ConstantInt* getPointerOffsetFromGEP( const llvm::Value* v, ConstantInt* Zero );
 
 	PointerAnalyzer::PointerOffsetData& pointerOffsetData;
 	llvm::DenseSet< const llvm::Value* > closedset;
+	const PointerAnalyzer& PA;
+	bool forCoAndPo;
 };
 
 struct PointerResolverForOffsetVisitor: public PointerResolverBaseVisitor<PointerConstantOffsetWrapper>
@@ -1077,7 +1079,7 @@ struct PointerResolverForOffsetVisitor: public PointerResolverBaseVisitor<Pointe
 	PointerConstantOffsetWrapper resolvePointerOffset(const PointerConstantOffsetWrapper& o);
 };
 
-const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const Value* p, ConstantInt* Zero)
+const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const Value* p, ConstantInt* Default)
 {
 	if(!isGEP(p))
 		return NULL;
@@ -1092,7 +1094,7 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 	Type* containerType = GetElementPtrInst::getIndexedType(
 				(*gep->op_begin())->getType(), indexes);
 	if (containerType->isStructTy())
-		return Zero;
+		return Default;
 	if (/*containerType->isStructTy() ||*/ TypeSupport::hasByteLayout(containerType))
 		return NULL;
 	return dyn_cast<ConstantInt>(*std::prev(gep->op_end()));
@@ -1100,6 +1102,17 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 
 PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerConstantOffsetWrapper& ret, const Value* v, bool first)
 {
+	Type* Int32Ty=IntegerType::get(v->getContext(), 32);
+	ConstantInt* Zero = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
+	ConstantInt* COMarker = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0xffffffff));
+	if(isa<ConstantPointerNull>(v) || isa<UndefValue>(v))
+	{
+		if(forCoAndPo)
+			return ret |= COMarker;
+		else
+			return ret |= Zero;
+	}
+
 	auto existingValueIt = pointerOffsetData.valueMap.find(v);
 	if(existingValueIt != pointerOffsetData.valueMap.end())
 		return ret |= existingValueIt->second;
@@ -1150,6 +1163,39 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 
 	Type* Int32Ty=IntegerType::get(v->getContext(), 32);
 	ConstantInt* Zero = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
+	if(const ConstantStruct* CS=dyn_cast<ConstantStruct>(v))
+	{
+		Type* structType = CS->getType();
+		// We need to keep track of all offsets for each member
+		for(uint32_t i=0;i<CS->getNumOperands();i++)
+		{
+			const Value* op = CS->getOperand(i);
+			if(!op->getType()->isPointerTy())
+				continue;
+			PointerConstantOffsetWrapper localRet;
+			TypeAndIndex typeAndIndex(structType, i, TypeAndIndex::STRUCT_MEMBER);
+			PointerConstantOffsetWrapper& memberRet = visitValue(localRet, op, false);
+			assert(!memberRet.isUnknown());
+			pointerOffsetData.constraintsMap[IndirectPointerKindConstraint(BASE_AND_INDEX_CONSTRAINT, typeAndIndex)] |= memberRet;
+		}
+		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
+	}
+
+	if(isa<ConstantAggregateZero>(v))
+	{
+		// TODO: Check if this have negative effects
+		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
+	}
+
+	POINTER_KIND pointerKind = PA.getPointerKind(v);
+	if(forCoAndPo && (pointerKind == REGULAR || pointerKind == SPLIT_REGULAR))
+	{
+		// There is a REGULAR pointer along this dependency tree, we cannot avoid bringing the base around
+		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
+	}
+
+	assert(!forCoAndPo || pointerKind == COMPLETE_OBJECT_AND_PO);
+
 	if ( isGEP(v) )
 	{
 		if(TypeAndIndex b = PointerAnalyzer::getBaseStructAndIndexFromGEP(v))
@@ -1157,7 +1203,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			if(cheerp::hasNonLoadStoreUses(v))
 				pointerOffsetData.constraintsMap[IndirectPointerKindConstraint(BASE_AND_INDEX_CONSTRAINT, b)] |= PointerConstantOffsetWrapper::INVALID;
 		}
-		return CacheAndReturn(ret |= getPointerOffsetFromGEP(v, Zero));
+		return CacheAndReturn(ret |= getPointerOffsetFromGEP(v, forCoAndPo ? COMarker : Zero));
 	}
 
 	if(const StoreInst* SI=dyn_cast<StoreInst>(v))
@@ -1218,27 +1264,6 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret);
 	}
 
-	if(const ConstantStruct* CS=dyn_cast<ConstantStruct>(v))
-	{
-		Type* structType = CS->getType();
-		// We need to keep track of all offsets for each member
-		for(uint32_t i=0;i<CS->getNumOperands();i++)
-		{
-			const Value* op = CS->getOperand(i);
-			if(!op->getType()->isPointerTy())
-				continue;
-			PointerConstantOffsetWrapper localRet;
-			TypeAndIndex typeAndIndex(structType, i, TypeAndIndex::STRUCT_MEMBER);
-			PointerConstantOffsetWrapper& memberRet = visitValue(localRet, op, false);
-			assert(!memberRet.isUnknown());
-			pointerOffsetData.constraintsMap[IndirectPointerKindConstraint(BASE_AND_INDEX_CONSTRAINT, typeAndIndex)] |= memberRet;
-		}
-		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
-	}
-
-	if(isa<ConstantPointerNull>(v) || isa<UndefValue>(v))
-		return CacheAndReturn(ret |= Zero);
-
 	if(const CallInst * CI = dyn_cast<CallInst>(v))
 	{
 		Function* F = CI->getCalledFunction();
@@ -1248,7 +1273,11 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			F->getIntrinsicID()==Intrinsic::cheerp_allocate_array ||
 			F->getIntrinsicID()==Intrinsic::cheerp_reallocate)
 		{
-			return CacheAndReturn(ret |= Zero);
+			// If the pointer was regular we would have bailout out earlier
+			if(forCoAndPo)
+				return CacheAndReturn(ret |= COMarker);
+			else
+				return CacheAndReturn(ret |= Zero);
 		}
 		if(F->getName() == "calloc" ||
 			F->getName() == "malloc" ||
@@ -1411,7 +1440,7 @@ const PointerKindWrapper& PointerAnalyzer::getFinalPointerKindWrapper(const Valu
 	return k;
 }
 
-const PointerConstantOffsetWrapper& PointerAnalyzer::getFinalPointerConstantOffsetWrapper(const Value* p) const
+const PointerConstantOffsetWrapper& PointerAnalyzer::getFinalPointerConstantOffsetWrapper(const Value* p, bool forCoAndPo) const
 {
 	// If the values is already cached just return it
 	auto it = pointerOffsetData.valueMap.find(p);
@@ -1422,7 +1451,7 @@ const PointerConstantOffsetWrapper& PointerAnalyzer::getFinalPointerConstantOffs
 	}
 
 	PointerConstantOffsetWrapper ret;
-	PointerConstantOffsetWrapper& o = PointerConstantOffsetVisitor(pointerOffsetData).visitValue(ret, p, /*first*/ true);
+	PointerConstantOffsetWrapper& o = PointerConstantOffsetVisitor(pointerOffsetData, *this, forCoAndPo).visitValue(ret, p, /*first*/ true);
 #ifndef NDEBUG
 	it = pointerOffsetData.valueMap.find(p);
 	assert(it!=pointerOffsetData.valueMap.end());
@@ -1801,15 +1830,16 @@ it.second.dump();
 
 void PointerAnalyzer::computeConstantOffsets(const Module& M)
 {
-#ifndef NDEBUG
+	// Since we use getPointerKind in the logic we must be fully resolved already
 	assert(fullyResolved);
-#endif
 	for(const Function & F : M)
 	{
 		for ( const Argument & arg : F.getArgumentList() )
 		{
 			if (arg.getType()->isPointerTy())
-				getFinalPointerConstantOffsetWrapper(&arg);
+			{
+				getFinalPointerConstantOffsetWrapper(&arg, getPointerKind(&arg) == COMPLETE_OBJECT_AND_PO);
+			}
 		}
 		for(const BasicBlock & BB : F)
 		{
@@ -1818,7 +1848,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 				if(it->getType()->isPointerTy() ||
 					(isa<StoreInst>(*it) && it->getOperand(0)->getType()->isPointerTy()))
 				{
-					getFinalPointerConstantOffsetWrapper(&(*it));
+					getFinalPointerConstantOffsetWrapper(&(*it), getPointerKind(&(*it)) == COMPLETE_OBJECT_AND_PO);
 				}
 			}
 		}
@@ -1839,16 +1869,16 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 					continue;
 				globalsUsersQueue.push_back(u);
 			}
-			getFinalPointerConstantOffsetWrapper(GV.getInitializer());
+			getFinalPointerConstantOffsetWrapper(GV.getInitializer(), /*forCoAndPo*/false);
 		}
 		else if(GV.getInitializer()->getType()->isPointerTy() || GV.getSection() == StringRef("bytelayout"))
-			getFinalPointerConstantOffsetWrapper(&GV);
+			getFinalPointerConstantOffsetWrapper(&GV, getPointerKind(&GV) == COMPLETE_OBJECT_AND_PO);
 	}
 
 	while(!globalsUsersQueue.empty())
 	{
 		const User* u = globalsUsersQueue.pop_back_val();
-		getFinalPointerConstantOffsetWrapper(u);
+		getFinalPointerConstantOffsetWrapper(u, getPointerKind(u) == COMPLETE_OBJECT_AND_PO);
 		for(const User* v: u->users())
 		{
 			if(!v->getType()->isPointerTy())
