@@ -1712,7 +1712,7 @@ assert(false);
 		const ConstantInt* constantOffset = PA.getConstantOffsetForPointer(p);
 		if(constantOffset)
 		{
-			assert(constantOffset->getZExtValue() == 0);
+			assert(constantOffset->getZExtValue() == 0xffffffff);
 			stream << "null";
 		}
 		else

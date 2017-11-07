@@ -390,7 +390,7 @@ public:
 	static REGULAR_POINTER_PREFERENCE getRegularPreference(const IndirectPointerKindConstraint& c, PointerKindData& pointerKindData, AddressTakenMap& addressTakenCache);
 	static POINTER_KIND getPointerKindForMemberImpl(const TypeAndIndex& baseAndIndex, PointerKindData& pointerKindData, AddressTakenMap& addressTakenCache);
 private:
-	const PointerConstantOffsetWrapper& getFinalPointerConstantOffsetWrapper(const llvm::Value*) const;
+	const PointerConstantOffsetWrapper& getFinalPointerConstantOffsetWrapper(const llvm::Value*, bool forCoAndPo) const;
 	mutable PointerKindData pointerKindData;
 	mutable PointerOffsetData pointerOffsetData;
 	mutable AddressTakenMap addressTakenCache;
