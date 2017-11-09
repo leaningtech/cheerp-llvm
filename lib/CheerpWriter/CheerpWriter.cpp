@@ -2500,8 +2500,9 @@ bool CheerpWriter::needsPointerKindConversion(const Instruction* phi, const Valu
 	return
 		(incomingInst && isInlineable(*incomingInst, PA)) ||
 		((incomingKind == SPLIT_REGULAR) != (phiKind == SPLIT_REGULAR)) ||
+		// COMPLETE_OBJECT_AND_PO can only become COMPLETE_OBJECT and it's a free conversion
+		(phiKind!=incomingKind && incomingKind != COMPLETE_OBJECT_AND_PO) ||
 		registerize.getRegisterId(phi)!=registerize.getRegisterId(incoming) ||
-		phiKind!=incomingKind ||
 		PA.getConstantOffsetForPointer(phi)!=PA.getConstantOffsetForPointer(incoming) ||
 		registerize.isRecoverable(phi)!=registerize.isRecoverable(incomingInst);
 }
