@@ -872,7 +872,17 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 		compileOperand(*it, LOWEST);
 		return COMPILE_OK;
 	}
-	else if(/*ident=="free" || */ident=="_ZdlPv" || ident=="_ZdaPv" || intrinsicId==Intrinsic::cheerp_deallocate)
+	else if(intrinsicId==Intrinsic::cheerp_deallocate)
+	{
+		const ConstantInt* C = PA.getConstantOffsetForPointer(*it);
+		if(C && C->getZExtValue() == 0xffffffff)
+			return COMPILE_EMPTY;
+		stream << "cheerpjFree(";
+		compilePointerBase(*it);
+		stream << ",0)";
+		return COMPILE_OK;
+	}
+	else if(/*ident=="free" || */ident=="_ZdlPv" || ident=="_ZdaPv")
 	{
 		if (asmjs || TypeSupport::isAsmJSPointer((*it)->getType()))
 		{
