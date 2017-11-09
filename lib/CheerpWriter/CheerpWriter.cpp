@@ -3068,6 +3068,17 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 					elementType = elementType->getArrayElementType();
 				stream << ']';
 			}
+			else if(k == COMPLETE_OBJECT_AND_PO)
+			{
+				stream << "null";
+				stream << ';' << NewLine;
+				STACKLET_STATUS stackletStatus = needsStacklet(&I);
+				stream << namegen.getName(&I) << '=';
+				//if(stackletStatus == STACKLET_NEEDED)
+				//	stream << "a." << namegen.getName(ai) << '=';
+				Type* elementType = ai->getAllocatedType();
+				compileType(elementType, LITERAL_OBJ, varName);
+			}
 			else if(k == BYTE_LAYOUT)
 			{
 				stream << "{d:";
@@ -4173,16 +4184,19 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			const SelectInst& si = cast<SelectInst>(I);
 			if(si.getType()->isPointerTy() && (PA.getPointerKind(&si) == SPLIT_REGULAR || PA.getPointerKind(&si) == SPLIT_BYTE_LAYOUT))
 			{
-				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
-				stream << '?';
-				compilePointerOffset(si.getOperand(1), TERNARY);
-				stream << ':';
-				compilePointerOffset(si.getOperand(2), TERNARY);
-				stream << ';' << NewLine;
-				STACKLET_STATUS stackletStatus = needsStacklet(&si);
-				if(stackletStatus == STACKLET_NEEDED)
-					stream << "a." << namegen.getName(&si) << '=';
-				stream << namegen.getName(&si) << '=';
+				if(!PA.getConstantOffsetForPointer(&si))
+				{
+					compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
+					stream << '?';
+					compilePointerOffset(si.getOperand(1), TERNARY);
+					stream << ':';
+					compilePointerOffset(si.getOperand(2), TERNARY);
+					stream << ';' << NewLine;
+					STACKLET_STATUS stackletStatus = needsStacklet(&si);
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.getName(&si) << '=';
+					stream << namegen.getName(&si) << '=';
+				}
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
 				compilePointerBase(si.getOperand(1));
