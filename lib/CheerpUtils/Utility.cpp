@@ -936,6 +936,20 @@ llvm::Instruction* emitByteLayoutLoad(llvm::Value* ptr, llvm::Type* LoadTy, llvm
 	return val1;
 }
 
+bool isLastCallBeforeVoidReturn(const llvm::Instruction& I)
+{
+	const CallInst* ci = dyn_cast<CallInst>(&I);
+	if(!ci)
+		return false;
+	if(const InlineAsm* a = dyn_cast_or_null<InlineAsm>(ci->getCalledValue()))
+	{
+		// We overload this flag to signal that it is not allowed to tail call this method
+		if(a->hasSideEffects())
+			return false;
+	}
+	return llvm::isa<llvm::ReturnInst>(I.getNextNode()) && I.getNextNode()->getNumOperands() == 0;
+}
+
 }
 
 namespace llvm

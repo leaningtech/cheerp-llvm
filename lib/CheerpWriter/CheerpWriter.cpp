@@ -5080,6 +5080,7 @@ void CheerpWriter::compileMethodLocals(const Function& F, std::set<uint32_t>& us
 					assert(isa<ConstantInt>(I.getOperand(0)));
 					usedPCs.insert(cast<ConstantInt>(I.getOperand(0))->getZExtValue());
 				}
+				// TODO: Move above
 				if(cheerp::isLastCallBeforeVoidReturn(I))
 					continue;
 				hasRecoveryPoint = true;
