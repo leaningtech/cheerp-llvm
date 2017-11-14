@@ -1845,7 +1845,10 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 		{
 			if (arg.getType()->isPointerTy())
 			{
-				getFinalPointerConstantOffsetWrapper(&arg, getPointerKind(&arg) == COMPLETE_OBJECT_AND_PO);
+				POINTER_KIND k = getPointerKind(&arg);
+				if(k == COMPLETE_OBJECT)
+					continue;
+				getFinalPointerConstantOffsetWrapper(&arg, k == COMPLETE_OBJECT_AND_PO);
 			}
 		}
 		for(const BasicBlock & BB : F)
@@ -1855,7 +1858,10 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 				if(it->getType()->isPointerTy() ||
 					(isa<StoreInst>(*it) && it->getOperand(0)->getType()->isPointerTy()))
 				{
-					getFinalPointerConstantOffsetWrapper(&(*it), getPointerKind(&(*it)) == COMPLETE_OBJECT_AND_PO);
+					POINTER_KIND k = getPointerKind(&(*it));
+					if(k == COMPLETE_OBJECT)
+						continue;
+					getFinalPointerConstantOffsetWrapper(&(*it), k == COMPLETE_OBJECT_AND_PO);
 				}
 			}
 		}
@@ -1879,13 +1885,21 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 			getFinalPointerConstantOffsetWrapper(GV.getInitializer(), /*forCoAndPo*/false);
 		}
 		else if(GV.getInitializer()->getType()->isPointerTy() || GV.getSection() == StringRef("bytelayout"))
-			getFinalPointerConstantOffsetWrapper(&GV, getPointerKind(&GV) == COMPLETE_OBJECT_AND_PO);
+		{
+			POINTER_KIND k = getPointerKind(&GV);
+			if(k == COMPLETE_OBJECT)
+				continue;
+			getFinalPointerConstantOffsetWrapper(&GV, k == COMPLETE_OBJECT_AND_PO);
+		}
 	}
 
 	while(!globalsUsersQueue.empty())
 	{
 		const User* u = globalsUsersQueue.pop_back_val();
-		getFinalPointerConstantOffsetWrapper(u, getPointerKind(u) == COMPLETE_OBJECT_AND_PO);
+		POINTER_KIND k = getPointerKind(u);
+		if(k == COMPLETE_OBJECT)
+			continue;
+		getFinalPointerConstantOffsetWrapper(u, k == COMPLETE_OBJECT_AND_PO);
 		for(const User* v: u->users())
 		{
 			if(!v->getType()->isPointerTy())
