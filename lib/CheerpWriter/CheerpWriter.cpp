@@ -4747,16 +4747,31 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				else
 				{
 					compileCompleteObject(ptrOp);
-					if(li.getType()->isPointerTy() && !li.use_empty() && (PA.getPointerKind(&li) == SPLIT_REGULAR || PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&li) == COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(&li))
+					if(li.getType()->isPointerTy() && !li.use_empty() && !PA.getConstantOffsetForPointer(&li))
 					{
-						assert(!isInlineable(li, PA));
-						stream <<'o';
-						stream << ';' << NewLine;
-						STACKLET_STATUS stackletStatus = needsStacklet(&li);
-						stream << namegen.getName(&li) << '=';
-						if(stackletStatus == STACKLET_NEEDED)
-							stream << "a." << namegen.getName(&li) << '=';
-						compileCompleteObject(ptrOp);
+						POINTER_KIND loadedKind = PA.getPointerKind(&li);
+						if(loadedKind == SPLIT_REGULAR || loadedKind == SPLIT_BYTE_LAYOUT)
+						{
+							assert(!isInlineable(li, PA));
+							stream <<'o';
+							stream << ';' << NewLine;
+							STACKLET_STATUS stackletStatus = needsStacklet(&li);
+							stream << namegen.getName(&li) << '=';
+							if(stackletStatus == STACKLET_NEEDED)
+								stream << "a." << namegen.getName(&li) << '=';
+							compileCompleteObject(ptrOp);
+						}
+						else if(loadedKind == COMPLETE_OBJECT_AND_PO)
+						{
+							assert(!isInlineable(li, PA));
+							stream <<'b';
+							stream << ';' << NewLine;
+							STACKLET_STATUS stackletStatus = needsStacklet(&li);
+							stream << namegen.getName(&li) << '=';
+							if(stackletStatus == STACKLET_NEEDED)
+								stream << "a." << namegen.getName(&li) << '=';
+							compileCompleteObject(ptrOp);
+						}
 					}
 				}
 			}
