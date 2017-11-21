@@ -2045,6 +2045,14 @@ InlineCost llvm::getInlineCost(
                                           " address space");
     }
 
+  //CHEERP: Do not inline normal/asmjs methods called from the other side
+  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
+  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
+  if (calleeAsmJS!= callerAsmJS)
+  {
+    return llvm::InlineCost::getNever();
+  }
+
   // Calls to functions with always-inline attributes should be inlined
   // whenever possible.
   if (Call.hasFnAttr(Attribute::AlwaysInline)) {
@@ -2080,14 +2088,6 @@ InlineCost llvm::getInlineCost(
   // Don't inline call sites marked noinline.
   if (Call.isNoInline())
     return llvm::InlineCost::getNever("noinline call site attribute");
-
-  //CHEERP: Do not inline normal/asmjs methods called from the other side
-  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
-  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
-  if (calleeAsmJS!= callerAsmJS)
-  {
-    return llvm::InlineCost::getNever();
-  }
 
   LLVM_DEBUG(llvm::dbgs() << "      Analyzing call of " << Callee->getName()
                      << "... (caller:" << Caller->getName() << ")\n");
