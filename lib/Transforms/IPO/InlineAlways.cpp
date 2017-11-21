@@ -95,6 +95,22 @@ Pass *llvm::createAlwaysInlinerPass(bool InsertLifetime) {
 InlineCost AlwaysInliner::getInlineCost(CallSite CS) {
   Function *Callee = CS.getCalledFunction();
 
+  //CHEERP: Do not inline server/client methods called from the other side
+  const Function* caller=CS.getCaller();
+  if((caller->hasFnAttribute(Attribute::Client) && Callee->hasFnAttribute(Attribute::Server)) ||
+     (caller->hasFnAttribute(Attribute::Server) && Callee->hasFnAttribute(Attribute::Client)))
+  {
+    return llvm::InlineCost::getNever();
+  }
+
+  //CHEERP: Do not inline normal/asmjs methods called from the other side
+  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
+  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
+  if (calleeAsmJS!= callerAsmJS)
+  {
+    return llvm::InlineCost::getNever();
+  }
+
   // Only inline direct calls to functions with always-inline attributes
   // that are viable for inlining. FIXME: We shouldn't even get here for
   // declarations.
