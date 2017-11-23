@@ -1010,6 +1010,8 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 	// If mayCache is initially false we can't cache anything
 	bool initialMayCache = mayCache;
 	bool hasCOAndPOFlag = false;
+	POINTER_KIND currentWorse = COMPLETE_OBJECT;
+	const PointerKindWrapper* currentWrapper = nullptr;
 	// Temporary value to store a SPLIT_REGULAR kind, as we can't stop immediately like we do for REGULAR
 	for(const IndirectPointerKindConstraint* constraint: k.constraints)
 	{
@@ -1027,8 +1029,19 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 		closedset.push_back(constraint);
 		const PointerKindWrapper& retKind=resolveConstraint(*constraint);
 		assert(retKind.isKnown());
-		if(retKind == REGULAR || retKind==SPLIT_REGULAR || retKind==BYTE_LAYOUT || retKind==SPLIT_BYTE_LAYOUT || retKind==COMPLETE_OBJECT_AND_PO)
+		if(retKind == REGULAR || retKind == BYTE_LAYOUT)
+		{
+			// As bad as possible
 			return retKind;
+		}
+		else if(POINTER_KIND(retKind) > COMPLETE_OBJECT && POINTER_KIND(retKind) <= SPLIT_BYTE_LAYOUT)
+		{
+			if(POINTER_KIND(retKind) > currentWorse)
+			{
+				currentWorse = POINTER_KIND(retKind);
+				currentWrapper = &retKind;
+			}
+		}
 		else if(retKind==INDIRECT)
 		{
 			bool subMayCache = initialMayCache;
@@ -1038,13 +1051,26 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 			else
 				mayCache = false;
 
-			if(resolvedKind==SPLIT_REGULAR || resolvedKind==REGULAR || resolvedKind==COMPLETE_OBJECT_AND_PO)
+			if(resolvedKind == REGULAR)
+			{
+				// As bad as possible
 				return resolvedKind;
+			}
+			else if(POINTER_KIND(resolvedKind) > COMPLETE_OBJECT && POINTER_KIND(resolvedKind) < REGULAR)
+			{
+				if(POINTER_KIND(retKind) > currentWorse)
+				{
+					currentWorse = POINTER_KIND(resolvedKind);
+					currentWrapper = &resolvedKind;
+				}
+			}
 		}
 	}
 
 	if(hasCOAndPOFlag)
 		return PointerKindWrapper::staticCOAndPOValue;
+	else if(currentWrapper)
+		return *currentWrapper;
 	else
 		return PointerKindWrapper::staticDefaultValue;
 }
@@ -1184,7 +1210,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 	}
 
-	assert(!forCoAndPo || pointerKind == COMPLETE_OBJECT_AND_PO);
+	assert(!forCoAndPo || pointerKind == COMPLETE_OBJECT_AND_PO || pointerKind == COMPLETE_OBJECT_AND_PO_OBJ);
 
 	if ( isGEP(v) )
 	{
@@ -1739,7 +1765,7 @@ it.second.dump();
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR || k==COMPLETE_OBJECT_AND_PO);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==SPLIT_REGULAR || k==REGULAR || k==COMPLETE_OBJECT_AND_PO || k==COMPLETE_OBJECT_AND_PO_OBJ);
 		it.second = k;
 		it.second.applyRegularPreference(PREF_SPLIT_REGULAR);
 #if 0
@@ -1796,7 +1822,7 @@ it.second.dump();
 		}
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO || k==COMPLETE_OBJECT_AND_PO_OBJ);
 		it.second = k;
 		it.second.applyRegularPreference(pref);
 #if 0
@@ -1820,7 +1846,7 @@ it.second.dump();
 			continue;
 		bool mayCache = true;
 		const PointerKindWrapper& k=PointerResolverForKindVisitor(pointerKindData, addressTakenCache).resolvePointerKind(it.second, mayCache);
-		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO);
+		assert(k==COMPLETE_OBJECT || k==BYTE_LAYOUT || k==SPLIT_BYTE_LAYOUT || k==REGULAR || k==SPLIT_REGULAR || k==COMPLETE_OBJECT_AND_PO || k==COMPLETE_OBJECT_AND_PO_OBJ);
 		it.second = k;
 		if(isa<Argument>(it.first))
 		{
@@ -1848,7 +1874,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 				POINTER_KIND k = getPointerKind(&arg);
 				if(k == COMPLETE_OBJECT)
 					continue;
-				getFinalPointerConstantOffsetWrapper(&arg, k == COMPLETE_OBJECT_AND_PO);
+				getFinalPointerConstantOffsetWrapper(&arg, k == COMPLETE_OBJECT_AND_PO || k == COMPLETE_OBJECT_AND_PO_OBJ);
 			}
 		}
 		for(const BasicBlock & BB : F)
@@ -1861,7 +1887,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 					POINTER_KIND k = getPointerKind(&(*it));
 					if(k == COMPLETE_OBJECT)
 						continue;
-					getFinalPointerConstantOffsetWrapper(&(*it), k == COMPLETE_OBJECT_AND_PO);
+					getFinalPointerConstantOffsetWrapper(&(*it), k == COMPLETE_OBJECT_AND_PO || k ==COMPLETE_OBJECT_AND_PO_OBJ);
 				}
 			}
 		}
@@ -1889,7 +1915,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 			POINTER_KIND k = getPointerKind(&GV);
 			if(k == COMPLETE_OBJECT)
 				continue;
-			getFinalPointerConstantOffsetWrapper(&GV, k == COMPLETE_OBJECT_AND_PO);
+			getFinalPointerConstantOffsetWrapper(&GV, k == COMPLETE_OBJECT_AND_PO || k ==COMPLETE_OBJECT_AND_PO_OBJ);
 		}
 	}
 
@@ -1899,7 +1925,7 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 		POINTER_KIND k = getPointerKind(u);
 		if(k == COMPLETE_OBJECT)
 			continue;
-		getFinalPointerConstantOffsetWrapper(u, k == COMPLETE_OBJECT_AND_PO);
+		getFinalPointerConstantOffsetWrapper(u, k == COMPLETE_OBJECT_AND_PO || k ==COMPLETE_OBJECT_AND_PO_OBJ);
 		for(const User* v: u->users())
 		{
 			if(!v->getType()->isPointerTy())

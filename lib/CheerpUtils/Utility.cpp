@@ -157,7 +157,7 @@ bool isInlineable(const Instruction& I, const PointerAnalyzer& PA)
 			}
 			case Instruction::Load:
 			{
-				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&I) == COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(&I)))
+				if(I.use_empty() || (I.getType()->isPointerTy() && (PA.getPointerKind(&I) == SPLIT_REGULAR || PA.getPointerKind(&I) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&I) == COMPLETE_OBJECT_AND_PO || PA.getPointerKind(&I) == COMPLETE_OBJECT_AND_PO_OBJ) && !PA.getConstantOffsetForPointer(&I)))
 					return false;
 				const Instruction* userInst = cast<Instruction>(I.user_back());
 				// To inline a load we must make sure that a chain of inlining does not move it past a store/class
