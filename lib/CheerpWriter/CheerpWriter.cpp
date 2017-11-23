@@ -1664,6 +1664,22 @@ void CheerpWriter::compileCompleteObject(const Value* p, const Value* offset)
 	{
 		compileOperand(p);
 	}
+	else if(kind == COMPLETE_OBJECT_AND_PO_OBJ)
+	{
+		if(isBitCast(p))
+			compileCompleteObject(cast<User>(p)->getOperand(0));
+		else if(!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA))
+		{
+			compileOperand(p);
+			if(!PA.getConstantOffsetForPointer(p))
+				stream << ".d";
+		}
+		else
+		{
+llvm::errs() << "BAD OBJ " << *p << "\n";
+			assert(false);
+		}
+	}
 	else if(isByteLayout(kind))
 	{
 		if(!isOffsetConstantZero)
@@ -1903,6 +1919,22 @@ assert(false);
 		else
 		{
 			stream << namegen.getSecondaryName(p);
+		}
+		return;
+	}
+
+	if((!isa<Instruction>(p) || !isInlineable(*cast<Instruction>(p), PA)) && PA.getPointerKind(p) == COMPLETE_OBJECT_AND_PO_OBJ)
+	{
+		const ConstantInt* constantOffset = PA.getConstantOffsetForPointer(p);
+		if(constantOffset)
+		{
+			assert(constantOffset->getZExtValue() == 0xffffffff);
+			stream << "null";
+		}
+		else
+		{
+			compileOperand(p, HIGHEST);
+			stream << ".b";
 		}
 		return;
 	}
@@ -2694,10 +2726,10 @@ bool CheerpWriter::needsPointerKindConversion(const Instruction* phi, const Valu
 	return
 		(incomingInst && isInlineable(*incomingInst, PA)) ||
 		((incomingKind == SPLIT_REGULAR) != (phiKind == SPLIT_REGULAR)) ||
-		// COMPLETE_OBJECT_AND_PO can only become COMPLETE_OBJECT and it's a free conversion
-		(phiKind!=incomingKind && incomingKind != COMPLETE_OBJECT_AND_PO) ||
+		// COMPLETE_OBJECT_AND_PO can become COMPLETE_OBJECT as a free conversion
+		(phiKind!=incomingKind && !(phiKind == COMPLETE_OBJECT && incomingKind == COMPLETE_OBJECT_AND_PO)) ||
 		registerize.getRegisterId(phi)!=registerize.getRegisterId(incoming) ||
-		PA.getConstantOffsetForPointer(phi)!=PA.getConstantOffsetForPointer(incoming) ||
+		(PA.getConstantOffsetForPointer(phi)!=PA.getConstantOffsetForPointer(incoming) && phiKind != COMPLETE_OBJECT) ||
 		registerize.isRecoverable(phi)!=registerize.isRecoverable(incomingInst);
 }
 
@@ -2771,7 +2803,7 @@ void CheerpWriter::compilePHIOfBlockFromOtherBlock(const BasicBlock* to, const B
 			if(phiType->isPointerTy())
 			{
 				POINTER_KIND k=writer.PA.getPointerKind(phi);
-				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k)) && writer.PA.getConstantOffsetForPointer(phi))
+				if((k==REGULAR || k==SPLIT_REGULAR || isByteLayout(k) || k==COMPLETE_OBJECT_AND_PO_OBJ) && writer.PA.getConstantOffsetForPointer(phi))
 				{
 					if(stackletStatus == STACKLET_NEEDED || forceStackletSync)
 						writer.stream << "a." << writer.namegen.getName(phi) << '=';
@@ -3012,7 +3044,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			else if(argKind == COMPLETE_OBJECT_AND_PO)
 			{
 				compileCompleteObject(*cur);
-				if(!PA.getConstantOffsetForPointer(*cur))
+				if(needsSecondary)
 				{
 					stream << ',';
 					compilePointerBase(*cur);
@@ -3608,7 +3640,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			{
 				POINTER_KIND storedKind = PA.getPointerKind(&si);
 				// If regular see if we can omit the offset part
-				if((storedKind==SPLIT_REGULAR || storedKind==REGULAR || isByteLayout(storedKind)) && PA.getConstantOffsetForPointer(&si))
+				if((storedKind==SPLIT_REGULAR || storedKind==REGULAR || isByteLayout(storedKind) || storedKind==COMPLETE_OBJECT_AND_PO_OBJ) && PA.getConstantOffsetForPointer(&si))
 					compilePointerBase(valOp);
 				else if(storedKind==SPLIT_REGULAR || storedKind==SPLIT_BYTE_LAYOUT)
 				{
@@ -4464,6 +4496,14 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					//	stream << "a." << namegen.getName(&si) << '=';
 					stream << namegen.getName(&si) << '=';
 				}
+				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
+				stream << '?';
+				compileCompleteObject(si.getOperand(1));
+				stream << ':';
+				compileCompleteObject(si.getOperand(2));
+			}
+			else if(si.getType()->isPointerTy() && PA.getPointerKind(&si) == COMPLETE_OBJECT_AND_PO_OBJ && PA.getConstantOffsetForPointer(&si))
+			{
 				compileOperand(si.getOperand(0), TERNARY, /*allowBooleanObjects*/ true);
 				stream << '?';
 				compileCompleteObject(si.getOperand(1));

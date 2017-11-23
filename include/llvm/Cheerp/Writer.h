@@ -361,7 +361,18 @@ private:
 		}
 		else if (llvm::isa<llvm::ConstantPointerNull>(p))
 		{
-			stream << "nullObj";
+			if(kind == COMPLETE_OBJECT_AND_PO_OBJ)
+				stream << "{d:null,b:null}";
+			else
+				stream << "nullObj";
+		}
+		else if (kind == COMPLETE_OBJECT_AND_PO_OBJ)
+		{
+			stream << "{d:";
+			compileCompleteObject(p);
+			stream << ",b:";
+			compilePointerBase(p);
+			stream << "}";
 		}
 		else if (PA.getConstantOffsetForPointer(p) ||
 			(valueKind == SPLIT_REGULAR || valueKind == SPLIT_BYTE_LAYOUT)
@@ -375,7 +386,7 @@ private:
 		}
 		else
 		{
-			assert(valueKind == REGULAR || valueKind == BYTE_LAYOUT);
+			assert(valueKind == REGULAR || valueKind == BYTE_LAYOUT || valueKind == COMPLETE_OBJECT_AND_PO_OBJ);
 			compileOperand(p);
 		}
 	}

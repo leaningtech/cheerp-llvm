@@ -27,6 +27,7 @@ namespace cheerp {
 enum POINTER_KIND {
 	COMPLETE_OBJECT,  // object with aN, iN and dN fields.
 	COMPLETE_OBJECT_AND_PO,
+	COMPLETE_OBJECT_AND_PO_OBJ,
 	SPLIT_REGULAR,    // two local vars "X" and "Xo".
 	REGULAR,          // pointer object {o: ..., d: ...}.
 	BYTE_LAYOUT,      // slow, and mostly used for unions.
@@ -170,6 +171,10 @@ public:
 	{
 		return kind!=rhs;
 	}
+	explicit operator POINTER_KIND() const
+	{
+		return kind;
+	}
 	PointerKindWrapper& operator=(const PointerKindWrapper& rhs)
 	{
 		assert(this != &rhs);
@@ -194,6 +199,10 @@ public:
 			return SPLIT_BYTE_LAYOUT;
 		else if(kind==SPLIT_BYTE_LAYOUT && p==PREF_REGULAR)
 			return BYTE_LAYOUT;
+		else if(kind==COMPLETE_OBJECT_AND_PO_OBJ && p==PREF_SPLIT_REGULAR)
+			return COMPLETE_OBJECT_AND_PO;
+		else if(kind==COMPLETE_OBJECT_AND_PO && p==PREF_REGULAR)
+			return COMPLETE_OBJECT_AND_PO_OBJ;
 		else
 			return kind;
 	}
