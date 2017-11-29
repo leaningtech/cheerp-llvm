@@ -22,6 +22,7 @@
 #include "llvm/Cheerp/WasmWriter.h"
 #include "llvm/Cheerp/LinearMemoryHelper.h"
 #include "llvm/Cheerp/AllocaMerging.h"
+#include "llvm/Cheerp/AllocaLowering.h"
 #include "llvm/Cheerp/PointerPasses.h"
 #include "llvm/Cheerp/CFGPasses.h"
 #include "llvm/Cheerp/Registerize.h"
@@ -125,6 +126,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            bool DisableVerify,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
+  PM.add(createAllocaLoweringPass());
   PM.add(createResolveAliasesPass());
   PM.add(createFreeAndDeleteRemovalPass());
   PM.add(cheerp::createGlobalDepsAnalyzerPass());
