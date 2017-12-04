@@ -934,14 +934,20 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 			stream << namegen.getBuiltinName(NameGenerator::Builtin::CREATE_CLOSURE) << "(";
 		compileCompleteObject( callV.getArgument(0) );
 		stream << ',';
-		if(argKind == SPLIT_REGULAR)
+		if(argKind == SPLIT_REGULAR || argKind == SPLIT_BYTE_LAYOUT)
 		{
-			compilePointerBase( callV.getArgument(1) );
+			compilePointerBase(op, !isByteLayout(argKind));
 			stream << ',';
-			compilePointerOffset( callV.getArgument(1), LOWEST );
+			compilePointerOffset(op, LOWEST, !isByteLayout(argKind));
+		}
+		else if(argKind == COMPLETE_OBJECT_AND_PO)
+		{
+			compileCompleteObject(op);
+			stream << ',';
+			compilePointerBase(op);
 		}
 		else
-			compilePointerAs( callV.getArgument(1), argKind );
+			compilePointerAs(op, argKind);
 		stream << ')';
 		return COMPILE_OK;
 	}
