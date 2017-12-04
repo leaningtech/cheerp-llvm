@@ -827,10 +827,11 @@ PointerKindWrapper& PointerUsageVisitor::visitUse(PointerKindWrapper& ret, const
 		case Intrinsic::cheerp_create_closure:
 			if ( U->getOperandNo() == 0)
 				return ret |= COMPLETE_OBJECT;
-			else if ( isa<Function>( p->getOperand(0) ) )
-				return ret |= PointerKindWrapper(SPLIT_REGULAR, p);
 			else
-				llvm::report_fatal_error("Unreachable code in cheerp::PointerAnalyzer::visitUse, cheerp_create_closure");
+			{
+				TypeAndIndex typeAndIndex(pointedType, U->getOperandNo()-1, TypeAndIndex::ARGUMENT);
+				return ret |= pointerKindData.getConstraintPtr(IndirectPointerKindConstraint(INDIRECT_ARG_CONSTRAINT, typeAndIndex));
+			}
 		case Intrinsic::flt_rounds:
 		case Intrinsic::cheerp_allocate:
 		case Intrinsic::memset:

@@ -818,8 +818,23 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 		stream << "cheerpCreateClosure(";
 		compileCompleteObject( callV.getArgument(0) );
 		stream << ',';
-		compilePointerAs( callV.getArgument(1), 
-				  PA.getPointerKind( cast<Function>(callV.getArgument(0))->arg_begin() ) );
+		const llvm::Value* op = callV.getArgument(1);
+		TypeAndIndex typeAndIndex(op->getType()->getPointerElementType(), 0, TypeAndIndex::ARGUMENT);
+		POINTER_KIND argKind = PA.getPointerKindForArgumentTypeAndIndex(typeAndIndex);
+		if(argKind == SPLIT_REGULAR || argKind == SPLIT_BYTE_LAYOUT)
+		{
+			compilePointerBase(op, !isByteLayout(argKind));
+			stream << ',';
+			compilePointerOffset(op, LOWEST, !isByteLayout(argKind));
+		}
+		else if(argKind == COMPLETE_OBJECT_AND_PO)
+		{
+			compileCompleteObject(op);
+			stream << ',';
+			compilePointerBase(op);
+		}
+		else
+			compilePointerAs(op, argKind);
 		stream << ')';
 		return COMPILE_OK;
 	}
@@ -5842,7 +5857,7 @@ void CheerpWriter::compileNullPtrs()
 
 void CheerpWriter::compileCreateClosure()
 {
-	stream << "function cheerpCreateClosure(func, obj){return function(e){func(obj,e);};}" << NewLine;
+	stream << "function cheerpCreateClosure(func){var a=[].splice.call(arguments,1);return function(e){func.apply(null, a);};}" << NewLine;
 }
 
 void CheerpWriter::compileHandleVAArg()
