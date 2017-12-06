@@ -140,6 +140,8 @@ bool AllocaLowering::runOnFunction(Function& F)
 				// Skip if callee not asmjs
 				if (calledFunc && calledFunc->getSection() != StringRef("asmjs"))
 					continue;
+				if(!calledFunc && !asmjs)
+					continue;
 				const PointerType* pTy = cast<PointerType>(ci->getCalledValue()->getType());
 				const FunctionType* fTy = cast<FunctionType>(pTy->getElementType());
 				if (fTy->isVarArg())
