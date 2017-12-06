@@ -1178,8 +1178,6 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 	}
 
-	Type* Int32Ty=IntegerType::get(v->getContext(), 32);
-	ConstantInt* Zero = cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
 	if(const ConstantStruct* CS=dyn_cast<ConstantStruct>(v))
 	{
 		Type* structType = CS->getType();

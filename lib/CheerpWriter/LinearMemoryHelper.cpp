@@ -105,7 +105,7 @@ void LinearMemoryHelper::compileConstantAsBytes(const Constant* c, bool asmjs, B
 				llvm::errs() << "warning: Unsupported constant expr in asm.js module :" << ce->getOpcodeName() << '\n';
 		}
 	}
-	else if(isa<Function>(c) || isa<GlobalVariable>(c))
+	else if((isa<Function>(c) || isa<GlobalVariable>(c)) && !asmjs)
 	{
 		uint32_t val = listener->getObjectGlobalAddr(c) + offset;
 		for(uint32_t i=0;i<32;i+=8)

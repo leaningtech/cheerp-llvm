@@ -1115,7 +1115,7 @@ void CheerpWasmWriter::compilePHIOfBlockFromOtherBlock(WasmBuffer& code, const B
 		WasmBuffer& code;
 		const BasicBlock* fromBB;
 		const BasicBlock* toBB;
-		void handleRecursivePHIDependency(const Instruction* incoming) override
+		void handleRecursivePHIDependency(const Value* incoming) override
 		{
 			assert(incoming);
 			uint32_t numArgs = writer.currentFun->arg_size();
@@ -2382,7 +2382,7 @@ void CheerpWasmWriter::compileMethod(WasmBuffer& code, const Function& F)
 	bool needsLabel = false;
 
 	if (F.size() != 1) {
-		rl = CheerpWriter::runRelooperOnFunction(F, PA, registerize);
+		rl = CheerpWriter::runRelooperOnFunction(F, PA, registerize, nullptr).first;
 		needsLabel = rl->needsLabel();
 	}
 

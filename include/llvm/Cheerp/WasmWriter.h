@@ -121,6 +121,7 @@ private:
 		{
 		}
 		void addByte(uint8_t b) override;
+		uint32_t getObjectGlobalAddr(const llvm::Constant* C) override { assert(false); return 0; }
 	};
 
 	struct WasmGepWriter: public LinearMemoryHelper::GepListener

@@ -3098,8 +3098,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			//This can be a problem if this function or one of the called ones is deoptimized,
 			//as the SROA-ed object will then be materialied with a pessimized hidden type map
 			//which will then be used for all the objects with the same structure
-			if(!noBoilerplate)
-				stream << "aSlot=";
 
 			StringRef varName = namegen.getName(&I);
 			if(k == REGULAR)
@@ -4348,6 +4346,11 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 		}
 		case Instruction::IntToPtr:
 		{
+			if (asmjs)
+			{
+				compileOperand(I.getOperand(0));
+				return COMPILE_OK;
+			}
 			POINTER_KIND k = PA.getPointerKind(&I);
 			if(k == COMPLETE_OBJECT)
 				stream << "cheerpIPO(";
@@ -4784,21 +4787,15 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			}
 			else
 			{
-				assert(!isInlineable(li, PA));
 				if(kind == RAW)
 				{
 					int shift =  getHeapShiftForType(cast<PointerType>(li.getType())->getPointerElementType());
 					if (shift != 0)
 						stream << ">>" << shift;
-				}
-				else
-				{
-					stream <<'o';
-				}
-				stream << ';' << NewLine;
-				stream << namegen.getName(&li) << '=';
-				if(kind == RAW)
+					stream << ';' << NewLine;
+					stream << namegen.getName(&li) << '=';
 					compileHeapForType(cast<PointerType>(li.getType())->getPointerElementType());
+				}
 				else
 				{
 					compileCompleteObject(ptrOp);
@@ -4850,15 +4847,6 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			if (checkDefined && kind == COMPLETE_OBJECT && isGEP(ptrOp))
 				stream<<')';
 			return COMPILE_OK;
-		}
-		case Instruction::IntToPtr:
-		{
-			if (asmjs)
-			{
-				compileOperand(I.getOperand(0));
-				return COMPILE_OK;
-			}
-			// FALLTHROUGH if !asmjs
 		}
 		default:
 			stream << "alert('Unsupported code')";
@@ -5128,7 +5116,7 @@ void CheerpRenderInterface::renderElseBlockBegin()
 void CheerpRenderInterface::renderBlockEnd(bool empty)
 {
 	if (!empty)
-		writer->stream << '}' << NewLine;
+		writer->stream << '}';
 }
 
 void CheerpRenderInterface::renderBlockPrologue(const BasicBlock* bbTo, const BasicBlock* bbFrom)
@@ -5450,7 +5438,6 @@ void CheerpWriter::compileMethod(const Function& F)
 			// TODO: asm.js needs a final return statement.
 			// for now we are putting one at the end of every method, even
 			// if there is already one
-			compileStackRet();
 			stream << "return";
 			if(!F.getReturnType()->isVoidTy())
 			{
@@ -5496,7 +5483,6 @@ void CheerpWriter::compileMethod(const Function& F)
 			// TODO: asm.js needs a final return statement.
 			// for now we are putting one at the end of every method, even
 			// if there is already one
-			compileStackRet();
 			stream << "return";
 			if(!F.getReturnType()->isVoidTy())
 			{
@@ -6106,9 +6092,6 @@ void CheerpWriter::makeJS()
 	// Enable strict mode first
 	stream << "\"use strict\";" << NewLine;
 
-	if(addCredits)
-		stream << "/*Compiled using Cheerp (R) by Leaning Technologies Ltd*/" << NewLine;
-
 	if (measureTimeToMain)
 	{
 		stream << "var __cheerp_now = typeof dateNow!==\"undefined\"?dateNow:(typeof performance!==\"undefined\"?performance.now:function(){return new Date().getTime()});" << NewLine;
@@ -6129,8 +6112,12 @@ void CheerpWriter::makeJS()
 
 	if (wasmFile.empty())
 		compileBuiltins(false);
+	}
 
 	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
+
+	if(!noBoilerplate)
+	{
 	compileNullPtrs();
 
 	// Utility function for loading files
@@ -6233,11 +6220,8 @@ void CheerpWriter::makeJS()
 		compileGlobalsInitAsmJS();
 	}
 
-	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
 	// TODO: Use only if necessary
 	// TODO: Use .o instead of .po
-	if(!noBoilerplate)
-	{
 	stream << "function cheerpPointerBaseInt(v){if(!v)return 0;if(v===nullArray)return 0;if(!v.po){v.po=cheerpAddPtrMapping(v,v.length?v.length:1);}return v.po;}" << NewLine;
 	stream << "function cheerpPI(d,o){if(d===nullArray){return o;}var s=0;var l=0;if(d.BYTES_PER_ELEMENT){s=d.BYTES_PER_ELEMENT;l=d.length;}else if(Array.isArray(d)){s=d[d.length-1|0];l=d.length;}else{s=1;l=1;}if(!d.po){d.po=cheerpAddPtrMapping(d,s*l);}return d.po+o*s;}" << NewLine;
 	stream << "function cheerpIPR(ret){if(!ret){oSlot=0;return nullArray;}var b=cheerpGetPtrBase(ret);var s=0;if(b.BYTES_PER_ELEMENT){s=b.BYTES_PER_ELEMENT;}else if(Array.isArray(b)){s=b[b.length-1|0];}else{s=1;} oSlot=(ret-b.po)/s>>0;return b;}" << NewLine;
