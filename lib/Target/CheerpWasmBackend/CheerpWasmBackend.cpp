@@ -77,7 +77,7 @@ bool CheerpWasmWritePass::runOnModule(Module& M)
 
   if (WasmLoader.empty())
   {
-    cheerp::NameGenerator namegen(M, GDA, registerize, PA, reservedNames, PrettyCode);
+    cheerp::NameGenerator namegen(M, GDA, registerize, PA, reservedNames, PrettyCode, NoBoilerplate);
     cheerp::CheerpWasmWriter writer(M, Out, PA, registerize, GDA, linearHelper, namegen,
                                     M.getContext(), CheerpHeapSize, !WasmLoader.empty(),
                                     PrettyCode, cheerpMode);
@@ -104,7 +104,7 @@ bool CheerpWasmWritePass::runOnModule(Module& M)
     llvm::tool_output_file jsFile(WasmLoader.c_str(), ErrorCode, sys::fs::F_None);
     llvm::formatted_raw_ostream jsOut(jsFile.os());
 
-    cheerp::NameGenerator namegen(M, GDA, registerize, PA, reservedNames, PrettyCode);
+    cheerp::NameGenerator namegen(M, GDA, registerize, PA, reservedNames, PrettyCode, NoBoilerplate);
     cheerp::CheerpWasmWriter wasmWriter(M, Out, PA, registerize, GDA, linearHelper, namegen,
                                     M.getContext(), CheerpHeapSize, !WasmLoader.empty(),
                                     PrettyCode, cheerpMode);
@@ -113,7 +113,7 @@ bool CheerpWasmWritePass::runOnModule(Module& M)
     cheerp::CheerpWriter writer(M, jsOut, PA, registerize, GDA, linearHelper, namegen, nullptr, std::string(),
             sourceMapGenerator, reservedNames, PrettyCode, MakeModule, NoRegisterize, !NoNativeJavaScriptMath,
             !NoJavaScriptMathImul, !NoJavaScriptMathFround, !NoCredits, MeasureTimeToMain, CheerpHeapSize,
-            BoundsCheck, DefinedCheck, SymbolicGlobalsAsmJS, WasmFile, ForceTypedArrays);
+            BoundsCheck, DefinedCheck, SymbolicGlobalsAsmJS, WasmFile, ForceTypedArrays, NoBoilerplate);
     writer.makeJS();
     if (ErrorCode)
     {

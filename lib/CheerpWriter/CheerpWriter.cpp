@@ -4786,45 +4786,41 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				stream << ')';
 			}
 			else
-			{
-				if(kind == RAW)
-				{
-					int shift =  getHeapShiftForType(cast<PointerType>(li.getType())->getPointerElementType());
-					if (shift != 0)
-						stream << ">>" << shift;
-					stream << ';' << NewLine;
-					stream << namegen.getName(&li) << '=';
-					compileHeapForType(cast<PointerType>(li.getType())->getPointerElementType());
-				}
-				else
-				{
 					compileCompleteObject(ptrOp);
-					if(li.getType()->isPointerTy() && !li.use_empty() && !PA.getConstantOffsetForPointer(&li))
+			if(li.getType()->isPointerTy() && !li.use_empty() && !PA.getConstantOffsetForPointer(&li))
+			{
+				POINTER_KIND loadedKind = PA.getPointerKind(&li);
+				if(loadedKind == SPLIT_REGULAR || loadedKind == SPLIT_BYTE_LAYOUT)
+				{
+					assert(!isInlineable(li, PA));
+					if(kind == RAW)
 					{
-						POINTER_KIND loadedKind = PA.getPointerKind(&li);
-						if(loadedKind == SPLIT_REGULAR || loadedKind == SPLIT_BYTE_LAYOUT)
-						{
-							assert(!isInlineable(li, PA));
-							stream <<'o';
-							stream << ';' << NewLine;
-							STACKLET_STATUS stackletStatus = needsStacklet(&li);
-							stream << namegen.getName(&li) << '=';
-							if(stackletStatus == STACKLET_NEEDED)
-								stream << "a." << namegen.getName(&li) << '=';
-							compileCompleteObject(ptrOp);
-						}
-						else if(loadedKind == COMPLETE_OBJECT_AND_PO)
-						{
-							assert(!isInlineable(li, PA));
-							stream <<'b';
-							stream << ';' << NewLine;
-							STACKLET_STATUS stackletStatus = needsStacklet(&li);
-							stream << namegen.getName(&li) << '=';
-							if(stackletStatus == STACKLET_NEEDED)
-								stream << "a." << namegen.getName(&li) << '=';
-							compileCompleteObject(ptrOp);
-						}
+						int shift =  getHeapShiftForType(cast<PointerType>(li.getType())->getPointerElementType());
+						if (shift != 0)
+							stream << ">>" << shift;
 					}
+					else
+						stream <<'o';
+					stream << ';' << NewLine;
+					STACKLET_STATUS stackletStatus = needsStacklet(&li);
+					stream << namegen.getName(&li) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.getName(&li) << '=';
+					if(kind == RAW)
+						compileHeapForType(cast<PointerType>(li.getType())->getPointerElementType());
+					else
+						compileCompleteObject(ptrOp);
+				}
+				else if(loadedKind == COMPLETE_OBJECT_AND_PO)
+				{
+					assert(!isInlineable(li, PA));
+					stream <<'b';
+					stream << ';' << NewLine;
+					STACKLET_STATUS stackletStatus = needsStacklet(&li);
+					stream << namegen.getName(&li) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.getName(&li) << '=';
+					compileCompleteObject(ptrOp);
 				}
 			}
 			if(regKind==Registerize::INTEGER && needsIntCoercion(regKind, parentPrio))
@@ -6110,8 +6106,7 @@ void CheerpWriter::makeJS()
 		compileCheckDefinedHelper();
 	}
 
-	if (wasmFile.empty())
-		compileBuiltins(false);
+	compileBuiltins(false);
 	}
 
 	std::vector<StringRef> exportedClassNames = compileClassesExportedToJs();
