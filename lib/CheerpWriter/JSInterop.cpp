@@ -20,6 +20,8 @@ void CheerpWriter::addExportedFreeFunctions(std::vector<StringRef>& namesList, c
 	{
 		const MDNode * node = *it;
 		const Function * f = cast<Function>(cast<ConstantAsMetadata>(node->getOperand(0))->getValue());
+		if(f->getSection() == StringRef("asmjs"))
+			continue;
 		// Currently we assign the function to the mangled name, it works better with extern "C" functions
 		stream << "var " << f->getName() << '=';
 		compileOperand(f);
