@@ -3921,6 +3921,11 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 				stream << "?1:0";
 				if(parentPrio >= TERNARY) stream << ')';
 			}
+			else if(isa<LoadInst>(I.getOperand(0)) && asmjs && (src->isIntegerTy(8) || src->isIntegerTy(16)))
+			{
+				// Loads from the asm.js heap are made with unsigned typed arrays, so there is not need to mask anything
+				compileOperand(bi.getOperand(0), parentPrio);
+			}
 			else
 			{
 				//Let's mask out upper bits, to make sure we get zero extension
@@ -4536,7 +4541,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 					}
 					else
 					{
-						compileRawPointer(calledValue, PARENT_PRIORITY::LOGICAL_AND);
+						compileRawPointer(calledValue, PARENT_PRIORITY::HIGHEST);
 					}
 					stream << '&' << linearHelper.getFunctionAddressMask(fTy) << ']';
 				}
