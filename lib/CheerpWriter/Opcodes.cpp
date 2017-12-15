@@ -70,7 +70,12 @@ void CheerpWriter::compilePtrToInt(const llvm::Value* v)
 	// Multiplying by the size is only required for pointer subtraction, which implies that the type is sized
 	uint64_t typeSize = pointedType->isSized() ? targetData.getTypeAllocSize(pointedType) : 0;
 	// Create the pointer base offset on demand
-	if(PA.getPointerKind(v) == COMPLETE_OBJECT)
+	if (PA.getPointerKind(v) == RAW)
+	{
+		compileRawPointer(v);
+		stream << "|0";
+	}
+	else if(PA.getPointerKind(v) == COMPLETE_OBJECT)
 	{
 		stream << "cheerpPointerBaseInt(";
 		compileOperand(v);
