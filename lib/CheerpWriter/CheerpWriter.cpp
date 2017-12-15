@@ -860,7 +860,8 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 	}
 	else if(intrinsicId==Intrinsic::ctlz)
 	{
-		stream << "Math.clz32(";
+		const char* Math = asmjs ? "" : "Math.";
+		stream << Math << "clz32(";
 		compileOperand(*it, LOWEST);
 		stream << ')';
 		return COMPILE_OK;
@@ -5935,6 +5936,7 @@ void CheerpWriter::compileMathDeclAsmJS()
 	stream << "var sin=stdlib.Math.sin;" << NewLine;
 	stream << "var sqrt=stdlib.Math.sqrt;" << NewLine;
 	stream << "var tan=stdlib.Math.tan;" << NewLine;
+	stream << "var clz32=stdlib.Math.clz32;" << NewLine;
 }
 
 void CheerpWriter::compileAsmJSImports()
