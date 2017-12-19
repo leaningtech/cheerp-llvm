@@ -2180,6 +2180,7 @@ static Constant *ConstantFoldGetElementPtrImpl(Constant *C,
           } else {
 #else
          {
+             (void) Prev; // fix "warning: variable 'Prev' set but not used"
 #endif
             // It's out of range, but the prior dimension is a struct
             // so we can't do anything about it.
