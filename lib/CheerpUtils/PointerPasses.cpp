@@ -22,6 +22,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -947,6 +948,23 @@ bool PointerToImmutablePHIRemoval::runOnFunction(Function& F)
 			BasicBlock* parentBlock = phi->getParent();
 			if (parentBlock->getTerminator()->getNumSuccessors() == 0 && parentBlock->size() <= 5)
 			{
+				// Check if any inst if a recoverable call with a specified PC, duplicating those is a bad idea
+				bool hasPCs = false;
+				for(Instruction& I: *parentBlock)
+				{
+					if(I.getOpcode() != Instruction::Call && I.getOpcode() != Instruction::Invoke)
+						continue;
+					const llvm::Value* calledValue = isa<CallInst>(I) ? cast<CallInst>(I).getCalledValue() : cast<InvokeInst>(I).getCalledValue();
+	                                const InlineAsm* ia = dyn_cast<InlineAsm>(calledValue);
+					if(!ia)
+						continue;
+					if(!ia->isAlignStack())
+						continue;
+					hasPCs = true;
+					break;
+				}
+				if(hasPCs)
+					continue;
 				hoistBlock(parentBlock);
 				Changed = true;
 				break;
