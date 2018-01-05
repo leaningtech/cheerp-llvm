@@ -3070,7 +3070,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 		}
 		case Instruction::Resume:
 		{
-			stream << "a.pc=-1;return";
+			stream << "a.pc=-1;return;";
 			return COMPILE_OK;
 		}
 		case Instruction::Br:
