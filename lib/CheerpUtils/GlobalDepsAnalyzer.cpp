@@ -148,9 +148,6 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 		ci->eraseFromParent();
 	}
 
-	// Create a dummy function that prevents nullptr conflicts.
-	createNullptrFunction(module);
-
 	//Compile the list of JS methods
 	//Look for metadata which ends in _methods. They are the have the list
 	//of exported methods for JS layout classes
@@ -175,14 +172,6 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 			assert( visited.empty() );
 			externals.push_back(f);
 		}
-	}
-
-	// Mark the __wasm_nullptr as reachable.
-	llvm::Function* wasmNullptr = module.getFunction(StringRef(wasmNullptrName));
-	if (wasmNullptr) {
-		SubExprVec vec;
-		visitGlobal(wasmNullptr, visited, vec);
-		assert(visited.empty());
 	}
 
 #define USE_MEMORY_FUNC(var, name) \
@@ -280,6 +269,18 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 		functionsQueue.pop_back();
 		visitFunction( F, visited);
 		assert( visited.empty() );
+	}
+
+	// Create a dummy function that prevents nullptr conflicts.
+	if(hasAsmJS)
+		createNullptrFunction(module);
+
+	// Mark the __wasm_nullptr as reachable.
+	llvm::Function* wasmNullptr = module.getFunction(StringRef(wasmNullptrName));
+	if (wasmNullptr) {
+		SubExprVec vec;
+		visitGlobal(wasmNullptr, visited, vec);
+		assert(visited.empty());
 	}
 
 	NumRemovedGlobals = filterModule(module);
