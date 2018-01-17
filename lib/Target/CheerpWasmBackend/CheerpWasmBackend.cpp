@@ -27,6 +27,7 @@
 #include "llvm/Cheerp/ResolveAliases.h"
 #include "llvm/Cheerp/AllocaMerging.h"
 #include "llvm/Cheerp/AllocaLowering.h"
+#include "llvm/Cheerp/AllocateArrayLowering.h"
 #include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/ResolveAliases.h"
 #include "llvm/Cheerp/SourceMaps.h"
@@ -147,6 +148,7 @@ bool CheerpBaseTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
   PM.add(createAllocaLoweringPass());
+  PM.add(createAllocateArrayLoweringPass());
   PM.add(createResolveAliasesPass());
   PM.add(createFreeAndDeleteRemovalPass());
   PM.add(cheerp::createGlobalDepsAnalyzerPass());
