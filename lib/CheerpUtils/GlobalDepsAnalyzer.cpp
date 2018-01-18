@@ -143,6 +143,8 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 				}
 			}
 		}
+		if (F.getSection() == StringRef("asmjs"))
+			hasAsmJS = true;
 	}
 	for (CallInst* ci : deleteList) {
 		ci->eraseFromParent();
@@ -375,9 +377,8 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 {
 	VisitedSet NewvisitPath;
 
+	const Module* module = F->getParent();
 	bool isAsmJS = F->getSection() == StringRef("asmjs");
-	if (isAsmJS)
-		hasAsmJS = true;
 	for ( const BasicBlock & bb : *F )
 		for (const Instruction & I : bb)
 		{
@@ -409,6 +410,8 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						visitStruct(ST);
 				}
 			}
+			if (I.getOpcode() == Instruction::VAArg)
+				hasVAArgs = true;
 			// Handle calls from asmjs module to outside and vice-versa
 			// and fill the info for the function tables
 			if (isa<CallInst>(I))
@@ -422,8 +425,11 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 					const llvm::User* bc = cast<llvm::User>(ci.getCalledValue());
 					calledFunc = dyn_cast<Function>(bc->getOperand(0));
 				}
+				// TODO: Handle import/export of indirect calls if possible
+				if (!calledFunc)
+					continue;
 				// Direct call
-				if (calledFunc && !calledFunc->isIntrinsic())
+				if (!calledFunc->isIntrinsic())
 				{
 					bool calleeIsAsmJS = calledFunc->getSection() == StringRef("asmjs");
 					// asm.js function called from outside
@@ -434,13 +440,14 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						asmJSImportedFuncions.insert(calledFunc);
 				}
 				// if this is an allocation intrinsic and we are in asmjs,
-				// visit the corresponding libc function. The same applies if the allocate type is asmjs.
-				else if (calledFunc && (isAsmJS || TypeSupport::isAsmJSPointer(calledFunc->getReturnType())))
+				// visit the corresponding libc function. The same applies if the allocated type is asmjs.
+				else if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_allocate ||
+				    calledFunc->getIntrinsicID() == Intrinsic::cheerp_allocate_array)
 				{
-					if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_allocate ||
-					    calledFunc->getIntrinsicID() == Intrinsic::cheerp_allocate_array)
+					Type* ty = calledFunc->getReturnType();
+					bool basicType = !ty->isAggregateType();
+					if (hasAsmJS && (isAsmJS || basicType))
 					{
-						const Module* module = calledFunc->getParent();
 						Function* fmalloc = module->getFunction("malloc");
 						if (fmalloc)
 						{
@@ -450,9 +457,13 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 								asmJSExportedFuncions.insert(fmalloc);
 						}
 					}
-					else if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_reallocate)
+				}
+				else if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_reallocate)
+				{
+					Type* ty = calledFunc->getReturnType();
+					bool basicType = !ty->isAggregateType();
+					if (hasAsmJS && (isAsmJS || basicType))
 					{
-						const Module* module = calledFunc->getParent();
 						Function* frealloc = module->getFunction("realloc");
 						if (frealloc)
 						{
@@ -462,10 +473,14 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 								asmJSExportedFuncions.insert(frealloc);
 						}
 					}
-					else if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_deallocate ||
-					         calledFunc->getIntrinsicID() == Intrinsic::cheerp_deallocate_array)
+				}
+				else if (calledFunc->getIntrinsicID() == Intrinsic::cheerp_deallocate ||
+				         calledFunc->getIntrinsicID() == Intrinsic::cheerp_deallocate_array)
+				{
+					Type* ty = ci.getOperand(0)->getType();
+					bool basicType = !ty->isAggregateType();
+					if (hasAsmJS && (isAsmJS || basicType))
 					{
-						const Module* module = calledFunc->getParent();
 						Function* ffree = module->getFunction("free");
 						if (ffree)
 						{
@@ -476,10 +491,7 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						}
 					}
 				}
-				// TODO: Handle import/export of indirect calls if possible
 			}
-			if (I.getOpcode() == Instruction::VAArg)
-				hasVAArgs = true;
 		}
 	
 	// Gather informations about all the classes which may be downcast targets
