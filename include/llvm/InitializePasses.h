@@ -293,6 +293,7 @@ void initializeRewriteSymbolsPass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
 void initializeAllocaMergingPass(PassRegistry&);
 void initializeGlobalDepsAnalyzerPass(PassRegistry&);
+void initializeIdenticalCodeFoldingPass(PassRegistry&);
 void initializePointerAnalyzerPass(PassRegistry&);
 void initializeRegisterizePass(PassRegistry&);
 void initializeStructMemFuncLoweringPass(PassRegistry&);
