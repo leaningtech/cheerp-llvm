@@ -145,6 +145,7 @@ public:
   }
 
   bool hasFailed() const override { return CleanAbort; }
+  void resetFailed() override { ECStack.clear(); CleanAbort = false; }
 
   // Methods used to execute code:
   // Place a call on the stack
