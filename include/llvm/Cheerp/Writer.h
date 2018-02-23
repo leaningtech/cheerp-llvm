@@ -375,7 +375,7 @@ private:
 			stream << "}";
 		}
 		else if (PA.getConstantOffsetForPointer(p) ||
-			(valueKind == SPLIT_REGULAR || valueKind == SPLIT_BYTE_LAYOUT)
+			(valueKind == SPLIT_REGULAR || valueKind == SPLIT_BYTE_LAYOUT) ||
 			valueKind == RAW)
 		{
 			stream << "{d:";
