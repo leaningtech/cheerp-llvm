@@ -249,10 +249,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
     return "zeroext";
   if (hasAttribute(Attribute::Cold))
     return "cold";
-  if (hasAttribute(Attribute::Client))
-    return "client";
-  if (hasAttribute(Attribute::Server))
-    return "server";
   if (hasAttribute(Attribute::Static))
     return "static";
 
@@ -432,8 +428,6 @@ uint64_t AttributeImpl::getAttrMask(Attribute::AttrKind Val) {
   case Attribute::InAlloca:        return 1ULL << 43;
   case Attribute::NonNull:         return 1ULL << 44;
   case Attribute::JumpTable:       return 1ULL << 45;
-  case Attribute::Client:          return 1ULL << 46;
-  case Attribute::Server:          return 1ULL << 47;
   case Attribute::Static:          return 1ULL << 49;
   case Attribute::Dereferenceable:
     llvm_unreachable("dereferenceable attribute not supported in raw format");

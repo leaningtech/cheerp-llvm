@@ -839,8 +839,6 @@ void Verifier::VerifyAttributeTypes(AttributeSet Attrs, unsigned Idx,
         I->getKindAsEnum() == Attribute::Cold ||
         I->getKindAsEnum() == Attribute::OptimizeNone ||
         I->getKindAsEnum() == Attribute::JumpTable ||
-        I->getKindAsEnum() == Attribute::Client ||
-        I->getKindAsEnum() == Attribute::Server ||
         I->getKindAsEnum() == Attribute::Static) {
       if (!isFunction) {
         CheckFailed("Attribute '" + I->getAsString() +

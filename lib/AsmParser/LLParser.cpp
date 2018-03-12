@@ -975,8 +975,6 @@ bool LLParser::ParseFnAttributeValuePairs(AttrBuilder &B,
     case lltok::kw_sanitize_thread:   B.addAttribute(Attribute::SanitizeThread); break;
     case lltok::kw_sanitize_memory:   B.addAttribute(Attribute::SanitizeMemory); break;
     case lltok::kw_uwtable:           B.addAttribute(Attribute::UWTable); break;
-    case lltok::kw_client:            B.addAttribute(Attribute::Client); break;
-    case lltok::kw_server:            B.addAttribute(Attribute::Server); break;
     case lltok::kw_static:            B.addAttribute(Attribute::Static); break;
 
     // Error handling.

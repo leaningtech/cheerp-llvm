@@ -238,10 +238,6 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_UW_TABLE;
   case Attribute::ZExt:
     return bitc::ATTR_KIND_Z_EXT;
-  case Attribute::Client:
-    return bitc::ATTR_KIND_CLIENT;
-  case Attribute::Server:
-    return bitc::ATTR_KIND_SERVER;
   case Attribute::Static:
     return bitc::ATTR_KIND_STATIC;
   case Attribute::EndAttrKinds:
