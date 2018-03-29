@@ -1362,6 +1362,11 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		}
 	}
 
+	if(isa<AllocaInst>(v))
+	{
+		return CacheAndReturn(ret |= Zero);
+	}
+
 	return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 }
 

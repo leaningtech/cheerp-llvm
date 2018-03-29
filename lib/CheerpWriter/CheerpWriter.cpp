@@ -3272,6 +3272,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			const auto* allocaStores = allocaStoresExtractor.getValuesForAlloca(ai);
 			POINTER_KIND k = PA.getPointerKind(ai);
 			assert(k != RAW && "Allocas to RAW pointers are removed in the AllocaLowering pass");
+			bool hasConstantOffset = PA.getConstantOffsetForPointer(ai);
 
 			//V8: If the variable is passed to a call make sure that V8 does not try to SROA it
 			//This can be a problem if this function or one of the called ones is deoptimized,
@@ -3287,12 +3288,15 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			}
 			else if(k == SPLIT_REGULAR)
 			{
-				stream << '0';
-				stream << ';' << NewLine;
-				STACKLET_STATUS stackletStatus = needsStacklet(&I);
-				stream << namegen.getName(&I) << '=';
-				if(stackletStatus == STACKLET_NEEDED)
-					stream << "a." << namegen.getName(ai) << '=';
+				if(!hasConstantOffset)
+				{
+					stream << '0';
+					stream << ';' << NewLine;
+					STACKLET_STATUS stackletStatus = needsStacklet(&I);
+					stream << namegen.getName(&I) << '=';
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.getName(ai) << '=';
+				}
 				Type* elementType = ai->getAllocatedType();
 				stream << '[';
 				compileType(elementType, LITERAL_OBJ, varName, allocaStores);
@@ -3322,13 +3326,16 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileNotInlineableIns
 			}
 			else if(k == SPLIT_BYTE_LAYOUT)
 			{
-				stream << '0';
-				stream << ';' << NewLine;
-				STACKLET_STATUS stackletStatus = needsStacklet(&I);
-				if(stackletStatus == STACKLET_NEEDED)
-					stream << "a." << namegen.getName(&I) << '=';
-				stream << namegen.getName(&I) << '=';
-				stream << "new Uint8Array(((" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")+ 7) & (~7))";
+				if(!hasConstantOffset)
+				{
+					stream << '0';
+					stream << ';' << NewLine;
+					STACKLET_STATUS stackletStatus = needsStacklet(&I);
+					if(stackletStatus == STACKLET_NEEDED)
+						stream << "a." << namegen.getName(&I) << '=';
+					stream << namegen.getName(&I) << '=';
+				}
+				stream << "new Uint8Array(" << targetData.getTypeAllocSize(ai->getAllocatedType()) << ")";
 			}
 			else 
 				compileType(ai->getAllocatedType(), LITERAL_OBJ, varName, allocaStores);
