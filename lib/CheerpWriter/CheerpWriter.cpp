@@ -3981,6 +3981,13 @@ void CheerpWriter::compileUnsignedInteger(const llvm::Value* v, bool forAsmJSCom
 	}
 	else
 	{
+		// Special case loads from BL memory, those are already zero extended
+		const LoadInst* LI = dyn_cast<LoadInst>(v);
+		if(LI && isByteLayout(PA.getPointerKind(LI->getPointerOperand())))
+		{
+			compileOperand(v, parentPrio);
+			return;
+		}
 		if(parentPrio > BIT_AND) stream << '(';
 		compileOperand(v, BIT_AND);
 		stream << '&' << getMaskForBitWidth(initialSize);
