@@ -663,8 +663,157 @@ int GlobalDepsAnalyzer::filterModule( llvm::Module & module )
 		{
 			// Never internalize functions that may have a better native implementation
 			LibFunc::Func Func;
-			if (!TLI->getLibFunc(f->getName(), Func))
+			bool isLibFunc = TLI->getLibFunc(f->getName(), Func);
+			if (!isLibFunc)
 				f->setLinkage(GlobalValue::InternalLinkage);
+			else
+			{
+				switch(Func)
+				{
+					case LibFunc::cospi:
+					case LibFunc::cospif:
+					case LibFunc::sinpi:
+					case LibFunc::sinpif:
+					case LibFunc::sqrt_finite:
+					case LibFunc::sqrtf_finite:
+					case LibFunc::sqrtl_finite:
+					case LibFunc::abs:
+					case LibFunc::acos:
+					case LibFunc::acosf:
+					case LibFunc::acosh:
+					case LibFunc::acoshf:
+					case LibFunc::acoshl:
+					case LibFunc::acosl:
+					case LibFunc::asin:
+					case LibFunc::asinf:
+					case LibFunc::asinh:
+					case LibFunc::asinhf:
+					case LibFunc::asinhl:
+					case LibFunc::asinl:
+					case LibFunc::atan:
+					case LibFunc::atan2:
+					case LibFunc::atan2f:
+					case LibFunc::atan2l:
+					case LibFunc::atanf:
+					case LibFunc::atanh:
+					case LibFunc::atanhf:
+					case LibFunc::atanhl:
+					case LibFunc::atanl:
+					case LibFunc::calloc:
+					case LibFunc::cbrt:
+					case LibFunc::cbrtf:
+					case LibFunc::cbrtl:
+					case LibFunc::ceil:
+					case LibFunc::ceilf:
+					case LibFunc::ceill:
+					case LibFunc::copysign:
+					case LibFunc::copysignf:
+					case LibFunc::copysignl:
+					case LibFunc::cos:
+					case LibFunc::cosf:
+					case LibFunc::cosh:
+					case LibFunc::coshf:
+					case LibFunc::coshl:
+					case LibFunc::cosl:
+					case LibFunc::exp:
+					case LibFunc::exp10:
+					case LibFunc::exp10f:
+					case LibFunc::exp10l:
+					case LibFunc::exp2:
+					case LibFunc::exp2f:
+					case LibFunc::exp2l:
+					case LibFunc::expf:
+					case LibFunc::expl:
+					case LibFunc::expm1:
+					case LibFunc::expm1f:
+					case LibFunc::expm1l:
+					case LibFunc::fabs:
+					case LibFunc::fabsf:
+					case LibFunc::fabsl:
+					case LibFunc::ffs:
+					case LibFunc::ffsl:
+					case LibFunc::ffsll:
+					case LibFunc::floor:
+					case LibFunc::floorf:
+					case LibFunc::floorl:
+					case LibFunc::fmax:
+					case LibFunc::fmaxf:
+					case LibFunc::fmaxl:
+					case LibFunc::fmin:
+					case LibFunc::fminf:
+					case LibFunc::fminl:
+					case LibFunc::fmod:
+					case LibFunc::fmodf:
+					case LibFunc::fmodl:
+					case LibFunc::free:
+					case LibFunc::frexp:
+					case LibFunc::frexpf:
+					case LibFunc::frexpl:
+					case LibFunc::labs:
+					case LibFunc::ldexp:
+					case LibFunc::ldexpf:
+					case LibFunc::ldexpl:
+					case LibFunc::llabs:
+					case LibFunc::log:
+					case LibFunc::log10:
+					case LibFunc::log10f:
+					case LibFunc::log10l:
+					case LibFunc::log1p:
+					case LibFunc::log1pf:
+					case LibFunc::log1pl:
+					case LibFunc::log2:
+					case LibFunc::log2f:
+					case LibFunc::log2l:
+					case LibFunc::logb:
+					case LibFunc::logbf:
+					case LibFunc::logbl:
+					case LibFunc::logf:
+					case LibFunc::logl:
+					case LibFunc::malloc:
+					case LibFunc::memcmp:
+					case LibFunc::memcpy:
+					case LibFunc::memmove:
+					case LibFunc::memset:
+					case LibFunc::modff:
+					case LibFunc::modfl:
+					case LibFunc::nearbyint:
+					case LibFunc::nearbyintf:
+					case LibFunc::nearbyintl:
+					case LibFunc::pow:
+					case LibFunc::powf:
+					case LibFunc::powl:
+					case LibFunc::realloc:
+					case LibFunc::reallocf:
+					case LibFunc::rint:
+					case LibFunc::rintf:
+					case LibFunc::rintl:
+					case LibFunc::round:
+					case LibFunc::roundf:
+					case LibFunc::roundl:
+					case LibFunc::sin:
+					case LibFunc::sinf:
+					case LibFunc::sinh:
+					case LibFunc::sinhf:
+					case LibFunc::sinhl:
+					case LibFunc::sinl:
+					case LibFunc::sqrt:
+					case LibFunc::sqrtf:
+					case LibFunc::sqrtl:
+					case LibFunc::tan:
+					case LibFunc::tanf:
+					case LibFunc::tanh:
+					case LibFunc::tanhf:
+					case LibFunc::tanhl:
+					case LibFunc::tanl:
+					case LibFunc::trunc:
+					case LibFunc::truncf:
+					case LibFunc::truncl:
+						break;
+					default:
+						f->setLinkage(GlobalValue::InternalLinkage);
+						break;
+				}
+			}
 		}
 		
 		if ( !isReachable(f) )
