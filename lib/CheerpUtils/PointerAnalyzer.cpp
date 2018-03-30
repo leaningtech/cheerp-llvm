@@ -1319,7 +1319,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 	{
 		const llvm::Function* parentFunc = a->getParent();
 		int argNo = a->getArgNo();
-		if(!parentFunc->hasAddressTaken())
+		if(!parentFunc->hasAddressTaken() && (parentFunc->hasInternalLinkage() || parentFunc->empty()))
 		{
 			bool noUser = true;
 			for(const User* U: parentFunc->users())
