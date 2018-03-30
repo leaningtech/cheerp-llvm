@@ -379,19 +379,10 @@ void CheerpWriter::compileMemFunc(const Value* dest, const Value* src, const Val
 		stream << "if(__numElem__>1)" << NewLine << '{';
 	if(!constantNumElements || numElem>1)
 	{
-		bool byteLayout = isByteLayout(PA.getPointerKind(dest));
 		// The semantics of TypedArray.set is memmove-like, no need to care about direction
-		if(byteLayout)
-			stream << "(new Int8Array(";
 		compilePointerBase(dest);
-		if(byteLayout)
-			stream << ".buffer))";
 		stream << ".set(";
-		if(byteLayout)
-			stream << "(new Int8Array(";
 		compilePointerBase(src);
-		if(byteLayout)
-			stream << ".buffer))";
 
 		//We need to get a subview of the source
 		stream << ".subarray(";
