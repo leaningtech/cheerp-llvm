@@ -1907,13 +1907,10 @@ void PointerAnalyzer::computeConstantOffsets(const Module& M)
 			}
 			getFinalPointerConstantOffsetWrapper(GV.getInitializer(), /*forCoAndPo*/false);
 		}
-		else if(GV.getInitializer()->getType()->isPointerTy() || GV.getSection() == StringRef("bytelayout"))
-		{
-			POINTER_KIND k = getPointerKind(&GV);
-			if(k == COMPLETE_OBJECT)
-				continue;
-			getFinalPointerConstantOffsetWrapper(&GV, k == COMPLETE_OBJECT_AND_PO || k ==COMPLETE_OBJECT_AND_PO_OBJ);
-		}
+		POINTER_KIND k = getPointerKind(&GV);
+		if(k == COMPLETE_OBJECT)
+			continue;
+		getFinalPointerConstantOffsetWrapper(&GV, k == COMPLETE_OBJECT_AND_PO || k ==COMPLETE_OBJECT_AND_PO_OBJ);
 	}
 
 	while(!globalsUsersQueue.empty())
