@@ -2080,7 +2080,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 					}
 					curType = curType->getSequentialElementType();
 				}
-				if (skipUntilBytelayout && TypeSupport::hasByteLayout(curType))
+				if (skipUntilBytelayout && (TypeSupport::hasByteLayout(curType) || (curType->isArrayTy() && curType->getArrayElementType()->isIntegerTy(8))))
 					skipUntilBytelayout = false;
 			}
 			if (indices.size() > 1)
