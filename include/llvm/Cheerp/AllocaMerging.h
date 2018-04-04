@@ -59,12 +59,14 @@ public:
 	void getAnalysisUsage(llvm::AnalysisUsage & AU) const;
 };
 
-//===----------------------------------------------------------------------===//
-//
-// AllocaMerging - This pass merges allocas which are not used at the same time
-//
-llvm::FunctionPass *createAllocaMergingPass();
-llvm::FunctionPass *createAllocaArraysMergingPass();
+class ByteLayoutAllocaToByteArray: public llvm::BasicBlockPass
+{
+public:
+	static char ID;
+	explicit ByteLayoutAllocaToByteArray() : llvm::BasicBlockPass(ID) { }
+	bool runOnBasicBlock(llvm::BasicBlock &BB) override;
+	const char *getPassName() const;
+};
 
 // NOTE: This is a ModulePass only to make LLVM happy, it actually only work at the block level
 class AllocaStoresExtractor: public llvm::ModulePass
@@ -91,9 +93,18 @@ public:
 
 //===----------------------------------------------------------------------===//
 //
+// AllocaMerging - This pass merges allocas which are not used at the same time
+//
+llvm::FunctionPass *createAllocaMergingPass();
+llvm::FunctionPass *createAllocaArraysMergingPass();
+
+//===----------------------------------------------------------------------===//
+//
 // AllocaStoresExtractor - This pass removes stores to just allocated memory and keeps track of the values separately
 //
 llvm::ModulePass* createAllocaStoresExtractor();
+
+llvm::BasicBlockPass* createByteLayoutAllocaToByteArrayPass();
 }
 
 #endif //_CHEERP_ALLOCA_MERGING_H

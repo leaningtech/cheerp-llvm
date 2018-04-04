@@ -131,6 +131,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            bool DisableVerify,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
+  PM.add(cheerp::createByteLayoutAllocaToByteArrayPass());
   PM.add(createAllocaLoweringPass());
   PM.add(createResolveAliasesPass());
 //  PM.add(createFreeAndDeleteRemovalPass());

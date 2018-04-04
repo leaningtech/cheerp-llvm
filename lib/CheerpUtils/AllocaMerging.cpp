@@ -409,6 +409,7 @@ char AllocaArraysMerging::ID = 0;
 
 FunctionPass *createAllocaArraysMergingPass() { return new AllocaArraysMerging(); }
 
+<<<<<<< HEAD
 bool AllocaStoresExtractor::validType(llvm::Type* t, const Module& module)
 {
 	if(TypeSupport::hasByteLayout(t))
@@ -694,6 +695,55 @@ void AllocaStoresExtractor::getAnalysisUsage(AnalysisUsage & AU) const
 char AllocaStoresExtractor::ID = 0;
 
 ModulePass *createAllocaStoresExtractor() { return new AllocaStoresExtractor(); }
+
+bool ByteLayoutAllocaToByteArray::runOnBasicBlock(BasicBlock& BB)
+{
+	DataLayoutPass* DLP = getAnalysisIfAvailable<DataLayoutPass>();
+	assert(DLP);
+	const DataLayout* DL = &DLP->getDataLayout();
+	assert(DL);
+	bool Changed = false;
+	auto it = BB.begin();
+	auto itE = BB.end();
+	while(it != itE)
+	{
+		AllocaInst* AI = dyn_cast<AllocaInst>(&(*it));
+		++it;
+		if(!AI)
+			continue;
+		if(AI->isArrayAllocation())
+			continue;
+		StructType* ST = dyn_cast<StructType>(AI->getAllocatedType());
+		if(!ST)
+			continue;
+		if(!ST->hasByteLayout())
+			continue;
+		// Convert this struct alloca to an i8 array of the same size. These will be merged later on.
+		// TODO: Maybe move this pass after AllocaMerging
+		uint32_t byteSize = DL->getTypeAllocSize(ST);
+		AllocaInst* newI = new AllocaInst(ArrayType::get(IntegerType::get(ST->getContext(), 8), byteSize), "", AI);
+		newI->takeName(AI);
+		Type* indexType = IntegerType::get(ST->getContext(), 32);
+		SmallVector<Value*, 4> indices;
+		indices.push_back(ConstantInt::get(indexType, 0));
+		indices.push_back(ConstantInt::get(indexType, 0));
+		Instruction* newGEP = GetElementPtrInst::Create(newI, indices, "", AI);
+		Instruction* newCast = new BitCastInst(newGEP, AI->getType(), "", AI);
+		AI->replaceAllUsesWith(newCast);
+		AI->eraseFromParent();
+		Changed = true;
+	}
+	return Changed;
+}
+
+const char *ByteLayoutAllocaToByteArray::getPassName() const {
+	return "ByteLayoutAllocaToByteArray";
+}
+
+char ByteLayoutAllocaToByteArray::ID = 0;
+
+BasicBlockPass *createByteLayoutAllocaToByteArrayPass() { return new ByteLayoutAllocaToByteArray(); }
+
 }
 
 using namespace cheerp;
