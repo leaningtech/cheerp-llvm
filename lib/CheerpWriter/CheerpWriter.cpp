@@ -2118,7 +2118,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 		bool firstAdd = false;
 		if(const ConstantInt* CI=PA.getConstantOffsetForPointer(p))
 		{
-			uint32_t addOffset = CI->getSExtValue() * targetData.getTypeAllocSize(p->getType()->getPointerElementType());
+			uint32_t addOffset = CI->getSExtValue();
 			if(!constPart && addOffset)
 				opCount++;
 			constPart += addOffset;
