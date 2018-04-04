@@ -1133,7 +1133,19 @@ const ConstantInt* PointerConstantOffsetVisitor::getPointerOffsetFromGEP(const V
 		return cast<ConstantInt>(ConstantInt::get(baseCI->getType(), gepOffset + baseVal));
 	}
 	if (gep->getNumOperands() == 2)
-		return NULL;
+	{
+		ConstantInt* pointerOffset = dyn_cast<ConstantInt>(*std::prev(gep->op_end()));
+		if(!pointerOffset)
+			return NULL;
+		PointerConstantOffsetWrapper localRet;
+		PointerConstantOffsetWrapper& baseRet = visitValue(localRet, gep->getOperand(0), false);
+		if(!baseRet.isValid())
+			return NULL;
+		// Sum the base offset to the GEP offset
+		const ConstantInt* baseCI = baseRet.getPointerOffset();
+		uint32_t baseVal = baseCI->getZExtValue();
+		return cast<ConstantInt>(ConstantInt::get(baseCI->getType(), pointerOffset->getZExtValue() + baseVal));
+	}
 	SmallVector<Value*, 4> indexes;
 	for(uint32_t i=1;i<gep->getNumOperands()-1;i++)
 		indexes.push_back(*(gep->op_begin()+i));
