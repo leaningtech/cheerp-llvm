@@ -206,9 +206,14 @@ bool AllocaArraysMerging::checkUsesForArrayMerging(AllocaInst* alloca)
 			if(!CI || !CI->isNullValue())
 				return false;
 		}
-		// BitCast for the lifetime instrinsics are ok
+		// BitCast for the lifetime instrinsics and bitcasts of i8 arrays to BL structs are ok
 		else if (isa<BitCastInst>(user))
 		{
+			if(alloca->getAllocatedType()->getArrayElementType()->isIntegerTy(8) &&
+				TypeSupport::hasByteLayout(user->getType()->getPointerElementType()))
+			{
+				return true;
+			}
 			for(User* bitcastUser: user->users())
 			{
 				if(IntrinsicInst* II=dyn_cast<IntrinsicInst>(bitcastUser))
