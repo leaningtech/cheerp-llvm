@@ -1335,6 +1335,12 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			else
 				return CacheAndReturn(ret |= Zero);
 		}
+		else if(F->getIntrinsicID() == Intrinsic::cheerp_make_regular)
+		{
+			ConstantInt* offset = dyn_cast<ConstantInt>(CI->getOperand(1));
+			if(offset)
+				return CacheAndReturn(ret |= offset);
+		}
 		if(F->getName() == "calloc" ||
 			F->getName() == "malloc" ||
 			F->getName() == "_Znwj" ||
