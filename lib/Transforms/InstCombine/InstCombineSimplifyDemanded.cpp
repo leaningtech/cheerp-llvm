@@ -738,6 +738,16 @@ Value *InstCombiner::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
                                KnownZero, KnownOne, Depth+1))
         return I;
       assert(!(KnownZero & KnownOne) && "Bits known to be one AND zero?");
+      // TODO: This is limited to the constants being the same, I think it can expanded
+      // Optimize ((X << C) >> C) if we can safely ignore all the high bits
+      if (Instruction* Op0 = dyn_cast<Instruction>(I->getOperand(0))) {
+        if (Op0->getOpcode() == Instruction::Shl && Op0->getOperand(1) == SA) {
+          if (DemandedMask.countLeadingZeros() >= ShiftAmt) {
+            return Op0->getOperand(0);
+          }
+        }
+      }
+
       // Compute the new bits that are at the top now.
       APInt HighBits(APInt::getHighBitsSet(BitWidth, ShiftAmt));
       KnownZero = APIntOps::lshr(KnownZero, ShiftAmt);
