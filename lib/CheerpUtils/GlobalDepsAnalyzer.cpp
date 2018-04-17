@@ -603,7 +603,7 @@ void GlobalDepsAnalyzer::visitType( Type* t, bool forceTypedArray )
 
 void GlobalDepsAnalyzer::visitStruct( StructType* ST )
 {
-	if(ST->hasByteLayout())
+	if(ST->hasByteLayout() || ST->hasAsmJS())
 		return;
 	classesNeeded.insert(ST);
 	for(uint32_t i=0;i<ST->getNumElements();i++)
