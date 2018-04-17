@@ -184,6 +184,8 @@ namespace llvm {
       ceill,
       /// Cheerp: allocation intrinsic
       cheerp_allocate,
+      /// Cheerp: allocation intrinsic for arrays
+      cheerp_allocate_array,
       /// int chmod(const char *path, mode_t mode);
       chmod,
       /// int chown(const char *path, uid_t owner, gid_t group);

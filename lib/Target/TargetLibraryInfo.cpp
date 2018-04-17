@@ -105,6 +105,7 @@ const char* TargetLibraryInfo::StandardNames[LibFunc::NumLibFuncs] =
     "ceilf",
     "ceill",
     "cheerp.allocate",
+    "cheerp.allocate.array",
     "chmod",
     "chown",
     "clearerr",

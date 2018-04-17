@@ -54,6 +54,7 @@ struct AllocFnsTy {
 static const AllocFnsTy AllocationFnData[] = {
   // Keep this one as the first one
   {LibFunc::cheerp_allocate,     CallocLike,  1, 0,  -1},
+  {LibFunc::cheerp_allocate_array,CallocLike,  1, 0,  -1},
   {LibFunc::malloc,              MallocLike,  1, 0,  -1},
   {LibFunc::valloc,              MallocLike,  1, 0,  -1},
   {LibFunc::Znwj,                OpNewLike,   1, 0,  -1}, // new(unsigned int)
@@ -98,7 +99,8 @@ static const AllocFnsTy *getAllocationData(const Value *V, AllocType AllocTy,
   // Skip all intrinsics but cheerp.allocate
   if (const IntrinsicInst* II = dyn_cast<IntrinsicInst>(V))
   {
-    if (II->getIntrinsicID() == Intrinsic::cheerp_allocate)
+    if (II->getIntrinsicID() == Intrinsic::cheerp_allocate ||
+        II->getIntrinsicID() == Intrinsic::cheerp_allocate_array)
       return &AllocationFnData[0];
     return nullptr;
   }
