@@ -910,7 +910,7 @@ static void upgradeGlobalArray(GlobalVariable *GV) {
   PointerType *VoidPtrTy = Type::getInt8Ty(GV->getContext())->getPointerTo();
   Type *Tys[3] = {OldTy->getElementType(0), OldTy->getElementType(1),
                   VoidPtrTy};
-  StructType *NewTy = StructType::get(GV->getContext(), Tys, false, NULL);
+  StructType *NewTy = StructType::get(GV->getContext(), Tys, false, nullptr);
 
   // Build new constants with a null third field filled in.
   Constant *OldInitC = GV->getInitializer();
