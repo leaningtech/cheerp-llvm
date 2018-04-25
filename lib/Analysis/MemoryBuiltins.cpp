@@ -100,8 +100,12 @@ static const AllocFnsTy *getAllocationData(const Value *V, AllocType AllocTy,
   if (const IntrinsicInst* II = dyn_cast<IntrinsicInst>(V))
   {
     if (II->getIntrinsicID() == Intrinsic::cheerp_allocate ||
-        II->getIntrinsicID() == Intrinsic::cheerp_allocate_array)
-      return &AllocationFnData[0];
+        II->getIntrinsicID() == Intrinsic::cheerp_allocate_array) {
+      const AllocFnsTy *FnData = &AllocationFnData[0];
+      if ((FnData->AllocTy & AllocTy) != FnData->AllocTy)
+        return nullptr;
+      return FnData;
+    }
     return nullptr;
   }
 
