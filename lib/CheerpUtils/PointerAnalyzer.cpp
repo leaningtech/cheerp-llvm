@@ -1382,7 +1382,7 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 	// Handle global pointers
 	if(const GlobalVariable* GV = dyn_cast<GlobalVariable>(v))
 	{
-		if(GV->getSection() == StringRef("bytelayout"))
+		if(GV->getSection() == StringRef("bytelayout") || TypeSupport::hasByteLayout(GV->getType()->getPointerElementType()))
 			return CacheAndReturn(ret |= Zero);
 		else if(GV->hasInitializer() && GV->getType()->getPointerElementType()->isPointerTy())
 		{
