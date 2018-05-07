@@ -134,8 +134,10 @@ bool GlobalDepsAnalyzer::runOnModule( llvm::Module & module )
 						continue;
 
 					if (Value* with = callSimplifier.optimizeCall(&ci)) {
-						ci.replaceAllUsesWith(with);
-						deleteList.push_back(&ci);
+						if (with != &ci) {
+							ci.replaceAllUsesWith(with);
+							deleteList.push_back(&ci);
+						}
 					}
 
 					foundMemset |= calledFunc->getIntrinsicID() == Intrinsic::memset;
