@@ -74,3 +74,5 @@ def int_cheerp_make_regular : Intrinsic<[llvm_anyptr_ty],
 def int_cheerp_pointer_kind : Intrinsic<[llvm_i32_ty],
                                 [llvm_anyptr_ty],
                                 [IntrNoMem]>;
+
+def int_cheerp_reset_stack : Intrinsic<[], []>;

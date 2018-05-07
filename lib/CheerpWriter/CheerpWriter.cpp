@@ -995,6 +995,12 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 		compileOperand(*it, LOWEST);
 		return COMPILE_OK;
 	}
+	else if(intrinsicId==Intrinsic::cheerp_reset_stack)
+	{
+		Function* wrapper = module.getFunction("__setStackPtr");
+		stream << namegen.getName(wrapper) << "(" << heapSize * 1024 * 1024 << ");" << NewLine;
+		return COMPILE_OK;
+	}
 	else if(intrinsicId==Intrinsic::cheerp_deallocate)
 	{
 		const ConstantInt* C = PA.getConstantOffsetForPointer(*it);
