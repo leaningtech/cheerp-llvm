@@ -409,7 +409,6 @@ char AllocaArraysMerging::ID = 0;
 
 FunctionPass *createAllocaArraysMergingPass() { return new AllocaArraysMerging(); }
 
-<<<<<<< HEAD
 bool AllocaStoresExtractor::validType(llvm::Type* t, const Module& module)
 {
 	if(TypeSupport::hasByteLayout(t))
