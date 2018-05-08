@@ -144,14 +144,9 @@ Pass *llvm::createAlwaysInlinerLegacyPass(bool InsertLifetime) {
 InlineCost AlwaysInlinerLegacyPass::getInlineCost(CallSite CS) {
   Function *Callee = CS.getCalledFunction();
 
-  //CHEERP: Do not inline normal/asmjs methods called from the other side
-  const Function* caller=CS.getCaller();
-  bool callerAsmJS = caller->getSection() == StringRef("asmjs");
-  bool calleeAsmJS = Callee->getSection() == StringRef("asmjs");
-  if (calleeAsmJS!= callerAsmJS)
-  {
+  Function* caller=CS.getCaller();
+  if (!isInlineViableCheerp(*Callee, *caller))
     return llvm::InlineCost::getNever();
-  }
 
   // Only inline direct calls to functions with always-inline attributes
   // that are viable for inlining. FIXME: We shouldn't even get here for
