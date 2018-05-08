@@ -232,6 +232,10 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
 
 /// Minimal filter to detect invalid constructs for inlining.
 InlineResult isInlineViable(Function &Callee);
+
+/// \brief Filter to detect invalid constructs for inlining across ffi
+//  boundaries in Cheerp
+bool isInlineViableCheerp(Function &Callee, Function &Caller);
 }
 
 #endif
