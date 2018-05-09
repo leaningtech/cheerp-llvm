@@ -2972,6 +2972,7 @@ void CheerpWasmWriter::compileDataSection()
 			// Determine amount of padding bytes necessary for the alignment.
 			long written = bytes.tellp();
 			uint32_t nextAddress = linearHelper.getGlobalVariableAddress(GV);
+			assert(nextAddress >= (address + written));
 			uint32_t padding = nextAddress - (address + written);
 			for (uint32_t i = 0; i < padding; i++)
 				bytes << (char)0;
