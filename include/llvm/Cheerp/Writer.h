@@ -331,7 +331,7 @@ private:
 	 * starting from the array itself instead of from the value. This will make it possible to loop backward over the array.
 	 */
 	const llvm::Value* compileByteLayoutOffset(const llvm::Value* p, BYTE_LAYOUT_OFFSET_MODE offsetMode, PARENT_PRIORITY parentPrio);
-	void compileByteLayoutAdd(const std::vector<std::pair<const llvm::Value*, size_t>>& dynPart, uint32_t constPart, PARENT_PRIORITY parentPrio);
+	void compileByteLayoutAdd(const std::vector<std::pair<const llvm::Value*, size_t>>& dynPart, int32_t constPart, PARENT_PRIORITY parentPrio);
 
 	void compileRawPointer(const llvm::Value* p, PARENT_PRIORITY prio = PARENT_PRIORITY::LOWEST, bool forceGEP = false);
 

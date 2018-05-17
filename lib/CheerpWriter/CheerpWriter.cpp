@@ -1961,7 +1961,7 @@ CheerpWriter::STACKLET_STATUS CheerpWriter::needsStacklet(const llvm::Value* v) 
 	return registerize.isRecoverable(I) ? STACKLET_NEEDED : STACKLET_NOT_NEEDED;
 }
 
-void CheerpWriter::compileByteLayoutAdd(const std::vector<std::pair<const llvm::Value*, size_t>>& dynPart, uint32_t constPart, PARENT_PRIORITY parentPrio)
+void CheerpWriter::compileByteLayoutAdd(const std::vector<std::pair<const llvm::Value*, size_t>>& dynPart, int32_t constPart, PARENT_PRIORITY parentPrio)
 {
 	uint32_t opCount = dynPart.size();
 	if(constPart)
@@ -2043,7 +2043,7 @@ const Value* CheerpWriter::compileByteLayoutOffset(const Value* p, BYTE_LAYOUT_O
 	bool findFirstTypeChangingGEP = (offsetMode != BYTE_LAYOUT_OFFSET_FULL);
 	const Value* lastOffset = NULL;
 	const Value* const passedP = p;
-	uint32_t constPart = 0;
+	int32_t constPart = 0;
 	std::vector<std::pair<const Value*, size_t>> dynPart;
 	while ( isBitCast(p) || isGEP(p) || (isa<IntrinsicInst>(p) && cast<IntrinsicInst>(p)->getIntrinsicID()==Intrinsic::cheerp_make_regular))
 	{
