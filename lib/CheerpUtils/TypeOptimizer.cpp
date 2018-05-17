@@ -337,7 +337,8 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 			StructType* directBase = nullptr;
 			// We may need to update the bases metadata for this type
 			NamedMDNode* namedBasesMetadata = TypeSupport::getBasesMetadata(newStruct, *module);
-			uint32_t firstBaseBegin, firstBaseEnd;
+			uint32_t firstBaseBegin = 0;
+			uint32_t firstBaseEnd = 0;
 			if(namedBasesMetadata)
 			{
 				MDNode* md = namedBasesMetadata->getOperand(0);
@@ -422,7 +423,8 @@ TypeOptimizer::TypeMappingInfo TypeOptimizer::rewriteType(Type* t)
 				{
 					bool fieldEscapes = escapingFields.count(std::make_pair(directBase, i));
 					// TODO: highint structs may still be at first slot, they should become directbases
-					if(!fieldEscapes && i!=0)
+					// NOTE: Do not collapse bases
+					if(!fieldEscapes && i!=0 && (!namedBasesMetadata || i < firstBaseBegin))
 					{
 						membersMapping.push_back(std::make_pair(newTypes.size(), -1));
 						// We want to merged this structure in the parent, we abuse the merged array architecture
