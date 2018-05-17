@@ -6409,7 +6409,6 @@ void CheerpWriter::makeJS()
 		compileCheckDefinedHelper();
 	}
 
-	if (wasmFile.empty())
 		compileBuiltins(false);
 	}
 
