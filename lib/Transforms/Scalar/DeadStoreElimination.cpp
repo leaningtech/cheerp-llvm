@@ -24,6 +24,7 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Cheerp/Utility.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
@@ -540,7 +541,7 @@ bool DSE::runOnBasicBlock(BasicBlock &BB) {
 
       // Cheerp: Do not eliminate null floating point stores, the memory is initialized with -0 actually
       if (StoredConstant && StoredConstant->isNullValue() &&
-          isRemovable(SI) && (!StoredConstant->getType()->isFloatingPointTy() || (DL && DL->isByteAddressable()))) {
+          isRemovable(SI) && (!StoredConstant->getType()->isFloatingPointTy() || (DL && DL->isByteAddressable()) || cheerp::visitPointerByteLayoutChain(SI->getPointerOperand()))) {
         Instruction *UnderlyingPointer = dyn_cast<Instruction>(
             GetUnderlyingObject(SI->getPointerOperand(), DL));
 
