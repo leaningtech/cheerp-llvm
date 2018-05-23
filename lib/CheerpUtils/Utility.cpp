@@ -908,6 +908,8 @@ bool visitPointerByteLayoutChain( const Value * p )
 				return true;
 			else if(F->getIntrinsicID() == Intrinsic::cheerp_reallocate)
 				return true;
+			else if(F->getName() == StringRef("__getStackPtr"))
+				return true;
 			return false;
 		}
 		return true;

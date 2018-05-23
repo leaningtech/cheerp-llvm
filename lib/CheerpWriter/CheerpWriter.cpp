@@ -1001,6 +1001,22 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 		stream << namegen.getName(wrapper) << "(" << heapSize * 1024 * 1024 << ");" << NewLine;
 		return COMPILE_OK;
 	}
+	else if(ident=="__getStackPtr" && section == StringRef("bytelayout"))
+	{
+		// Special case this, the returned value is actually RAW.
+		stream << heapNames[HEAP8] << ";" << NewLine;
+		stream << namegen.getSecondaryName(callV.getInstruction()) << '=';
+		stream << namegen.getName(func) << "()";
+		return COMPILE_OK;
+	}
+	else if(ident=="__setStackPtr" && section == StringRef("bytelayout"))
+	{
+		// Special case this
+		stream << namegen.getName(func) << "(";
+		compilePointerOffset(*it, HIGHEST);
+		stream << ")";
+		return COMPILE_OK;
+	}
 	else if(intrinsicId==Intrinsic::cheerp_deallocate)
 	{
 		const ConstantInt* C = PA.getConstantOffsetForPointer(*it);

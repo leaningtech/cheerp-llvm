@@ -69,6 +69,9 @@ bool AllocaLowering::runOnFunction(Function& F)
 	Module* M = F.getParent();
 	DataLayout targetData(M);
 	bool asmjs = F.getSection() == StringRef("asmjs");
+	bool bytelayout = F.getSection() == StringRef("bytelayout");
+	if(F.hasFnAttribute(Attribute::Recoverable))
+		return false;
 
 	SmallVector<std::pair<AllocaInst*, int32_t>, 8> allocas;
 	SmallVector<std::pair<AllocaInst*, Value*>, 8> dynAllocas;
@@ -84,8 +87,10 @@ bool AllocaLowering::runOnFunction(Function& F)
 		{
 			if (AllocaInst * ai = dyn_cast<AllocaInst>(it))
 			{
-				// Skip if not asmjs or RAW pointer
-				if (!asmjs && !cheerp::TypeSupport::isAsmJSPointer(ai->getType()))
+				// Lower to the linear stack any RAW pointer, asmjs/bytelayout structs and primitives in BL functions
+				bool isBaseTypeOrArrayOf = cheerp::TypeSupport::isTypedArrayType(ai->getAllocatedType(), true) ||
+							(ai->getAllocatedType()->isArrayTy() && cheerp::TypeSupport::isTypedArrayType(ai->getAllocatedType()->getArrayElementType(), true));
+				if (!asmjs && (!bytelayout || !isBaseTypeOrArrayOf) && !cheerp::TypeSupport::isAsmJSPointer(ai->getType()) && !cheerp::TypeSupport::hasByteLayout(ai->getAllocatedType()))
 					continue;
 
 				Type* allocTy = ai->getAllocatedType();
