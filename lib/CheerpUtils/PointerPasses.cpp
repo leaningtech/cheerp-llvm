@@ -419,7 +419,7 @@ bool PHIVisitor::visitPHI(PHINode* phi)
 bool PointerArithmeticToArrayIndexing::runOnFunction(Function& F)
 {
 	bool Changed = false;
-	if (F.getSection() == StringRef("asmjs"))
+	if (F.getSection() == StringRef("asmjs") || F.getSection() == StringRef("bytelayout"))
 		return false;
 
 	PHIVisitor::PHIMap phiMap;
