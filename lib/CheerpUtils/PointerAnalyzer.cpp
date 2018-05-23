@@ -455,12 +455,6 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 {
 	if (p->getType()->isPointerTy())
 	{
-		if (visitRawChain(p))
-		{
-			if (isa<Argument>(p))
-				pointerKindData.argsMap.insert( std::make_pair(p, RAW ) );
-			return pointerKindData.valueMap.insert( std::make_pair(p, RAW ) ).first->second;
-		}
 		if(!isa<Argument>(p))
 		{
 		Type* pointedType = p->getType()->getPointerElementType();
@@ -468,6 +462,12 @@ PointerKindWrapper& PointerUsageVisitor::visitValue(PointerKindWrapper& ret, con
 			return pointerKindData.valueMap.insert( std::make_pair(p, SPLIT_BYTE_LAYOUT ) ).first->second;
 		else if(getKindForType(pointedType) == COMPLETE_OBJECT)
 			return pointerKindData.valueMap.insert( std::make_pair(p, COMPLETE_OBJECT ) ).first->second;
+		}
+		if (visitRawChain(p))
+		{
+			if (isa<Argument>(p))
+				pointerKindData.argsMap.insert( std::make_pair(p, RAW ) );
+			return pointerKindData.valueMap.insert( std::make_pair(p, RAW ) ).first->second;
 		}
 	}
 
