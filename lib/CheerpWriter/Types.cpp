@@ -274,8 +274,10 @@ uint32_t CheerpWriter::compileComplexType(Type* t, COMPILE_TYPE_STYLE style, Str
 				}
 				else if (memberPointerKind == COMPLETE_OBJECT_AND_PO)
 				{
-					assert(!init);
-					stream << "null";
+					if(init)
+						compileCompleteObject(init);
+					else
+						stream << "null";
 					if(!hasConstantOffset)
 					{
 						if(style==THIS_OBJ)
@@ -287,7 +289,10 @@ uint32_t CheerpWriter::compileComplexType(Type* t, COMPILE_TYPE_STYLE style, Str
 							stream << '=';
 						else
 							stream << ':';
-						stream << "null";
+						if(init)
+							compilePointerBase(init);
+						else
+							stream << "null";
 						// FIXME: The offset member is not taken into account when deciding if the new-based constructor is required
 						// so in rare cases (when the added element makes the struct larger than 8 elements) the slow literal runtime
 						// call will be used on V8.
