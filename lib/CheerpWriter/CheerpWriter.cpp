@@ -4893,7 +4893,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 			const Value* ptrOp=li.getPointerOperand();
 			bool asmjs = currentFun->getSection()==StringRef("asmjs");
 			POINTER_KIND kind = PA.getPointerKind(ptrOp);
-			bool needsOffset = !li.use_empty() && li.getType()->isPointerTy() && (PA.getPointerKind(&li) == SPLIT_REGULAR || PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(&li);
+			bool needsOffset = !li.use_empty() && li.getType()->isPointerTy() && (PA.getPointerKind(&li) == SPLIT_REGULAR || PA.getPointerKind(&li) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(&li) ==  COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(&li);
 			bool needsCheckBounds = false;
 			if (checkBounds)
 			{
