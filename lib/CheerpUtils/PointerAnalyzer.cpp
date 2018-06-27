@@ -1403,7 +1403,10 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 
 	if(isa<AllocaInst>(v))
 	{
-		return CacheAndReturn(ret |= Zero);
+		if(forCoAndPo)
+			return CacheAndReturn(ret |= COMarker);
+		else
+			return CacheAndReturn(ret |= Zero);
 	}
 
 	return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
