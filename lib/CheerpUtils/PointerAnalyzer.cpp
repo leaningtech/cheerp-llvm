@@ -1716,8 +1716,10 @@ const ConstantInt* PointerAnalyzer::getConstantOffsetForPointer(const Value * v)
 		return NULL;
 	else if(ret.isUninitialized())
 	{
+		POINTER_KIND k = getPointerKind(v);
+		bool forCoAndPo = k == COMPLETE_OBJECT_AND_PO || k == COMPLETE_OBJECT_AND_PO_OBJ;
 		Type* Int32Ty=IntegerType::get(v->getContext(), 32);
-		return cast<ConstantInt>(ConstantInt::get(Int32Ty, 0));
+		return cast<ConstantInt>(ConstantInt::get(Int32Ty, forCoAndPo ? 0xffffffff : 0));
 	}
 	assert(ret.isValid());
 	assert(ret.getPointerOffset());
