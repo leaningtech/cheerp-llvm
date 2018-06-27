@@ -3174,6 +3174,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 						stream << ')';
 						break;
 					case Registerize::OBJECT:
+					{
 						POINTER_KIND k=PA.getPointerKindForReturn(ri.getParent()->getParent());
 						// For SPLIT_REGULAR we return the .d part and store the .o part into oSlot
 						if(k==SPLIT_REGULAR || k==SPLIT_BYTE_LAYOUT)
@@ -3182,13 +3183,22 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileTerminatorInstru
 							compilePointerOffset(retVal, LOWEST);
 							stream << ';' << NewLine;
 						}
+						else if(k==COMPLETE_OBJECT_AND_PO)
+						{
+							stream << "aSlot=";
+							compilePointerBase(retVal);
+							stream << ';' << NewLine;
+						}
 						stream << "return ";
 						assert(k != REGULAR);
 						if(k==SPLIT_REGULAR || k==SPLIT_BYTE_LAYOUT)
 							compilePointerBase(retVal);
+						else if(k == COMPLETE_OBJECT_AND_PO)
+							compileCompleteObject(retVal);
 						else
 							compilePointerAs(retVal, k);
 						break;
+					}
 				}
 			}
 			else
@@ -4854,7 +4864,11 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 						stream << ')';
 						break;
 					case Registerize::OBJECT:
-						if((PA.getPointerKind(&ci) == SPLIT_REGULAR || PA.getPointerKind(&ci) == SPLIT_BYTE_LAYOUT) && !ci.use_empty())
+					{
+						if(ci.use_empty())
+							break;
+						POINTER_KIND k = PA.getPointerKind(&ci);
+						if(k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT || k == COMPLETE_OBJECT_AND_PO)
 						{
 							assert(!isInlineable(ci, PA));
 							stream << ';' << NewLine;
@@ -4862,9 +4876,13 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 							if(stackletStatus == STACKLET_NEEDED)
 								stream << "a." << namegen.getSecondaryName(&I) << '=';
 							stream << namegen.getSecondaryName(&I) << '=';
-							stream << "oSlot";
+							if(k == SPLIT_REGULAR || k == SPLIT_BYTE_LAYOUT)
+								stream << "oSlot";
+							else
+								stream << "aSlot;";
 						}
 						break;
+					}
 				}
 			}
 			return COMPILE_OK;
