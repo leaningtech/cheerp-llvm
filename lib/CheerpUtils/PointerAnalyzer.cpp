@@ -1171,6 +1171,17 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 			return ret |= Zero;
 	}
 
+	if(forCoAndPo)
+	{
+		POINTER_KIND pointerKind = PA.getPointerKind(v);
+		if(pointerKind == REGULAR || pointerKind == SPLIT_REGULAR)
+		{
+			// There is a REGULAR pointer along this dependency tree, we cannot avoid bringing the base around
+			return ret |= PointerConstantOffsetWrapper::INVALID;
+		}
+		assert(pointerKind == COMPLETE_OBJECT_AND_PO || pointerKind == COMPLETE_OBJECT_AND_PO_OBJ);
+	}
+
 	auto existingValueIt = pointerOffsetData.valueMap.find(v);
 	if(existingValueIt != pointerOffsetData.valueMap.end())
 		return ret |= existingValueIt->second;
@@ -1242,15 +1253,6 @@ PointerConstantOffsetWrapper& PointerConstantOffsetVisitor::visitValue(PointerCo
 		// TODO: Check if this have negative effects
 		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
 	}
-
-	POINTER_KIND pointerKind = PA.getPointerKind(v);
-	if(forCoAndPo && (pointerKind == REGULAR || pointerKind == SPLIT_REGULAR))
-	{
-		// There is a REGULAR pointer along this dependency tree, we cannot avoid bringing the base around
-		return CacheAndReturn(ret |= PointerConstantOffsetWrapper::INVALID);
-	}
-
-	assert(!forCoAndPo || pointerKind == COMPLETE_OBJECT_AND_PO || pointerKind == COMPLETE_OBJECT_AND_PO_OBJ);
 
 	if ( isGEP(v) )
 	{
