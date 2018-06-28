@@ -485,7 +485,7 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						{
 							SubExprVec vec;
 							visitGlobal(fmalloc, visited, vec );
-							if(!isAsmJS)
+							if(!isAsmJS && fmalloc->getSection() == StringRef("asmjs"))
 								asmJSExportedFuncions.insert(fmalloc);
 						}
 					}
@@ -501,7 +501,7 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						{
 							SubExprVec vec;
 							visitGlobal(frealloc, visited, vec );
-							if(!isAsmJS)
+							if(!isAsmJS && frealloc->getSection() == StringRef("asmjs"))
 								asmJSExportedFuncions.insert(frealloc);
 						}
 					}
@@ -517,7 +517,7 @@ void GlobalDepsAnalyzer::visitFunction(const Function* F, VisitedSet& visited)
 						{
 							SubExprVec vec;
 							visitGlobal(ffree, visited, vec );
-							if(!isAsmJS)
+							if(!isAsmJS && ffree->getSection() == StringRef("asmjs"))
 								asmJSExportedFuncions.insert(ffree);
 						}
 					}
