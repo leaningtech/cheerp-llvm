@@ -1078,7 +1078,7 @@ const PointerKindWrapper& PointerResolverForKindVisitor::resolvePointerKind(cons
 		}
 	}
 
-	if(hasCOAndPOFlag)
+	if(hasCOAndPOFlag && currentWorse != SPLIT_REGULAR && currentWorse != REGULAR)
 		return PointerKindWrapper::staticCOAndPOValue;
 	else if(currentWrapper)
 		return *currentWrapper;
