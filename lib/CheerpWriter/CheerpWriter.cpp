@@ -5159,7 +5159,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::compileInlineableInstru
 	}
 }
 
-void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& usedPCs)
+void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& usedPCs, bool forExceptions)
 {
 	bool needsStacklet = BB.getParent()->hasFnAttribute(Attribute::Recoverable);
 	BasicBlock::const_iterator I=BB.begin();
@@ -5233,6 +5233,8 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 			if(I->getType()->isPointerTy() && (I->getOpcode() != Instruction::Call || isDowncast) && (PA.getPointerKind(I) == SPLIT_REGULAR || PA.getPointerKind(I) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(I) && !isBLLoad)
 			{
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
+				if(stackletStatus != STACKLET_NEEDED && forExceptions)
+					stream << "var ";
 				stream << namegen.getSecondaryName(I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getSecondaryName(I) << '=';
@@ -5240,6 +5242,8 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 			else if(!I->getType()->isVoidTy())
 			{
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
+				if(stackletStatus != STACKLET_NEEDED && forExceptions)
+					stream << "var ";
 				stream << namegen.getName(I) << '=';
 				if(stackletStatus == STACKLET_NEEDED)
 					stream << "a." << namegen.getName(I) << '=';
@@ -5283,7 +5287,7 @@ void CheerpRenderInterface::renderBlock(const BasicBlock* bb)
 		blockPCs.insert(std::make_pair(bb, blockPC));
 		writer->stream << "a.pc=" << blockPC << ';';
 	}
-	writer->compileBB(*bb, usedPCs);
+	writer->compileBB(*bb, usedPCs, /*forExceptions*/isLandingPad);
 	if(!isLandingPad)
 		usedBlocks.insert(bb);
 }
@@ -5744,7 +5748,7 @@ void CheerpWriter::compileMethod(const Function& F)
 		compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/true, /*stackletSync*/false, /*hasLandingPad*/false);
 		if(needsStacklet)
 			compileMethodLocals(F, usedPCs, false, /*forceNoStacklet*/false, /*stackletSync*/false, /*hasLandingPad*/false);
-		compileBB(*F.begin(), usedPCs);
+		compileBB(*F.begin(), usedPCs, /*forExceptions*/false);
 		if (asmjs)
 		{
 			// TODO: asm.js needs a final return statement.
