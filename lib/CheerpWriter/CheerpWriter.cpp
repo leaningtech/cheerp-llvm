@@ -824,7 +824,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 	}
 	else if(intrinsicId==Intrinsic::vaend)
 	{
-		if (asmjs) return COMPILE_EMPTY;
+		if (asmjs || section == StringRef("bytelayout")) return COMPILE_EMPTY;
 
 		compileCompleteObject(*it);
 		stream << "=null";
@@ -3031,8 +3031,18 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 						st = st->getDirectBase();
 					tp = st->getPointerTo();
 				}
-				assert(PA.getPointerKindForStoredType(tp) != SPLIT_BYTE_LAYOUT);
-				compilePointerAs(*cur, PA.getPointerKindForStoredType(tp));
+				POINTER_KIND k = PA.getPointerKindForStoredType(tp);
+				if(F->getSection() == StringRef("bytelayout"))
+				{
+					Type* pointedType = tp->getPointerElementType();
+					if ( TypeSupport::hasByteLayout(pointedType) || !isa<StructType>(pointedType))
+						k = BYTE_LAYOUT;
+				}
+				else
+				{
+					assert(k != SPLIT_BYTE_LAYOUT);
+				}
+				compilePointerAs(*cur, k);
 			}
 
 			assert(argKind != REGULAR);
