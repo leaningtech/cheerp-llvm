@@ -5739,13 +5739,18 @@ void CheerpWriter::compileMethod(const Function& F)
 			stream << namegen.getName(curArg);
 	}
 	bool needsStacklet = F.hasFnAttribute(Attribute::Recoverable);
-	if(needsStacklet)
+	if(needsStacklet && !F.isVarArg())
 	{
 		if(A!=AE)
 			stream << ',';
 		stream << 'p';
 	}
 	stream << "){" << NewLine;
+	// Patch variadic recoverable methods
+	if(needsStacklet && F.isVarArg())
+	{
+		stream << "var p=arguments[arguments.length-1];" << NewLine;
+	}
 	if (measureTimeToMain && F.getName() == "main")
 	{
 		stream << "__cheerp_main_time=__cheerp_now();" << NewLine;
