@@ -2953,6 +2953,8 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 		}
 	}
 
+	bool needsStackletParameter = (!F || F->empty() || F->hasFnAttribute(Attribute::Recoverable)) && callV.getInstruction()->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable);
+
 	uint32_t opCount = 0;
 	for(User::const_op_iterator cur=it; cur!=itE; ++cur, ++opCount)
 	{
@@ -3099,7 +3101,7 @@ void CheerpWriter::compileMethodArgs(User::const_op_iterator it, User::const_op_
 			++arg_it;
 		}
 	}
-	if(callV.getInstruction()->getParent()->getParent()->hasFnAttribute(Attribute::Recoverable))
+	if(needsStackletParameter)
 	{
 		if(opCount)
 			stream << ',';
