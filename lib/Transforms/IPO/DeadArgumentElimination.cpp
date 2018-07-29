@@ -205,7 +205,7 @@ bool DAE::DeleteDeadVarargs(Function &Fn) {
       CallInst *CI = dyn_cast<CallInst>(I);
       if (!CI)
         continue;
-      if (CI->isMustTailCall())
+      if (CI->isMustTailCall() || CI->isInlineAsm())
         return false;
       if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(CI)) {
         if (II->getIntrinsicID() == Intrinsic::vastart)
