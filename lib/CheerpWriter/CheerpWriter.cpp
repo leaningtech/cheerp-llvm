@@ -16,6 +16,7 @@
 #include "llvm/Cheerp/Writer.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -632,7 +633,15 @@ void CheerpWriter::compileAllocation(const DynamicAllocInfo & info)
 void CheerpWriter::compileFree(const Value* obj)
 {
 	// Only arrays of primitives can be backed by the linear heap
-	bool needsLinearCheck = TypeSupport::isTypedArrayType(obj->getType()->getPointerElementType(), /*forceTypedArray*/ true));
+	bool needsLinearCheck = TypeSupport::isTypedArrayType(obj->getType()->getPointerElementType(), /*forceTypedArray*/ true);
+	if(const ConstantInt* CI = PA.getConstantOffsetForPointer(obj))
+	{
+		// 0 is clearly not a good address in the linear address space
+		if(CI->getZExtValue() == 0)
+			needsLinearCheck = false;
+	}
+	else if(isa<ConstantPointerNull>(obj))
+		needsLinearCheck = false;
 	if(needsLinearCheck)
 	{
 		stream << "if(";
@@ -925,6 +934,7 @@ CheerpWriter::COMPILE_INSTRUCTION_FEEDBACK CheerpWriter::handleBuiltinCall(Immut
 			stream << namegen.getBuiltinName(NameGenerator::Builtin::CREATE_CLOSURE) << "(";
 		compileCompleteObject( callV.getArgument(0) );
 		stream << ',';
+		const llvm::Value* op = callV.getArgument(1);
 		if(argKind == SPLIT_REGULAR || argKind == SPLIT_BYTE_LAYOUT)
 		{
 			compilePointerBase(op, !isByteLayout(argKind));
@@ -2599,14 +2609,16 @@ void CheerpWriter::compileConstant(const Constant* c, PARENT_PRIORITY parentPrio
 	else if(isa<ConstantInt>(c))
 	{
 		const ConstantInt* i=cast<ConstantInt>(c);
-		if(parentPrio == HIGHEST && i->isNegative())
-			stream << '(';
-		if(i->getBitWidth()==1)
-			stream << i->getZExtValue();
-		else
+		if(i->getBitWidth()==32)
+		{
+			if(parentPrio == HIGHEST && i->isNegative())
+				stream << '(';
 			stream << i->getSExtValue();
-		if(parentPrio == HIGHEST && i->isNegative())
-			stream << ')';
+			if(parentPrio == HIGHEST && i->isNegative())
+				stream << ')';
+		}
+		else
+			stream << i->getZExtValue();
 	}
 	else if(isa<ConstantPointerNull>(c))
 	{
@@ -5242,7 +5254,7 @@ void CheerpWriter::compileBB(const BasicBlock& BB, const std::set<uint32_t>& use
 				if(isByteLayout(kind) && !li.getType()->getPointerElementType()->isFunctionTy())
 					isBLLoad = true;
 			}
-			if(I->getType()->isPointerTy() && (I->getOpcode() != Instruction::Call || isDowncast) && (PA.getPointerKind(I) == SPLIT_REGULAR || PA.getPointerKind(I) == SPLIT_BYTE_LAYOUT) && !PA.getConstantOffsetForPointer(I) && !isBLLoad)
+			if(I->getType()->isPointerTy() && (I->getOpcode() != Instruction::Call || isDowncast) && (PA.getPointerKind(I) == SPLIT_REGULAR || PA.getPointerKind(I) == SPLIT_BYTE_LAYOUT || PA.getPointerKind(I) == COMPLETE_OBJECT_AND_PO) && !PA.getConstantOffsetForPointer(I) && !isBLLoad)
 			{
 				STACKLET_STATUS stackletStatus = this->needsStacklet(I);
 				if(stackletStatus != STACKLET_NEEDED && forExceptions)
