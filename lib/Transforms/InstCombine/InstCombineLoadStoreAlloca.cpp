@@ -450,10 +450,14 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
   // where there are several consecutive memory accesses to the same location,
   // separated by a few arithmetic operations.
   BasicBlock::iterator BBI = &LI;
-  if (Value *AvailableVal = FindAvailableLoadedValue(Op, LI.getParent(), BBI,6))
-    return ReplaceInstUsesWith(
+  if (Value *AvailableVal = FindAvailableLoadedValue(Op, LI.getParent(), BBI,6)) {
+    // Cheerp: Only allow this forwarding for pointer casts
+    if ((DL && DL->isByteAddressable()) || AvailableVal->getType() == LI.getType() || (LI.getType()->isPointerTy() && AvailableVal->getType()->isPointerTy())) {
+      return ReplaceInstUsesWith(
         LI, Builder->CreateBitOrPointerCast(AvailableVal, LI.getType(),
                                             LI.getName() + ".cast"));
+    }
+  }
 
   // load(gep null, ...) -> unreachable
   if (GetElementPtrInst *GEPI = dyn_cast<GetElementPtrInst>(Op)) {
