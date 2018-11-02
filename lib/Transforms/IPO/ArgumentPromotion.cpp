@@ -226,6 +226,9 @@ CallGraphNode *ArgPromotion::PromoteArguments(CallGraphNode *CGN) {
     // Must be a direct call.
     if (CS.getInstruction() == nullptr || !CS.isCallee(&U)) return nullptr;
     
+    if ((!DL || !DL->isByteAddressable()) && strcmp(CS.getCaller()->getSection(), F->getSection())!=0)
+      return nullptr;
+
     if (CS.getInstruction()->getParent()->getParent() == F)
       isSelfRecursive = true;
   }
