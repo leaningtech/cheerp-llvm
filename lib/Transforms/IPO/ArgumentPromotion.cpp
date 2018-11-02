@@ -818,17 +818,20 @@ promoteArguments(Function *F, function_ref<AAResults &(Function &F)> AARGetter,
   // transform functions that have indirect callers.  Also see if the function
   // is self-recursive.
   bool isSelfRecursive = false;
+  const DataLayout &DL = F->getParent()->getDataLayout();
   for (Use &U : F->uses()) {
     CallSite CS(U.getUser());
     // Must be a direct call.
     if (CS.getInstruction() == nullptr || !CS.isCallee(&U))
       return nullptr;
 
+    if (!DL.isByteAddressable() && CS.getCaller()->getSection() != F->getSection())
+      return nullptr;
+
     if (CS.getInstruction()->getParent()->getParent() == F)
       isSelfRecursive = true;
   }
 
-  const DataLayout &DL = F->getParent()->getDataLayout();
 
   AAResults &AAR = AARGetter(*F);
 
