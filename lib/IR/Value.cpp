@@ -504,7 +504,7 @@ static const Value *stripPointerCastsAndOffsets(const Value *V, bool byteAddress
       //       representation we could look through it here as well.
       V = cast<Operator>(V)->getOperand(0);
     } else if (auto *GA = dyn_cast<GlobalAlias>(V)) {
-      if (StripKind == PSK_ZeroIndices || GA->isInterposable())
+      if (StripKind == PSK_ZeroIndices || GA->isInterposable() || !byteAddressable)
         return V;
       V = GA->getAliasee();
     } else {
