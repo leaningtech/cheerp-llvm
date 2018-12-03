@@ -410,7 +410,7 @@ static Value *stripPointerCastsAndOffsets(Value *V, bool byteAddressable) {
                Operator::getOpcode(V) == Instruction::AddrSpaceCast) {
       V = cast<Operator>(V)->getOperand(0);
     } else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
-      if (StripKind == PSK_ZeroIndices || GA->mayBeOverridden())
+      if (StripKind == PSK_ZeroIndices || GA->mayBeOverridden() || !byteAddressable)
         return V;
       V = GA->getAliasee();
     } else {
