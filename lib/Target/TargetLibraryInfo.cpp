@@ -439,8 +439,8 @@ static void initialize(TargetLibraryInfo &TLI, const Triple &T,
     TLI.setAvailableWithName(LibFunc::fputs, "fputs$UNIX2003");
   }
 
-  // iprintf and friends are only available on XCore and TCE.
-  if (T.getArch() != Triple::xcore && T.getArch() != Triple::tce) {
+  // iprintf and friends are only available on XCore, TCE and Cheerp.
+  if (T.getArch() != Triple::xcore && T.getArch() != Triple::tce && T.getArch() != Triple::cheerp) {
     TLI.setUnavailable(LibFunc::iprintf);
     TLI.setUnavailable(LibFunc::siprintf);
     TLI.setUnavailable(LibFunc::fiprintf);
