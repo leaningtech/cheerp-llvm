@@ -1008,9 +1008,19 @@ void computeKnownBits(Value *V, APInt &KnownZero, APInt &KnownOne,
     if (ConstantInt *SA = dyn_cast<ConstantInt>(I->getOperand(1))) {
       uint64_t ShiftAmt = SA->getLimitedValue(BitWidth);
       computeKnownBits(I->getOperand(0), KnownZero, KnownOne, TD, Depth+1, Q);
+      bool wasKZNeg = KnownZero.isNegative();
+      bool wasKONeg = KnownOne.isNegative();
       KnownZero <<= ShiftAmt;
       KnownOne  <<= ShiftAmt;
       KnownZero |= APInt::getLowBitsSet(BitWidth, ShiftAmt); // low bits known 0
+      if(cast<OverflowingBinaryOperator>(I)->hasNoSignedWrap()){
+        // If this shift has "nsw" keyword, then the result is either a poison
+        // value or has the same sign bit as the first operand.
+        if (wasKZNeg)
+          KnownZero.setBit(BitWidth - 1);
+        if (wasKONeg)
+          KnownOne.setBit(BitWidth - 1);
+      }
     }
     break;
   case Instruction::LShr:
