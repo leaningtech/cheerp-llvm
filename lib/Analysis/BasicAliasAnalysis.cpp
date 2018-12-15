@@ -1009,9 +1009,10 @@ BasicAliasAnalysis::aliasGEP(const GEPOperator *GEP1, uint64_t V1Size,
   int64_t GEP1BaseOffset = DecompGEP1.StructOffset + DecompGEP1.OtherOffset;
   int64_t GEP2BaseOffset = DecompGEP2.StructOffset + DecompGEP2.OtherOffset;
 
-  assert(GEP1BasePtr == UnderlyingV1 && GEP2BasePtr == UnderlyingV2 &&
-         "DecomposeGEPExpression returned a result different from "
-         "GetUnderlyingObject");
+  if(GEP1BasePtr != UnderlyingV1 || GEP2BasePtr != UnderlyingV2) {
+    assert(!DL && "DecomposeGEPExpression returned a result different from GetUnderlyingObject");
+    return MayAlias;
+  }
 
   // If the GEP's offset relative to its base is such that the base would
   // fall below the start of the object underlying V2, then the GEP and V2
