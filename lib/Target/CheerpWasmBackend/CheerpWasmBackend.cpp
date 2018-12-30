@@ -34,6 +34,7 @@
 #include "llvm/Cheerp/FixIrreducibleControlFlow.h"
 #include "llvm/Cheerp/LinearMemoryHelper.h"
 #include "llvm/Cheerp/CommandLine.h"
+#include "llvm/Cheerp/StructMemFuncLowering.h"
 #include "llvm/Cheerp/Utility.h"
 
 using namespace llvm;
@@ -154,6 +155,7 @@ bool CheerpBaseTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            bool DisableVerify,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
+  PM.add(createStructMemFuncLowering());
   PM.add(createAllocaLoweringPass());
   PM.add(createFreeAndDeleteRemovalPass());
   PM.add(cheerp::createGlobalDepsAnalyzerPass(/*resolveAliases*/true));

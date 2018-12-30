@@ -31,6 +31,7 @@
 #include "llvm/Cheerp/CFGPasses.h"
 #include "llvm/Cheerp/Registerize.h"
 #include "llvm/Cheerp/SourceMaps.h"
+#include "llvm/Cheerp/StructMemFuncLowering.h"
 #include "llvm/Cheerp/CommandLine.h"
 
 using namespace llvm;
@@ -132,6 +133,7 @@ bool CheerpTargetMachine::addPassesToEmitFile(PassManagerBase &PM,
                                            bool DisableVerify,
                                            AnalysisID StartAfter,
                                            AnalysisID StopAfter) {
+  PM.add(createStructMemFuncLowering());
   PM.add(createAllocaLoweringPass());
   PM.add(createFreeAndDeleteRemovalPass());
   PM.add(cheerp::createGlobalDepsAnalyzerPass(/*resolveAliases*/true));
