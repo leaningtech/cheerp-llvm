@@ -77,11 +77,6 @@ RUN:   FileCheck --check-prefix=INVALID-TYPE %s
 
 INVALID-TYPE: Invalid type for value
 
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-fwdref-type-mismatch.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=FWDREF-TYPE %s
-
-FWDREF-TYPE: Invalid record
-
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-array-element-type.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=ELEMENT-TYPE %s
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-vector-element-type.bc 2>&1 | \
@@ -121,52 +116,8 @@ RUN:   FileCheck --check-prefix=ABBREV-NO-OPS %s
 
 ABBREV-NO-OPS: Abbrev record with no operands
 
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-array-operand-encoding.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=ARRAY-OP-ENC %s
-
-ARRAY-OP-ENC: Malformed block
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-metadata-not-followed-named-node.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=META-NOT-FOLLOWED-BY-NAMED-META %s
-
-META-NOT-FOLLOWED-BY-NAMED-META: Malformed block
-
 RUN: not llvm-dis -disable-output %p/Inputs/invalid-vector-length.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=VECTOR-LENGTH %s
 
 VECTOR-LENGTH: Invalid vector length
 
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-alias-type-mismatch.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=ALIAS-TYPE-MISMATCH %s
-
-ALIAS-TYPE-MISMATCH: Alias and aliasee types don't match
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-no-function-block.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=NO-FUNCTION-BLOCK %s
-
-NO-FUNCTION-BLOCK: Trying to materialize functions before seeing function blocks (Producer: 'LLVM3.8.0git' Reader: 'LLVM
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-name-with-0-byte.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=NAME-WITH-0 %s
-
-NAME-WITH-0: Malformed block
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-void-constant.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=VOID-CONSTANT-TYPE %s
-
-VOID-CONSTANT-TYPE: Invalid constant type
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-gep-no-operands.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=GEP-NO-OPERANDS %s
-
-GEP-NO-OPERANDS: Invalid gep with no operands
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-nonpointer-storeatomic.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=NONPOINTER-STOREATOMIC %s
-
-NONPOINTER-STOREATOMIC: Invalid record
-
-RUN: not llvm-dis -disable-output %p/Inputs/invalid-nonpointer-atomicrmw.bc 2>&1 | \
-RUN:   FileCheck --check-prefix=NONPOINTER-ATOMICRMW %s
-
-NONPOINTER-ATOMICRMW: Invalid record
