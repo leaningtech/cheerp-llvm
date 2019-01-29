@@ -35,7 +35,7 @@ using namespace llvm;
 #define DEBUG_TYPE "loop-unroll"
 
 static cl::opt<unsigned>
-UnrollThreshold("unroll-threshold", cl::init(300), cl::Hidden,
+UnrollThreshold("unroll-threshold", cl::init(150), cl::Hidden,
   cl::desc("The cut-off point for automatic loop unrolling"));
 
 static cl::opt<unsigned>
