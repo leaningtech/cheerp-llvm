@@ -334,9 +334,9 @@ bool FunctionType::isValidArgumentType(Type *ArgTy) {
 // Primitive Constructors.
 
 StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes, 
-                            bool isPacked, StructType* directBase, bool AsmJS) {
+                            bool isPacked, StructType* directBase, bool isByteLayout, bool AsmJS) {
   LLVMContextImpl *pImpl = Context.pImpl;
-  AnonStructTypeKeyInfo::KeyTy Key(ETypes, isPacked, directBase);
+  AnonStructTypeKeyInfo::KeyTy Key(ETypes, directBase, isPacked, isByteLayout, AsmJS);
   auto I = pImpl->AnonStructTypes.find_as(Key);
   StructType *ST;
 
@@ -344,18 +344,16 @@ StructType *StructType::get(LLVMContext &Context, ArrayRef<Type*> ETypes,
     // Value not found.  Create a new type!
     ST = new (Context.pImpl->TypeAllocator) StructType(Context);
     ST->setSubclassData(SCDB_IsLiteral);  // Literal struct.
-    ST->setBody(ETypes, isPacked, directBase);
+    ST->setBody(ETypes, isPacked, directBase, isByteLayout, AsmJS);
     Context.pImpl->AnonStructTypes.insert(ST);
   } else {
     ST = *I;
   }
-  if (AsmJS)
-    ST->setAsmJS();
 
   return ST;
 }
 
-void StructType::setBody(ArrayRef<Type*> Elements, bool isPacked, StructType* directBase) {
+void StructType::setBody(ArrayRef<Type*> Elements, bool isPacked, StructType* directBase, bool isByteLayout, bool isAsmJS) {
   assert(isOpaque() && "Struct body already set!");
   
   setSubclassData(getSubclassData() | SCDB_HasBody);
@@ -363,6 +361,10 @@ void StructType::setBody(ArrayRef<Type*> Elements, bool isPacked, StructType* di
     setSubclassData(getSubclassData() | SCDB_Packed);
   if (directBase)
     setSubclassData(getSubclassData() | SCDB_DirectBase);
+  if (isByteLayout)
+    setSubclassData(getSubclassData() | SCDB_ByteLayout);
+  if (isAsmJS)
+    setSubclassData(getSubclassData() | SCDB_AsmJS);
 
   NumContainedTys = Elements.size();
 
@@ -442,8 +444,8 @@ StructType *StructType::create(LLVMContext &Context, StringRef Name) {
 }
 
 StructType *StructType::get(LLVMContext &Context, bool isPacked, StructType* directBase,
-                            bool AsmJS) {
-  return get(Context, None, isPacked, directBase, AsmJS);
+                            bool isByteLayout, bool AsmJS) {
+  return get(Context, None, isPacked, directBase, isByteLayout, AsmJS);
 }
 
 StructType *StructType::create(LLVMContext &Context, ArrayRef<Type*> Elements,
