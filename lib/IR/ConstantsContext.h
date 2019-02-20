@@ -497,7 +497,7 @@ struct ConstantExprKeyType {
   bool operator==(const ConstantExprKeyType &X) const {
     return Opcode == X.Opcode && SubclassData == X.SubclassData &&
            SubclassOptionalData == X.SubclassOptionalData && Ops == X.Ops &&
-           Indexes == X.Indexes;
+           Indexes == X.Indexes && (!ExplicitTy || !X.ExplicitTy || ExplicitTy == X.ExplicitTy);
   }
 
   bool operator==(const ConstantExpr *CE) const {
@@ -513,6 +513,8 @@ struct ConstantExprKeyType {
       if (Ops[I] != CE->getOperand(I))
         return false;
     if (Indexes != (CE->hasIndices() ? CE->getIndices() : ArrayRef<unsigned>()))
+      return false;
+    if (ExplicitTy && ExplicitTy != cast<GetElementPtrConstantExpr>(CE)->getSourceElementType())
       return false;
     return true;
   }
