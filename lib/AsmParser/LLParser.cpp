@@ -2657,11 +2657,8 @@ bool LLParser::ParseStructDefinition(SMLoc TypeLoc, StringRef Name,
     return true;
 
   STy->setBody(Body, isPacked,
-    DirectBaseTy ? cast<StructType>(DirectBaseTy) : NULL);
-  if (hasByteLayout)
-    STy->setByteLayout();
-  if (hasAsmJS)
-    STy->setAsmJS();
+    DirectBaseTy ? cast<StructType>(DirectBaseTy) : NULL,
+    hasByteLayout, hasAsmJS);
   ResultTy = STy;
   return false;
 }
