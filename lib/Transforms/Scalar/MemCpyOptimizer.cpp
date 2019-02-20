@@ -471,7 +471,8 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
     }
 
     AMemSet =
-      Builder.CreateMemSet(StartPtr, ByteVal, Range.End-Range.Start, Alignment);
+      Builder.CreateMemSet(StartPtr, ByteVal, Range.End-Range.Start, Alignment,
+                                   false, NULL, NULL, NULL, DL.isByteAddressable());
 
     DEBUG(dbgs() << "Replace stores:\n";
           for (Instruction *SI : Range.TheStores)
@@ -1121,8 +1122,10 @@ bool MemCpyOptPass::processMemSetMemCpyDependence(MemCpyInst *MemCpy,
   Value *SizeDiff = Builder.CreateSub(DestSize, SrcSize);
   Value *MemsetLen = Builder.CreateSelect(
       Ule, ConstantInt::getNullValue(DestSize->getType()), SizeDiff);
+  const DataLayout &DL = MemCpy->getModule()->getDataLayout();
   Builder.CreateMemSet(Builder.CreateGEP(Dest, SrcSize), MemSet->getOperand(1),
-                       MemsetLen, Align);
+                       MemsetLen, Align,
+                       false, NULL, NULL, NULL, DL.isByteAddressable());
 
   MD->removeInstruction(MemSet);
   MemSet->eraseFromParent();
@@ -1160,8 +1163,10 @@ bool MemCpyOptPass::performMemCpyToMemSetOptzn(MemCpyInst *MemCpy,
     return false;
 
   IRBuilder<> Builder(MemCpy);
+  const DataLayout &DL = MemCpy->getModule()->getDataLayout();
   Builder.CreateMemSet(MemCpy->getRawDest(), MemSet->getOperand(1),
-                       CopySize, MemCpy->getAlignment());
+                       CopySize, MemCpy->getAlignment(),
+                       false, NULL, NULL, NULL, DL.isByteAddressable());
   return true;
 }
 
