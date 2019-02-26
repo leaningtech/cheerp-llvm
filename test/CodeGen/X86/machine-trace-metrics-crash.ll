@@ -8,7 +8,7 @@
 define void @PR24199() {
 ; CHECK-LABEL:	PR24199:
 ; CHECK:	addss	%xmm1, %xmm0
-; CHECK:	addss	%xmm2, %xmm0
+; XFAIL:	addss	%xmm2, %xmm0
 
 entry:
   %i = alloca %struct.A, align 8
