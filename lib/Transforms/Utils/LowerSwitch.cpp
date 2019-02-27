@@ -35,6 +35,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -46,13 +47,8 @@ using namespace llvm;
 
 #define DEBUG_TYPE "lower-switch"
 
-namespace {
-
-  struct IntRange {
-    int64_t Low, High;
-  };
-
-} // end anonymous namespace
+using namespace llvm;
+using IntRange = LowerSwitch::IntRange;
 
 // Return true iff R is covered by Ranges.
 static bool IsInRanges(const IntRange &R,
@@ -68,50 +64,6 @@ static bool IsInRanges(const IntRange &R,
 }
 
 namespace {
-
-  /// Replace all SwitchInst instructions with chained branch instructions.
-  class LowerSwitch : public FunctionPass {
-  public:
-    // Pass identification, replacement for typeid
-    static char ID;
-
-    LowerSwitch() : FunctionPass(ID) {
-      initializeLowerSwitchPass(*PassRegistry::getPassRegistry());
-    }
-
-    bool runOnFunction(Function &F) override;
-
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<LazyValueInfoWrapperPass>();
-    }
-
-    struct CaseRange {
-      ConstantInt* Low;
-      ConstantInt* High;
-      BasicBlock* BB;
-
-      CaseRange(ConstantInt *low, ConstantInt *high, BasicBlock *bb)
-          : Low(low), High(high), BB(bb) {}
-    };
-
-    using CaseVector = std::vector<CaseRange>;
-    using CaseItr = std::vector<CaseRange>::iterator;
-
-  private:
-    void processSwitchInst(SwitchInst *SI,
-                           SmallPtrSetImpl<BasicBlock *> &DeleteList,
-                           AssumptionCache *AC, LazyValueInfo *LVI);
-
-    BasicBlock *switchConvert(CaseItr Begin, CaseItr End,
-                              ConstantInt *LowerBound, ConstantInt *UpperBound,
-                              Value *Val, BasicBlock *Predecessor,
-                              BasicBlock *OrigBlock, BasicBlock *Default,
-                              const std::vector<IntRange> &UnreachableRanges);
-    BasicBlock *newLeafBlock(CaseRange &Leaf, Value *Val,
-                             ConstantInt *LowerBound, ConstantInt *UpperBound,
-                             BasicBlock *OrigBlock, BasicBlock *Default);
-    unsigned Clusterify(CaseVector &Cases, SwitchInst *SI);
-  };
 
   /// The comparison function for sorting the switch case values in the vector.
   /// WARNING: Case ranges should be disjoint!
@@ -180,6 +132,8 @@ bool LowerSwitch::runOnFunction(Function &F) {
   return Changed;
 }
 
+namespace llvm {
+
 /// Used for debugging purposes.
 LLVM_ATTRIBUTE_USED
 static raw_ostream &operator<<(raw_ostream &O,
@@ -194,6 +148,7 @@ static raw_ostream &operator<<(raw_ostream &O,
   }
 
   return O << "]";
+}
 }
 
 /// Update the first occurrence of the "switch statement" BB in the PHI
