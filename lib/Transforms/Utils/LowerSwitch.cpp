@@ -26,15 +26,15 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/UnifyFunctionExitNodes.h"
+#include "llvm/Transforms/Utils/LowerSwitch.h"
 #include <algorithm>
-using namespace llvm;
 
 #define DEBUG_TYPE "lower-switch"
 
+using namespace llvm;
+using IntRange = LowerSwitch::IntRange;
+
 namespace {
-  struct IntRange {
-    int64_t Low, High;
-  };
   // Return true iff R is covered by Ranges.
   static bool IsInRanges(const IntRange &R,
                          const std::vector<IntRange> &Ranges) {
@@ -48,40 +48,6 @@ namespace {
         [](const IntRange &A, const IntRange &B) { return A.High < B.High; });
     return I != Ranges.end() && I->Low <= R.Low;
   }
-
-  /// Replace all SwitchInst instructions with chained branch instructions.
-  class LowerSwitch : public FunctionPass {
-  public:
-    static char ID; // Pass identification, replacement for typeid
-    LowerSwitch() : FunctionPass(ID) {
-      initializeLowerSwitchPass(*PassRegistry::getPassRegistry());
-    } 
-
-    bool runOnFunction(Function &F) override;
-
-    struct CaseRange {
-      ConstantInt* Low;
-      ConstantInt* High;
-      BasicBlock* BB;
-
-      CaseRange(ConstantInt *low, ConstantInt *high, BasicBlock *bb)
-          : Low(low), High(high), BB(bb) {}
-    };
-
-    typedef std::vector<CaseRange> CaseVector;
-    typedef std::vector<CaseRange>::iterator CaseItr;
-  private:
-    void processSwitchInst(SwitchInst *SI, SmallPtrSetImpl<BasicBlock*> &DeleteList);
-
-    BasicBlock *switchConvert(CaseItr Begin, CaseItr End,
-                              ConstantInt *LowerBound, ConstantInt *UpperBound,
-                              Value *Val, BasicBlock *Predecessor,
-                              BasicBlock *OrigBlock, BasicBlock *Default,
-                              const std::vector<IntRange> &UnreachableRanges);
-    BasicBlock *newLeafBlock(CaseRange &Leaf, Value *Val, BasicBlock *OrigBlock,
-                             BasicBlock *Default);
-    unsigned Clusterify(CaseVector &Cases, SwitchInst *SI);
-  };
 
   /// The comparison function for sorting the switch case values in the vector.
   /// WARNING: Case ranges should be disjoint!
@@ -132,6 +98,8 @@ bool LowerSwitch::runOnFunction(Function &F) {
   return Changed;
 }
 
+namespace llvm {
+
 /// Used for debugging purposes.
 static raw_ostream& operator<<(raw_ostream &O,
                                const LowerSwitch::CaseVector &C)
@@ -147,6 +115,7 @@ static raw_ostream& operator<<(raw_ostream &O,
   }
 
   return O << "]";
+}
 }
 
 /// \brief Update the first occurrence of the "switch statement" BB in the PHI
