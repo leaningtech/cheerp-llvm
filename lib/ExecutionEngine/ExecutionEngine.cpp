@@ -183,9 +183,10 @@ uint64_t ExecutionEngineState::RemoveMapping(StringRef Name) {
   if (I == GlobalAddressMap.end())
     OldVal = 0;
   else {
-    GlobalAddressReverseMap.erase(I->second);
-    OldVal = I->second;
-    GVMemoryBlock::Delete((char*)OldVal);
+    GlobalAddressReverseMap.erase(I->second.first);
+    OldVal = I->second.first;
+    if(I->second.second)
+      GVMemoryBlock::Delete((char*)OldVal);
     GlobalAddressMap.erase(I);
   }
 
@@ -217,14 +218,15 @@ void ExecutionEngine::addGlobalMapping(StringRef Name, uint64_t Addr) {
 
   assert(!Name.empty() && "Empty GlobalMapping symbol name!");
 
-  LLVM_DEBUG(dbgs() << "JIT: Map \'" << Name << "\' to [" << Addr << "]\n";);
-  uint64_t &CurVal = EEState.getGlobalAddressMap()[Name];
-  assert((!CurVal || !Addr) && "GlobalMapping already established!");
-  CurVal = Addr;
+  LLVM_DEBUG(dbgs() << "JIT: Map \'" << Name  << "\' to [" << Addr << "]\n";);
+  auto &CurVal = EEState.getGlobalAddressMap()[Name];
+  assert((!CurVal.first || !Addr) && "GlobalMapping already established!");
+  CurVal.first = Addr;
+  CurVal.second = true;
 
   // If we are using the reverse mapping, add it too.
   if (!EEState.getGlobalAddressReverseMap().empty()) {
-    std::string &V = EEState.getGlobalAddressReverseMap()[CurVal];
+    std::string &V = EEState.getGlobalAddressReverseMap()[CurVal.first];
     assert((!V.empty() || !Name.empty()) &&
            "GlobalMapping already established!");
     V = Name;
@@ -236,7 +238,8 @@ void ExecutionEngine::clearAllGlobalMappings() {
 
   // Clear all GV memory
   for(auto& it: EEState.getGlobalAddressMap()) {
-    GVMemoryBlock::Delete( (char*)it.second);
+    if(it.second.second)
+      GVMemoryBlock::Delete( (char*)it.second.first);
   }
 
   EEState.getGlobalAddressMap().clear();
@@ -266,16 +269,17 @@ uint64_t ExecutionEngine::updateGlobalMapping(StringRef Name, uint64_t Addr) {
   if (!Addr)
     return EEState.RemoveMapping(Name);
 
-  uint64_t &CurVal = Map[Name];
-  uint64_t OldVal = CurVal;
+  auto &CurVal = Map[Name];
+  uint64_t OldVal = CurVal.first;
 
-  if (CurVal && !EEState.getGlobalAddressReverseMap().empty())
-    EEState.getGlobalAddressReverseMap().erase(CurVal);
-  CurVal = Addr;
+  if (CurVal.first && !EEState.getGlobalAddressReverseMap().empty())
+    EEState.getGlobalAddressReverseMap().erase(CurVal.first);
+  CurVal.first = Addr;
+  CurVal.second = false;
 
   // If we are using the reverse mapping, add it too.
   if (!EEState.getGlobalAddressReverseMap().empty()) {
-    std::string &V = EEState.getGlobalAddressReverseMap()[CurVal];
+    std::string &V = EEState.getGlobalAddressReverseMap()[CurVal.first];
     assert((!V.empty() || !Name.empty()) &&
            "GlobalMapping already established!");
     V = Name;
@@ -289,7 +293,7 @@ uint64_t ExecutionEngine::getAddressToGlobalIfAvailable(StringRef S) {
   ExecutionEngineState::GlobalAddressMapTy::iterator I =
     EEState.getGlobalAddressMap().find(S);
   if (I != EEState.getGlobalAddressMap().end())
-    Address = I->second;
+    Address = I->second.first;
   return Address;
 }
 
@@ -315,7 +319,7 @@ const GlobalValue *ExecutionEngine::getGlobalValueAtAddress(void *Addr) {
            I = EEState.getGlobalAddressMap().begin(),
            E = EEState.getGlobalAddressMap().end(); I != E; ++I) {
       StringRef Name = I->first();
-      uint64_t Addr = I->second;
+      uint64_t Addr = I->second.first;
       EEState.getGlobalAddressReverseMap().insert(std::make_pair(
                                                           Addr, Name));
     }
