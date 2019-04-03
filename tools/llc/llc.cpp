@@ -416,7 +416,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   }
 
   if (TheTriple.getTriple().empty())
-    TheTriple.setTriple(sys::getDefaultTargetTriple());
+    TheTriple.setTriple(sys::getProcessTriple());
 
   // Get the target specific parser.
   std::string Error;
