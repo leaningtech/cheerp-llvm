@@ -277,6 +277,7 @@ public:
   PointerType *getType() const { return cast<PointerType>(User::getType()); }
 
   Type *getValueType() const { return ValueType; }
+  void setValueType(Type* T) { ValueType = T; }
 
   void setDSOLocal(bool Local) { IsDSOLocal = Local; }
 
