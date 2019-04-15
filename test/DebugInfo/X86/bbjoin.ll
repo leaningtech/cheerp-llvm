@@ -17,7 +17,6 @@
 ; CHECK:   DBG_VALUE 43, 0, ![[X]],
 ; CHECK: bb.2.if.end:
 ; CHECK-NOT:  DBG_VALUE 23, 0, ![[X]],
-; CHECK:   RETQ %eax
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"

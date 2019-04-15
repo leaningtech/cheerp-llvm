@@ -44,13 +44,13 @@ entry:
 
 if.then:
 ; GEN: if.then:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([9 x i8], [9 x i8]* @__profn_test_br_1, i32 0, i32 0), i64 25571299074, i32 2, i32 1)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([9 x i8]* @__profn_test_br_1 to i8*), i64 25571299074, i32 2, i32 1)
   %add = add nsw i32 %i, 2
   br label %if.end
 
 if.end:
 ; GEN: if.end:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([9 x i8], [9 x i8]* @__profn_test_br_1, i32 0, i32 0), i64 25571299074, i32 2, i32 0)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([9 x i8]* @__profn_test_br_1 to i8*), i64 25571299074, i32 2, i32 0)
   %retv = phi i32 [ %add, %if.then ], [ %i, %entry ]
   ret i32 %retv
 }
