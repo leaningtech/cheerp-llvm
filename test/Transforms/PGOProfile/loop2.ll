@@ -49,7 +49,7 @@ for.body.inner:
 
 for.inc.inner:
 ; GEN: for.inc.inner:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([15 x i8], [15 x i8]* @__profn_test_nested_for, i32 0, i32 0), i64 53929068288, i32 3, i32 0)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([15 x i8]* @__profn_test_nested_for to i8*), i64 53929068288, i32 3, i32 0)
   %inc.1 = add nsw i32 %j.0, 1
   br label %for.cond.inner
 
@@ -59,7 +59,7 @@ for.end.inner:
 
 for.inc.outer:
 ; GEN: for.inc.outer:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([15 x i8], [15 x i8]* @__profn_test_nested_for, i32 0, i32 0), i64 53929068288, i32 3, i32 1)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([15 x i8]* @__profn_test_nested_for to i8*), i64 53929068288, i32 3, i32 1)
   %inc.2 = add nsw i32 %i.0, 1
   br label %for.cond.outer
 

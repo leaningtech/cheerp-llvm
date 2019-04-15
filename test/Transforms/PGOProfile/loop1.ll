@@ -35,7 +35,7 @@ for.body:
 
 for.inc:
 ; GEN: for.inc:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([15 x i8], [15 x i8]* @__profn_test_simple_for, i32 0, i32 0), i64 34137660316, i32 2, i32 0)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([15 x i8]* @__profn_test_simple_for to i8*), i64 34137660316, i32 2, i32 0)
   %inc1 = add nsw i32 %i, 1
   br label %for.cond
 

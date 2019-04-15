@@ -25,22 +25,22 @@ entry:
 
 sw.bb:
 ; GEN: sw.bb:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @__profn_test_switch, i32 0, i32 0), i64 46200943743, i32 4, i32 2)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([11 x i8]* @__profn_test_switch to i8*), i64 46200943743, i32 4, i32 2)
   br label %sw.epilog
 
 sw.bb1:
 ; GEN: sw.bb1:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @__profn_test_switch, i32 0, i32 0), i64 46200943743, i32 4, i32 0)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([11 x i8]* @__profn_test_switch to i8*), i64 46200943743, i32 4, i32 0)
   br label %sw.epilog
 
 sw.bb2:
 ; GEN: sw.bb2:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @__profn_test_switch, i32 0, i32 0), i64 46200943743, i32 4, i32 1)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([11 x i8]* @__profn_test_switch to i8*), i64 46200943743, i32 4, i32 1)
   br label %sw.epilog
 
 sw.default:
 ; GEN: sw.default:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @__profn_test_switch, i32 0, i32 0), i64 46200943743, i32 4, i32 3)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([11 x i8]* @__profn_test_switch to i8*), i64 46200943743, i32 4, i32 3)
   br label %sw.epilog
 
 sw.epilog:
