@@ -397,6 +397,7 @@ void initializeGEPOptimizerPass(PassRegistry&);
 void initializeAllocaStoresExtractorPass(PassRegistry&);
 void initializeFixIrreducibleControlFlowPass(PassRegistry&);
 void initializeCheerpLowerSwitchPass(PassRegistry&);
+void initializeFixFunctionCastsPass(PassRegistry&);
 }
 
 #endif
