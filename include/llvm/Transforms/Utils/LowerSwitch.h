@@ -42,7 +42,7 @@ namespace llvm {
     using CaseItr = std::vector<CaseRange>::iterator;
 
   protected:
-    void processSwitchInst(SwitchInst *SI, SmallPtrSetImpl<BasicBlock*> &DeleteList);
+    virtual void processSwitchInst(SwitchInst *SI, SmallPtrSetImpl<BasicBlock*> &DeleteList);
   private:
 
     BasicBlock *switchConvert(CaseItr Begin, CaseItr End,
