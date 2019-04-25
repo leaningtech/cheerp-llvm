@@ -39,7 +39,7 @@ namespace llvm {
     typedef std::vector<CaseRange> CaseVector;
     typedef std::vector<CaseRange>::iterator CaseItr;
   protected:
-    void processSwitchInst(SwitchInst *SI, SmallPtrSetImpl<BasicBlock*> &DeleteList);
+    virtual void processSwitchInst(SwitchInst *SI, SmallPtrSetImpl<BasicBlock*> &DeleteList);
   private:
 
     BasicBlock *switchConvert(CaseItr Begin, CaseItr End,
