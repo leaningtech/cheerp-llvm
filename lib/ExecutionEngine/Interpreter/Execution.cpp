@@ -1157,6 +1157,11 @@ void Interpreter::visitCallSite(CallSite CS) {
   // To handle indirect calls, we must get the pointer value from the argument
   // and treat it as a function pointer.
   GenericValue SRC = getOperandValue(SF.Caller.getCalledValue(), SF);
+  if (SF.Caller.isInlineAsm() && ForPreExecute)
+  {
+    CleanAbort = true;
+    return;
+  }
   if (SF.Caller.getCalledFunction() == nullptr)
   {
     void* faddr = GVTOP(SRC);
