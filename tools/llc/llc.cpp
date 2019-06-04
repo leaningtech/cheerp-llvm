@@ -302,6 +302,7 @@ int main(int argc, char **argv) {
   initializeScalarizeMaskedMemIntrinPass(*Registry);
   initializeExpandReductionsPass(*Registry);
   initializeCheerpOpts(*Registry);
+  initializeLowerSwitchPass(*Registry);
 
   // Initialize debugging passes.
   initializeScavengerTestPass(*Registry);
