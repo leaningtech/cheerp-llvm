@@ -253,8 +253,9 @@ static bool isShortenableAtTheEnd(Instruction *I) {
 static bool isShortenableAtTheBeginning(Instruction *I) {
   // FIXME: Handle only memset for now. Supporting memcpy/memmove should be
   // easily done by offsetting the source address.
+  const DataLayout& DL = I->getParent()->getParent()->getParent()->getDataLayout();
   IntrinsicInst *II = dyn_cast<IntrinsicInst>(I);
-  return II && II->getIntrinsicID() == Intrinsic::memset;
+  return II && II->getIntrinsicID() == Intrinsic::memset && DL.isByteAddressable();
 }
 
 /// Return the pointer that is being written to.
