@@ -398,6 +398,7 @@ void initializeAllocaStoresExtractorPass(PassRegistry&);
 void initializeFixIrreducibleControlFlowPass(PassRegistry&);
 void initializeCheerpLowerSwitchPass(PassRegistry&);
 void initializeFixFunctionCastsPass(PassRegistry&);
+void initializeByValLoweringPass(PassRegistry&);
 }
 
 #endif
