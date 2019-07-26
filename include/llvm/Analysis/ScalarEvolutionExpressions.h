@@ -29,7 +29,7 @@ namespace llvm {
     // folders simpler.
     scConstant, scTruncate, scZeroExtend, scSignExtend, scAddExpr, scMulExpr,
     scUDivExpr, scAddRecExpr, scUMaxExpr, scSMaxExpr,
-    scNegPointer, scUnknown, scCouldNotCompute
+    scNegPointer, scGEPPointer, scUnknown, scCouldNotCompute
   };
 
   /// This class represents a constant integer value.
@@ -187,6 +187,7 @@ namespace llvm {
     static bool classof(const SCEV *S) {
       return S->getSCEVType() == scAddExpr ||
              S->getSCEVType() == scMulExpr ||
+             S->getSCEVType() == scGEPPointer ||
              S->getSCEVType() == scSMaxExpr ||
              S->getSCEVType() == scUMaxExpr ||
              S->getSCEVType() == scAddRecExpr;
@@ -215,6 +216,26 @@ namespace llvm {
     }
   };
 
+
+  /// This node represents a NBA GEP
+  class SCEVGEPPointer : public SCEVNAryExpr {
+    friend class ScalarEvolution;
+
+    SCEVGEPPointer(const FoldingSetNodeIDRef ID,
+                const SCEV *const *O, size_t N)
+      : SCEVNAryExpr(ID, scGEPPointer, O, N) {
+    }
+
+  public:
+    Type *getType() const {
+      return getOperand(0)->getType();
+    }
+
+    /// Methods for support type inquiry through isa, cast, and dyn_cast:
+    static inline bool classof(const SCEV *S) {
+      return S->getSCEVType() == scGEPPointer;
+    }
+  };
 
   /// This node represents an addition of some number of SCEVs.
   class SCEVAddExpr : public SCEVCommutativeExpr {
@@ -460,6 +481,8 @@ namespace llvm {
         return ((SC*)this)->visitConstant((const SCEVConstant*)S);
       case scNegPointer:
         return ((SC*)this)->visitNegPointer((const SCEVNegPointer*)S);
+      case scGEPPointer:
+        return ((SC*)this)->visitGEPPointer((const SCEVGEPPointer*)S);
       case scTruncate:
         return ((SC*)this)->visitTruncateExpr((const SCEVTruncateExpr*)S);
       case scZeroExtend:
@@ -531,6 +554,7 @@ namespace llvm {
           break;
         case scAddExpr:
         case scMulExpr:
+        case scGEPPointer:
         case scSMaxExpr:
         case scUMaxExpr:
         case scAddRecExpr:
@@ -618,6 +642,13 @@ namespace llvm {
     const SCEV *visitNegPointer(const SCEVNegPointer *Expr) {
       const SCEV *Operand = ((SC*)this)->visit(Expr->getOperand());
       return SE.getNegPointer(Operand);
+    }
+
+    const SCEV *visitGEPPointer(const SCEVGEPPointer *Expr) {
+      SmallVector<const SCEV *, 2> Operands;
+      for (int i = 0, e = Expr->getNumOperands(); i < e; ++i)
+        Operands.push_back(((SC*)this)->visit(Expr->getOperand(i)));
+      return SE.getGEPPointer(Operands[0], ArrayRef<const SCEV*>(Operands).slice(1));
     }
 
     const SCEV *visitTruncateExpr(const SCEVTruncateExpr *Expr) {
