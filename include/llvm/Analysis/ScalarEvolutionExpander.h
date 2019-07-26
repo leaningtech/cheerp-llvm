@@ -353,6 +353,8 @@ namespace llvm {
 
     Value *visitNegPointer(const SCEVNegPointer *S);
 
+    Value *visitGEPPointer(const SCEVGEPPointer *S);
+
     Value *visitTruncateExpr(const SCEVTruncateExpr *S);
 
     Value *visitZeroExtendExpr(const SCEVZeroExtendExpr *S);
