@@ -42,7 +42,6 @@ for.end:
 
 ; CHECK: phi float
 ; CHECK: store float
-; CHECK-NOT: bitcast
 }
 
 
@@ -89,5 +88,4 @@ for.end:
 ; CHECK-LABEL: @multi_phi(
 ; CHECK: phi float
 ; CHECK: store float
-; CHECK-NOT: bitcast
 }
