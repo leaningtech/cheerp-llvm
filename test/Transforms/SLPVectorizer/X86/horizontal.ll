@@ -515,7 +515,7 @@ for.end:
 
 define void @float_red_example4(float* %res) {
 ; STORE-LABEL: @float_red_example4(
-; STORE:         [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast ([32 x float]* @arr_float to <4 x float>*), align 16
+; STORE:         [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <4 x float>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <4 x float> [[TMP0]], <4 x float> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = fadd fast <4 x float> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <4 x float> [[BIN_RDX]], <4 x float> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
@@ -538,7 +538,7 @@ entry:
 
 define void @float_red_example8(float* %res) {
 ; STORE-LABEL: @float_red_example8(
-; STORE:         [[TMP0:%.*]] = load <8 x float>, <8 x float>* bitcast ([32 x float]* @arr_float to <8 x float>*), align 16
+; STORE:         [[TMP0:%.*]] = load <8 x float>, <8 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <8 x float>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <8 x float> [[TMP0]], <8 x float> undef, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = fadd fast <8 x float> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <8 x float> [[BIN_RDX]], <8 x float> undef, <8 x i32> <i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -571,7 +571,7 @@ entry:
 
 define void @float_red_example16(float* %res) {
 ; STORE-LABEL: @float_red_example16(
-; STORE:         [[TMP0:%.*]] = load <16 x float>, <16 x float>* bitcast ([32 x float]* @arr_float to <16 x float>*), align 16
+; STORE:         [[TMP0:%.*]] = load <16 x float>, <16 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <16 x float>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <16 x float> [[TMP0]], <16 x float> undef, <16 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = fadd fast <16 x float> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <16 x float> [[BIN_RDX]], <16 x float> undef, <16 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -622,7 +622,7 @@ entry:
 
 define void @i32_red_example4(i32* %res) {
 ; STORE-LABEL: @i32_red_example4(
-; STORE:         [[TMP0:%.*]] = load <4 x i32>, <4 x i32>* bitcast ([32 x i32]* @arr_i32 to <4 x i32>*), align 16
+; STORE:         [[TMP0:%.*]] = load <4 x i32>, <4 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <4 x i32>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <4 x i32> [[TMP0]], <4 x i32> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = add nsw <4 x i32> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <4 x i32> [[BIN_RDX]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
@@ -645,7 +645,7 @@ entry:
 
 define void @i32_red_example8(i32* %res) {
 ; STORE-LABEL: @i32_red_example8(
-; STORE:         [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; STORE:         [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <8 x i32> [[TMP0]], <8 x i32> undef, <8 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = add nsw <8 x i32> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <8 x i32> [[BIN_RDX]], <8 x i32> undef, <8 x i32> <i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -678,7 +678,7 @@ entry:
 
 define void @i32_red_example16(i32* %res) {
 ; STORE-LABEL: @i32_red_example16(
-; STORE:         [[TMP0:%.*]] = load <16 x i32>, <16 x i32>* bitcast ([32 x i32]* @arr_i32 to <16 x i32>*), align 16
+; STORE:         [[TMP0:%.*]] = load <16 x i32>, <16 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <16 x i32>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <16 x i32> [[TMP0]], <16 x i32> undef, <16 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = add nsw <16 x i32> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <16 x i32> [[BIN_RDX]], <16 x i32> undef, <16 x i32> <i32 4, i32 5, i32 6, i32 7, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
@@ -729,7 +729,7 @@ entry:
 
 define void @i32_red_example32(i32* %res) {
 ; STORE-LABEL: @i32_red_example32(
-; STORE:         [[TMP0:%.*]] = load <32 x i32>, <32 x i32>* bitcast ([32 x i32]* @arr_i32 to <32 x i32>*), align 16
+; STORE:         [[TMP0:%.*]] = load <32 x i32>, <32 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <32 x i32>*), align 16
 ; STORE:         [[RDX_SHUF:%.*]] = shufflevector <32 x i32> [[TMP0]], <32 x i32> undef, <32 x i32> <i32 16, i32 17, i32 18, i32 19, i32 20, i32 21, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 30, i32 31, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
 ; STORE-NEXT:    [[BIN_RDX:%.*]] = add nsw <32 x i32> [[TMP0]], [[RDX_SHUF]]
 ; STORE-NEXT:    [[RDX_SHUF1:%.*]] = shufflevector <32 x i32> [[BIN_RDX]], <32 x i32> undef, <32 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>

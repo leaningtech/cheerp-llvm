@@ -5,7 +5,7 @@
 
 target triple = "x86_64-unknown-linux-gnu"
 
-; CHECK: @f = alias void (), void ()* @[[JT:.*]]
+; CHECK: @f = alias void (), {{.*}}void ()* {{.*}}@[[JT:.*]] to [{{.*}}
 ; CHECK: define internal void @f.cfi() section "xxx"
 
 define void @f() section "xxx" !type !0 {
