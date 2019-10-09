@@ -148,7 +148,8 @@ public:
     Mesa,
     SUSE,
     OpenEmbedded,
-    LastVendorType = OpenEmbedded
+    Leaningtech,
+    LastVendorType = Leaningtech
   };
   enum OSType {
     UnknownOS,
@@ -212,7 +213,9 @@ public:
     Cygnus,
     CoreCLR,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
-    LastEnvironmentType = Simulator
+    GenericJs,
+    Wasm,
+    LastEnvironmentType = Wasm
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
