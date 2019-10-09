@@ -167,6 +167,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case AMD: return "amd";
   case Mesa: return "mesa";
   case SUSE: return "suse";
+  case Leaningtech: return "leaningtech";
   }
 
   llvm_unreachable("Invalid VendorType!");
@@ -233,6 +234,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case AMDOpenCL: return "amdopencl";
   case CoreCLR: return "coreclr";
   case OpenCL: return "opencl";
+  case GenericJs: return "genericjs";
+  case Wasm: return "wasm";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -462,6 +465,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("amd", Triple::AMD)
     .Case("mesa", Triple::Mesa)
     .Case("suse", Triple::SUSE)
+    .Case("leaningtech", Triple::Leaningtech)
     .Default(Triple::UnknownVendor);
 }
 
@@ -522,6 +526,8 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("amdopencl", Triple::AMDOpenCL)
     .StartsWith("coreclr", Triple::CoreCLR)
     .StartsWith("opencl", Triple::OpenCL)
+    .StartsWith("genericjs", Triple::GenericJs)
+    .StartsWith("wasm", Triple::Wasm)
     .Default(Triple::UnknownEnvironment);
 }
 

@@ -143,7 +143,8 @@ public:
     AMD,
     Mesa,
     SUSE,
-    LastVendorType = SUSE
+    Leaningtech,
+    LastVendorType = Leaningtech
   };
   enum OSType {
     UnknownOS,
@@ -203,7 +204,9 @@ public:
     AMDOpenCL,
     CoreCLR,
     OpenCL,
-    LastEnvironmentType = OpenCL
+    GenericJs,
+    Wasm,
+    LastEnvironmentType = Wasm
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
