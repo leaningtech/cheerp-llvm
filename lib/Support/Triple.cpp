@@ -169,6 +169,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
   case Mesa: return "mesa";
   case SUSE: return "suse";
   case OpenEmbedded: return "oe";
+  case Leaningtech: return "leaningtech";
   }
 
   llvm_unreachable("Invalid VendorType!");
@@ -243,6 +244,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case CoreCLR: return "coreclr";
   case Simulator: return "simulator";
   case MacABI: return "macabi";
+  case GenericJs: return "genericjs";
+  case Wasm: return "wasm";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -481,6 +484,7 @@ static Triple::VendorType parseVendor(StringRef VendorName) {
     .Case("mesa", Triple::Mesa)
     .Case("suse", Triple::SUSE)
     .Case("oe", Triple::OpenEmbedded)
+    .Case("leaningtech", Triple::Leaningtech)
     .Default(Triple::UnknownVendor);
 }
 
@@ -549,6 +553,8 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("coreclr", Triple::CoreCLR)
     .StartsWith("simulator", Triple::Simulator)
     .StartsWith("macabi", Triple::MacABI)
+    .StartsWith("genericjs", Triple::GenericJs)
+    .StartsWith("wasm", Triple::Wasm)
     .Default(Triple::UnknownEnvironment);
 }
 
