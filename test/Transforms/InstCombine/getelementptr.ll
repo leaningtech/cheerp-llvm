@@ -104,8 +104,8 @@ define i32* @test7(i32* %I, i64 %C, i64 %D) {
         %B = getelementptr i32, i32* %A, i64 %D
         ret i32* %B
 ; CHECK-LABEL: @test7(
-; XFAIL: %A = getelementptr i32, i32* %I, i64 %C
-; XFAIL: %B = getelementptr i32, i32* %A, i64 %D
+; CHECK: %A = getelementptr i32, i32* %I, i64 %C
+; CHECK: %B = getelementptr i32, i32* %A, i64 %D
 }
 
 define i8* @test8([10 x i32]* %X) {
