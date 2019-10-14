@@ -527,7 +527,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("coreclr", Triple::CoreCLR)
     .StartsWith("opencl", Triple::OpenCL)
     .StartsWith("genericjs", Triple::GenericJs)
-    .StartsWith("wasm", Triple::WebAssembly)
+    .Case("wasm", Triple::WebAssembly)
     .Default(Triple::UnknownEnvironment);
 }
 
