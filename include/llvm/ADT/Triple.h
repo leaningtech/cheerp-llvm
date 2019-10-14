@@ -214,8 +214,8 @@ public:
     CoreCLR,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
     GenericJs,
-    Wasm,
-    LastEnvironmentType = Wasm
+    WebAssembly,
+    LastEnvironmentType = WebAssembly
   };
   enum ObjectFormatType {
     UnknownObjectFormat,

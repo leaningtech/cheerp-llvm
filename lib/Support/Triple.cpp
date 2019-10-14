@@ -239,7 +239,7 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case CoreCLR: return "coreclr";
   case Simulator: return "simulator";
   case GenericJs: return "genericjs";
-  case Wasm: return "wasm";
+  case WebAssembly: return "wasm";
   }
 
   llvm_unreachable("Invalid EnvironmentType!");
@@ -540,7 +540,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
     .StartsWith("coreclr", Triple::CoreCLR)
     .StartsWith("simulator", Triple::Simulator)
     .StartsWith("genericjs", Triple::GenericJs)
-    .StartsWith("wasm", Triple::Wasm)
+    .StartsWith("wasm", Triple::WebAssembly)
     .Default(Triple::UnknownEnvironment);
 }
 
