@@ -58,7 +58,7 @@ static cl::opt<unsigned> DomConditionsMaxUses("dom-conditions-max-uses",
 // keep it under a temporary flag for now.
 static cl::opt<bool>
 DontImproveNonNegativePhiBits("dont-improve-non-negative-phi-bits",
-                              cl::Hidden, cl::init(true));
+                              cl::Hidden, cl::init(false));
 
 /// Returns the bitwidth of the given scalar or pointer type. For vector types,
 /// returns the element type's bitwidth.
