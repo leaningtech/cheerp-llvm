@@ -555,7 +555,7 @@ const Value *Value::stripInBoundsConstantOffsets() const {
 
 const Value *Value::stripPointerCastsAndInvariantGroups() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliasesAndInvariantGroups>(
-      this);
+      this, false);
 }
 
 const Value *
