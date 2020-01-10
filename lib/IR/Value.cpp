@@ -542,7 +542,7 @@ const Value *Value::stripInBoundsConstantOffsets() const {
 
 const Value *Value::stripPointerCastsAndBarriers() const {
   return stripPointerCastsAndOffsets<PSK_ZeroIndicesAndAliasesAndBarriers>(
-      this);
+      this, false);
 }
 
 const Value *
