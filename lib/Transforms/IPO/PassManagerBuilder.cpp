@@ -24,6 +24,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/Cheerp/StructMemFuncLowering.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
@@ -154,6 +155,9 @@ static cl::opt<bool>
 static cl::opt<bool> EnableGVNSink(
     "enable-gvn-sink", cl::init(false), cl::Hidden,
     cl::desc("Enable the GVN sinking pass (default = off)"));
+
+static cl::opt<bool> CheerpLTO("cheerp-lto", cl::init(false), cl::Hidden,
+                               cl::desc("Run passes needed for Cheerp LTO phase"));
 
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
@@ -369,6 +373,8 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
                    : createGVNPass(DisableGVNLoadPRE)); // Remove redundancies
   }
   MPM.add(createMemCpyOptPass());             // Remove memcpy / form memset
+  if (CheerpLTO)
+    MPM.add(createStructMemFuncLowering());
   MPM.add(createSCCPPass());                  // Constant prop with SCCP
 
   // Delete dead bit computations (instcombine runs after to fold away the dead
