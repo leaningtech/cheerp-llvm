@@ -389,7 +389,14 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
                                                  Value *StartPtr,
                                                  Value *ByteVal) {
   const DataLayout &DL = StartInst->getModule()->getDataLayout();
-  if (!DL.isByteAddressable()) return nullptr;
+  if (!DL.isByteAddressable()) {
+    // Only allow in linear memory mode
+    if (StartInst->getParent() == nullptr ||
+        StartInst->getParent()->getParent() == nullptr ||
+        StartInst->getParent()->getParent()->getSection() != StringRef("asmjs")) {
+      return nullptr;
+    }
+  }
 
   // Okay, so we now have a single store that can be splatable.  Scan to find
   // all subsequent stores of the same value to offset from the same pointer.
@@ -480,8 +487,7 @@ Instruction *MemCpyOptPass::tryMergingIntoMemset(Instruction *StartInst,
     }
 
     AMemSet =
-      Builder.CreateMemSet(StartPtr, ByteVal, Range.End-Range.Start, Alignment,
-                                   false, NULL, NULL, NULL, DL.isByteAddressable());
+      Builder.CreateMemSet(StartPtr, ByteVal, Range.End-Range.Start, Alignment);
 
     LLVM_DEBUG(dbgs() << "Replace stores:\n"; for (Instruction *SI
                                                    : Range.TheStores) dbgs()
