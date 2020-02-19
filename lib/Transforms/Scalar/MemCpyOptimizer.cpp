@@ -1051,6 +1051,8 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
 
   IRBuilder<> Builder(M);
   const DataLayout &DL = M->getModule()->getDataLayout();
+  if (!DL.isByteAddressable())
+    return false;
   if (UseMemMove)
     Builder.CreateMemMove(M->getRawDest(), MDep->getRawSource(), M->getLength(),
                           Align, M->isVolatile(), NULL, NULL, NULL, DL.isByteAddressable());
