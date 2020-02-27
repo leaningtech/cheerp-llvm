@@ -28,7 +28,7 @@ endif()
 
 # Compile libFuzzer if the compilation is specifically requested, OR
 # if the platform is known to be working.
-if ( LLVM_USE_SANITIZE_COVERAGE OR CMAKE_SYSTEM_NAME MATCHES "Darwin|Linux" )
+if ( LLVM_USE_SANITIZE_COVERAGE OR CMAKE_SYSTEM_NAME MATCHES "Linux" )
   add_library(LLVMFuzzerNoMainObjects OBJECT
       FuzzerCrossOver.cpp
       FuzzerDriver.cpp
