@@ -1010,9 +1010,19 @@ bool CallAnalyzer::visitCallSite(CallSite CS) {
 
       case Intrinsic::memset:
       case Intrinsic::memcpy:
-      case Intrinsic::memmove:
+      case Intrinsic::memmove: {
+	Value* Size = II->getOperand(2);
+	if(ConstantInt* SizeInt = dyn_cast<ConstantInt>(Size)) {
+          // Use same rules as by-val arguments
+          unsigned TypeSize = SizeInt->getZExtValue();
+          unsigned PointerSize = DL.getPointerSize();
+          unsigned NumStores = (TypeSize + PointerSize - 1) / PointerSize;
+          NumStores = std::min(NumStores, 8U);
+          Cost += 2 * NumStores * InlineConstants::InstrCost;
+        }
         // SROA can usually chew through these intrinsics, but they aren't free.
         return false;
+      }
       case Intrinsic::localescape:
         HasFrameEscape = true;
         return false;
