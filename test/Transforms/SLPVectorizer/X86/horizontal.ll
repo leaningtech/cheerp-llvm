@@ -1749,7 +1749,7 @@ declare i32 @foobar(i32)
 define void @i32_red_call(i32 %val) {
 ; CHECK-LABEL: @i32_red_call(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; CHECK-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; CHECK-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
@@ -1810,7 +1810,7 @@ entry:
 define void @i32_red_invoke(i32 %val) personality i32 (...)* @__gxx_personality_v0 {
 ; CHECK-LABEL: @i32_red_invoke(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; CHECK-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; CHECK-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; CHECK-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]

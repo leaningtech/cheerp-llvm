@@ -327,8 +327,8 @@ entry:
 define float @bar() {
 ; CHECK-LABEL: @bar(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast ([20 x float]* @arr to <4 x float>*), align 16
-; CHECK-NEXT:    [[TMP1:%.*]] = load <4 x float>, <4 x float>* bitcast ([20 x float]* @arr1 to <4 x float>*), align 16
+; CHECK-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([20 x float], [20 x float]* @arr, i64 0, i64 0) to <4 x float>*), align 16
+; CHECK-NEXT:    [[TMP1:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([20 x float], [20 x float]* @arr1, i64 0, i64 0) to <4 x float>*), align 16
 ; CHECK-NEXT:    [[TMP2:%.*]] = fmul fast <4 x float> [[TMP1]], [[TMP0]]
 ; CHECK-NEXT:    [[CMP4:%.*]] = fcmp fast ogt float undef, undef
 ; CHECK-NEXT:    [[MAX_0_MUL3:%.*]] = select i1 [[CMP4]], float undef, float undef
@@ -348,8 +348,8 @@ define float @bar() {
 ;
 ; THRESHOLD-LABEL: @bar(
 ; THRESHOLD-NEXT:  entry:
-; THRESHOLD-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast ([20 x float]* @arr to <4 x float>*), align 16
-; THRESHOLD-NEXT:    [[TMP1:%.*]] = load <4 x float>, <4 x float>* bitcast ([20 x float]* @arr1 to <4 x float>*), align 16
+; THRESHOLD-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([20 x float], [20 x float]* @arr, i64 0, i64 0) to <4 x float>*), align 16
+; THRESHOLD-NEXT:    [[TMP1:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([20 x float], [20 x float]* @arr1, i64 0, i64 0) to <4 x float>*), align 16
 ; THRESHOLD-NEXT:    [[TMP2:%.*]] = fmul fast <4 x float> [[TMP1]], [[TMP0]]
 ; THRESHOLD-NEXT:    [[CMP4:%.*]] = fcmp fast ogt float undef, undef
 ; THRESHOLD-NEXT:    [[MAX_0_MUL3:%.*]] = select i1 [[CMP4]], float undef, float undef

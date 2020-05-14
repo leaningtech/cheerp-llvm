@@ -46,6 +46,6 @@ try.cont:                                         ; preds = %for.end
 ; CHECK:       catchpad
 ; CHECK-NEXT:  icmp eq %struct.L
 ; CHECK-NEXT:  %4 = sub i64 0, %1
-; CHECK-NEXT:  getelementptr {{.*}} getelementptr inbounds (%struct.L, %struct.L* @GV2, i32 0, i32 0), i64 %4
+; CHECK-NEXT:  getelementptr {{.*}} bitcast (%struct.L* @GV2 to i8*), i64 %4
 
 declare void @a_copy_ctor()

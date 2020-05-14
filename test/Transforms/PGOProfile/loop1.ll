@@ -13,7 +13,7 @@ target triple = "x86_64-unknown-linux-gnu"
 define i32 @test_simple_for(i32 %n) {
 entry:
 ; GEN: entry:
-; GEN: call void @llvm.instrprof.increment(i8* getelementptr inbounds ([15 x i8], [15 x i8]* @__profn_test_simple_for, i32 0, i32 0), i64 34137660316, i32 2, i32 1)
+; GEN: call void @llvm.instrprof.increment(i8* bitcast ([15 x i8]* @__profn_test_simple_for to i8*), i64 34137660316, i32 2, i32 1)
   br label %for.cond
 
 for.cond:
