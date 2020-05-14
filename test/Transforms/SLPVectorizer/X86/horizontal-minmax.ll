@@ -65,7 +65,7 @@ define i32 @maxi8(i32) {
 
 define i32 @maxi16(i32) {
 ; CHECK-LABEL: @maxi16(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <16 x i32>, <16 x i32>* bitcast ([32 x i32]* @arr to <16 x i32>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <16 x i32>, <16 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 0) to <16 x i32>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp sgt i32 undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], i32 undef, i32 undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = icmp sgt i32 [[TMP4]], undef
@@ -162,7 +162,7 @@ define i32 @maxi16(i32) {
 
 define i32 @maxi32(i32) {
 ; CHECK-LABEL: @maxi32(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <32 x i32>, <32 x i32>* bitcast ([32 x i32]* @arr to <32 x i32>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <32 x i32>, <32 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 0) to <32 x i32>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp sgt i32 undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], i32 undef, i32 undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = icmp sgt i32 [[TMP4]], undef
@@ -778,7 +778,7 @@ define i32 @maxi8_mutiple_uses(i32) {
 ; AVX2-NEXT:    ret i32 [[TMP24]]
 ;
 ; SKX-LABEL: @maxi8_mutiple_uses(
-; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32>, <2 x i32>* bitcast ([32 x i32]* @arr to <2 x i32>*), align 16
+; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32>, <2 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 0) to <2 x i32>*), align 16
 ; SKX-NEXT:    [[TMP3:%.*]] = extractelement <2 x i32> [[TMP2]], i32 0
 ; SKX-NEXT:    [[TMP4:%.*]] = extractelement <2 x i32> [[TMP2]], i32 1
 ; SKX-NEXT:    [[TMP5:%.*]] = load <4 x i32>, <4 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 2) to <4 x i32>*), align 8
@@ -958,7 +958,7 @@ define i32 @maxi8_wrong_parent(i32) {
 ; AVX2-NEXT:    ret i32 [[OP_EXTRA]]
 ;
 ; SKX-LABEL: @maxi8_wrong_parent(
-; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32>, <2 x i32>* bitcast ([32 x i32]* @arr to <2 x i32>*), align 16
+; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32>, <2 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32],  [32 x i32]* @arr, i64 0, i64 0) to <2 x i32>*), align 16
 ; SKX-NEXT:    [[TMP3:%.*]] = extractelement <2 x i32> [[TMP2]], i32 0
 ; SKX-NEXT:    [[TMP4:%.*]] = extractelement <2 x i32> [[TMP2]], i32 1
 ; SKX-NEXT:    [[TMP5:%.*]] = icmp sgt i32 [[TMP3]], [[TMP4]]
