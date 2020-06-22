@@ -405,7 +405,7 @@ public:
                          MDNode *ScopeTag = nullptr,
                          MDNode *NoAliasTag = nullptr,
                          bool byteLayout = true) {
-    return CreateMemSet(Ptr, Val, getInt64(Size), Align, isVolatile,
+    return CreateMemSet(Ptr, Val, getInt32(Size), Align, isVolatile,
                         TBAATag, ScopeTag, NoAliasTag, byteLayout);
   }
 
@@ -451,7 +451,7 @@ public:
                          MDNode *ScopeTag = nullptr,
                          MDNode *NoAliasTag = nullptr,
                          bool byteLayout = true) {
-    return CreateMemCpy(Dst, DstAlign, Src, SrcAlign, getInt64(Size),
+    return CreateMemCpy(Dst, DstAlign, Src, SrcAlign, getInt32(Size),
                         isVolatile, TBAATag, TBAAStructTag, ScopeTag,
                         NoAliasTag, byteLayout);
   }
@@ -498,7 +498,7 @@ public:
                           uint64_t Size, bool isVolatile = false,
                           MDNode *TBAATag = nullptr, MDNode *ScopeTag = nullptr,
                           MDNode *NoAliasTag = nullptr, bool byteLayout = true) {
-    return CreateMemMove(Dst, DstAlign, Src, SrcAlign, getInt64(Size), isVolatile,
+    return CreateMemMove(Dst, DstAlign, Src, SrcAlign, getInt32(Size), isVolatile,
                          TBAATag, ScopeTag, NoAliasTag, byteLayout);
   }
 
