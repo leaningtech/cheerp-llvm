@@ -696,7 +696,7 @@ define void @VACopy(i8* %p1, i8* %p2) nounwind uwtable sanitize_memory {
 }
 
 ; CHECK-LABEL: @VACopy
-; CHECK: call void @llvm.memset.p0i8.i64({{.*}}, i8 0, i64 24, i1 false)
+; CHECK: call void @llvm.memset.p0i8.i32({{.*}}, i8 0, i32 24, i1 false)
 ; CHECK: ret void
 
 
@@ -915,7 +915,7 @@ entry:
 ; third struct through the overflow area byval
 ; CHECK: ptrtoint %struct.StructByVal* {{.*}} to i64
 ; CHECK: bitcast { i32, i32, i32, i32 }* {{.*}}@__msan_va_arg_tls {{.*}}, i64 176
-; CHECK: call void @llvm.memcpy.p0i8.p0i8.i64
+; CHECK: call void @llvm.memcpy.p0i8.p0i8.i32
 ; CHECK: store i64 16, i64* @__msan_va_arg_overflow_size_tls
 ; CHECK: call void (i32, ...) @VAArgStructFn
 ; CHECK: ret void
