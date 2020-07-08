@@ -19,21 +19,21 @@
 ; COMMON: @__profc_foo = hidden global
 ; COMMON: @__profd_foo = hidden global
 define void @foo() {
-  call void @llvm.instrprof.increment(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @__profn_foo, i32 0, i32 0), i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment(i8* bitcast ([3 x i8]* @__profn_foo to i8*), i64 0, i32 1, i32 0)
   ret void
 }
 
 ; COMMON: @__profc_foo_weak = weak hidden global
 ; COMMON: @__profd_foo_weak = weak hidden global
 define weak void @foo_weak() {
-  call void @llvm.instrprof.increment(i8* getelementptr inbounds ([8 x i8], [8 x i8]* @__profn_foo_weak, i32 0, i32 0), i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment(i8* bitcast ([8 x i8]* @__profn_foo_weak to i8*), i64 0, i32 1, i32 0)
   ret void
 }
 
 ; COMMON: @"__profc_linkage.ll:foo_internal" = internal global
 ; COMMON: @"__profd_linkage.ll:foo_internal" = internal global
 define internal void @foo_internal() {
-  call void @llvm.instrprof.increment(i8* getelementptr inbounds ([23 x i8], [23 x i8]* @"__profn_linkage.ll:foo_internal", i32 0, i32 0), i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment(i8* bitcast ([23 x i8]* @"__profn_linkage.ll:foo_internal" to i8*), i64 0, i32 1, i32 0)
   ret void
 }
 
@@ -42,7 +42,7 @@ define internal void @foo_internal() {
 ; COMMON: @__profd_foo_inline = linkonce_odr hidden global
 ; COFF-SAME: section ".lprfd", align 8
 define linkonce_odr void @foo_inline() {
-  call void @llvm.instrprof.increment(i8* getelementptr inbounds ([10 x i8], [10 x i8]* @__profn_foo_inline, i32 0, i32 0), i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment(i8* bitcast ([10 x i8]* @__profn_foo_inline to i8*), i64 0, i32 1, i32 0)
   ret void
 }
 
@@ -53,7 +53,7 @@ define linkonce_odr void @foo_inline() {
 ; COFF: @__profc_foo_extern = linkonce_odr hidden global {{.*}}section ".lprfc", comdat, align 8
 ; COFF: @__profd_foo_extern = linkonce_odr hidden global {{.*}}section ".lprfd", comdat($__profc_foo_extern), align 8
 define available_externally void @foo_extern() {
-  call void @llvm.instrprof.increment(i8* getelementptr inbounds ([10 x i8], [10 x i8]* @__profn_foo_extern, i32 0, i32 0), i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment(i8* bitcast ([10 x i8]* @__profn_foo_extern to i8*), i64 0, i32 1, i32 0)
   ret void
 }
 
