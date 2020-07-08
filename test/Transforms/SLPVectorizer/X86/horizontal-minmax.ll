@@ -1108,7 +1108,7 @@ define i32* @maxp8(i32) {
 ; AVX2-NEXT:    ret i32* [[TMP23]]
 ;
 ; SKX-LABEL: @maxp8(
-; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32*>, <2 x i32*>* bitcast ([32 x i32*]* @arrp to <2 x i32*>*), align 16
+; SKX-NEXT:    [[TMP2:%.*]] = load <2 x i32*>, <2 x i32*>* bitcast (i32** getelementptr inbounds ([32 x i32*], [32 x i32*]* @arrp, i64 0, i64 0) to <2 x i32*>*), align 16
 ; SKX-NEXT:    [[TMP3:%.*]] = extractelement <2 x i32*> [[TMP2]], i32 0
 ; SKX-NEXT:    [[TMP4:%.*]] = extractelement <2 x i32*> [[TMP2]], i32 1
 ; SKX-NEXT:    [[TMP5:%.*]] = icmp ugt i32* [[TMP3]], [[TMP4]]

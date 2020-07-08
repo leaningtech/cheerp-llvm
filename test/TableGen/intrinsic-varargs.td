@@ -29,5 +29,5 @@ def isVoid : ValueType<0, 127>;   // Produces no value
 def varArg : ValueType<0, 128>;   // Produces no value
 def llvm_vararg_ty : LLVMType<isVoid>;   // this means vararg here
 
-// CHECK: /* 0 */ 0, 41, 0,
+// CHECK: /* 0 */ 0, 42, 0,
 def int_foo : Intrinsic<"llvm.foo", [llvm_vararg_ty]>;

@@ -1168,7 +1168,7 @@ define void @float_red_example4(float* %res) {
 ;
 ; STORE-LABEL: @float_red_example4(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast ([32 x float]* @arr_float to <4 x float>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <4 x float>, <4 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <4 x float>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = fadd fast float undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = fadd fast float undef, [[ADD]]
 ; STORE-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <4 x float> [[TMP0]], <4 x float> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
@@ -1215,7 +1215,7 @@ define void @float_red_example8(float* %res) {
 ;
 ; STORE-LABEL: @float_red_example8(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <8 x float>, <8 x float>* bitcast ([32 x float]* @arr_float to <8 x float>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <8 x float>, <8 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <8 x float>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = fadd fast float undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = fadd fast float undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = fadd fast float undef, [[ADD_1]]
@@ -1292,7 +1292,7 @@ define void @float_red_example16(float* %res) {
 ;
 ; STORE-LABEL: @float_red_example16(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <16 x float>, <16 x float>* bitcast ([32 x float]* @arr_float to <16 x float>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <16 x float>, <16 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr_float, i64 0, i64 0) to <16 x float>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = fadd fast float undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = fadd fast float undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = fadd fast float undef, [[ADD_1]]
@@ -1371,7 +1371,7 @@ define void @i32_red_example4(i32* %res) {
 ;
 ; STORE-LABEL: @i32_red_example4(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <4 x i32>, <4 x i32>* bitcast ([32 x i32]* @arr_i32 to <4 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <4 x i32>, <4 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <4 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[RDX_SHUF:%.*]] = shufflevector <4 x i32> [[TMP0]], <4 x i32> undef, <4 x i32> <i32 2, i32 3, i32 undef, i32 undef>
@@ -1418,7 +1418,7 @@ define void @i32_red_example8(i32* %res) {
 ;
 ; STORE-LABEL: @i32_red_example8(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
@@ -1495,7 +1495,7 @@ define void @i32_red_example16(i32* %res) {
 ;
 ; STORE-LABEL: @i32_red_example16(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <16 x i32>, <16 x i32>* bitcast ([32 x i32]* @arr_i32 to <16 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <16 x i32>, <16 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <16 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
@@ -1630,7 +1630,7 @@ define void @i32_red_example32(i32* %res) {
 ;
 ; STORE-LABEL: @i32_red_example32(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <32 x i32>, <32 x i32>* bitcast ([32 x i32]* @arr_i32 to <32 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <32 x i32>, <32 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <32 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
@@ -1769,7 +1769,7 @@ define void @i32_red_call(i32 %val) {
 ;
 ; STORE-LABEL: @i32_red_call(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
@@ -1836,7 +1836,7 @@ define void @i32_red_invoke(i32 %val) personality i32 (...)* @__gxx_personality_
 ;
 ; STORE-LABEL: @i32_red_invoke(
 ; STORE-NEXT:  entry:
-; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr_i32 to <8 x i32>*), align 16
+; STORE-NEXT:    [[TMP0:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr_i32, i64 0, i64 0) to <8 x i32>*), align 16
 ; STORE-NEXT:    [[ADD:%.*]] = add nsw i32 undef, undef
 ; STORE-NEXT:    [[ADD_1:%.*]] = add nsw i32 undef, [[ADD]]
 ; STORE-NEXT:    [[ADD_2:%.*]] = add nsw i32 undef, [[ADD_1]]
