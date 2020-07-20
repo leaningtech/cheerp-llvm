@@ -440,6 +440,7 @@ void initializeCheerpLowerSwitchPass(PassRegistry&);
 void initializeFixFunctionCastsPass(PassRegistry&);
 void initializeByValLoweringPass(PassRegistry&);
 void initializeI64LoweringPass(PassRegistry&);
+void initializeConstantExprLoweringPass(PassRegistry&);
 
 } // end namespace llvm
 
