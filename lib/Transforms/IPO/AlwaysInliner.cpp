@@ -146,7 +146,7 @@ InlineCost AlwaysInlinerLegacyPass::getInlineCost(CallSite CS) {
 
   Function* caller=CS.getCaller();
   if (!isInlineViableCheerp(*Callee, *caller))
-    return llvm::InlineCost::getNever();
+    return llvm::InlineCost::getNever("not Cheerp viable");
 
   // Only inline direct calls to functions with always-inline attributes
   // that are viable for inlining. FIXME: We shouldn't even get here for
