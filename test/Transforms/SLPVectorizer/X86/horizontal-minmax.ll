@@ -11,7 +11,7 @@
 
 define i32 @maxi8(i32) {
 ; CHECK-LABEL: @maxi8(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x i32>, <8 x i32>* bitcast ([32 x i32]* @arr to <8 x i32>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x i32>, <8 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @arr, i64 0, i64 0) to <8 x i32>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp sgt i32 undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], i32 undef, i32 undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = icmp sgt i32 [[TMP4]], undef
@@ -342,7 +342,7 @@ define i32 @maxi32(i32) {
 
 define float @maxf8(float) {
 ; CHECK-LABEL: @maxf8(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x float>, <8 x float>* bitcast ([32 x float]* @arr1 to <8 x float>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <8 x float>, <8 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr1, i64 0, i64 0) to <8 x float>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = fcmp fast ogt float undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], float undef, float undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = fcmp fast ogt float [[TMP4]], undef
@@ -396,7 +396,7 @@ define float @maxf8(float) {
 
 define float @maxf16(float) {
 ; CHECK-LABEL: @maxf16(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <16 x float>, <16 x float>* bitcast ([32 x float]* @arr1 to <16 x float>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <16 x float>, <16 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr1, i64 0, i64 0) to <16 x float>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = fcmp fast ogt float undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], float undef, float undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = fcmp fast ogt float [[TMP4]], undef
@@ -493,7 +493,7 @@ define float @maxf16(float) {
 
 define float @maxf32(float) {
 ; CHECK-LABEL: @maxf32(
-; CHECK-NEXT:    [[TMP2:%.*]] = load <32 x float>, <32 x float>* bitcast ([32 x float]* @arr1 to <32 x float>*), align 16
+; CHECK-NEXT:    [[TMP2:%.*]] = load <32 x float>, <32 x float>* bitcast (float* getelementptr inbounds ([32 x float], [32 x float]* @arr1, i64 0, i64 0) to <32 x float>*), align 16
 ; CHECK-NEXT:    [[TMP3:%.*]] = fcmp fast ogt float undef, undef
 ; CHECK-NEXT:    [[TMP4:%.*]] = select i1 [[TMP3]], float undef, float undef
 ; CHECK-NEXT:    [[TMP5:%.*]] = fcmp fast ogt float [[TMP4]], undef

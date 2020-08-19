@@ -39,7 +39,7 @@ define void @splat(i8 %a, i8 %b, i8 %c) {
 ; CHECK-NEXT:    [[TMP18:%.*]] = insertelement <2 x i8> [[TMP17]], i8 [[B:%.*]], i32 1
 ; CHECK-NEXT:    [[SHUFFLE:%.*]] = shufflevector <2 x i8> [[TMP18]], <2 x i8> undef, <16 x i32> <i32 0, i32 0, i32 0, i32 0, i32 0, i32 1, i32 0, i32 1, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0>
 ; CHECK-NEXT:    [[TMP19:%.*]] = xor <16 x i8> [[TMP16]], [[SHUFFLE]]
-; CHECK-NEXT:    store <16 x i8> [[TMP19]], <16 x i8>* bitcast ([32 x i8]* @cle to <16 x i8>*), align 16
+; CHECK-NEXT:    store <16 x i8> [[TMP19]], <16 x i8>* bitcast (i8* getelementptr inbounds ([32 x i8], [32 x i8]* @cle, i64 0, i64 0) to <16 x i8>*), align 16
 ; CHECK-NEXT:    ret void
 ;
   %1 = xor i8 %c, %a
