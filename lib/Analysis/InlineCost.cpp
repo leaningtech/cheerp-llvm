@@ -966,7 +966,7 @@ void CallAnalyzer::updateThreshold(CallSite CS, Function &Callee) {
   SingleBBBonus = Threshold * SingleBBBonusPercent / 100;
   VectorBonus = Threshold * VectorBonusPercent / 100;
 
-  bool OnlyOneCallAndLocalLinkage = DL.isByteAddressable() &&
+  bool OnlyOneCallAndLocalLinkage =
       F.hasLocalLinkage() && F.hasOneUse() && &F == CS.getCalledFunction();
   // If there is only one call of the function, and it has internal linkage,
   // the cost of inlining it drops dramatically. It may seem odd to update
@@ -1895,7 +1895,7 @@ InlineResult CallAnalyzer::analyzeCall(CallSite CS) {
     }
   }
 
-  bool OnlyOneCallAndLocalLinkage = DL.isByteAddressable() &&
+  bool OnlyOneCallAndLocalLinkage =
       F.hasLocalLinkage() && F.hasOneUse() && &F == CS.getCalledFunction();
   // If this is a noduplicate call, we can still inline as long as
   // inlining this would cause the removal of the caller (so the instruction
