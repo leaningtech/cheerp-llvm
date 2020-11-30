@@ -67,7 +67,6 @@ attributes #1 = { nounwind readnone }
 !22 = !DILocation(line: 8, column: 13, scope: !14)
 !23 = !DILocation(line: 8, column: 3, scope: !14)
 ; LINES: main:
-; LINES-NEXT: ; {{[ -\(\)_A-Za-z0-9.\\/:]+}}source-interleave-x86_64.c:6
 
 ; SOURCE: main:
 ; SOURCE-NEXT: ; int main() {
