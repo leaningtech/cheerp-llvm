@@ -542,7 +542,7 @@ const Value *Value::stripPointerCastsSafe() const {
 
 const Value *Value::stripPointerCastsSameRepresentation() const {
   return stripPointerCastsAndOffsets<
-      PSK_ZeroIndicesAndAliasesSameRepresentation>(this);
+      PSK_ZeroIndicesAndAliasesSameRepresentation>(this, false);
 }
 
 const Value *Value::stripPointerCastsNoFollowAliases() const {
