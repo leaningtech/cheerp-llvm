@@ -303,7 +303,7 @@ bool llvm::isReallocLikeFn(const Value *V, const TargetLibraryInfo *TLI,
 /// Tests if a functions is a call or invoke to a library function that
 /// reallocates memory (e.g., realloc).
 bool llvm::isReallocLikeFn(const Function *F, const TargetLibraryInfo *TLI) {
-  return getAllocationDataForFunction(F, ReallocLike, TLI).hasValue();
+  return getAllocationDataForFunction(F, ReallocLike, TLI, nullptr).hasValue();
 }
 
 /// extractMallocCall - Returns the corresponding CallInst if the instruction
