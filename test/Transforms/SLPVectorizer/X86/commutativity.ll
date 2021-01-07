@@ -97,7 +97,7 @@ define void @same_opcode_on_one_side(i32 %a, i32 %b, i32 %c) {
 ; CHECK-NEXT:    [[TMP11:%.*]] = insertelement <4 x i32> [[TMP10]], i32 [[C]], i32 2
 ; CHECK-NEXT:    [[TMP12:%.*]] = insertelement <4 x i32> [[TMP11]], i32 [[A]], i32 3
 ; CHECK-NEXT:    [[TMP13:%.*]] = xor <4 x i32> [[TMP9]], [[TMP12]]
-; CHECK-NEXT:    store <4 x i32> [[TMP13]], <4 x i32>* bitcast ([32 x i32]* @cle32 to <4 x i32>*), align 16
+; CHECK-NEXT:    store <4 x i32> [[TMP13]], <4 x i32>* bitcast (i32* getelementptr inbounds ([32 x i32], [32 x i32]* @cle32, i64 0, i64 0) to <4 x i32>*), align 16
 ; CHECK-NEXT:    ret void
 ;
   %add1 = add i32 %c, %a
